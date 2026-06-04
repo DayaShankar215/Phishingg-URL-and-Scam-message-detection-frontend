@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { scanURL } from '../services/api';
+import { scanURL, submitFeedback } from '../services/api';
 import { validateURL } from '../utils/validators';
-import { FaShieldAlt, FaDownload, FaInfoCircle, FaLink, FaExclamationTriangle, FaCheckCircle, FaCopy, FaExternalLinkAlt } from 'react-icons/fa';
+import { FaShieldAlt, FaDownload, FaInfoCircle, FaLink, FaExclamationTriangle, FaCopy, FaStar, FaRegStar, FaThumbsUp, FaThumbsDown } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../services/pdfGenerator';
 
@@ -11,6 +11,18 @@ const URLScanner = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  
+  // Feedback state
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedback, setFeedback] = useState({
+    scanId: '',
+    type: 'url',
+    isAccurate: true,
+    rating: 0,
+    comments: ''
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   const handleScan = async (e) => {
     e.preventDefault();
@@ -24,10 +36,15 @@ const URLScanner = () => {
 
     setLoading(true);
     setError(null);
+    setShowFeedback(false);
+    setFeedbackSubmitted(false);
     
     try {
       const response = await scanURL(url);
       setResult(response);
+      setShowFeedback(true);
+      // Set the scan ID for feedback
+      setFeedback(prev => ({ ...prev, scanId: response.id }));
       toast.success('Scan completed successfully!');
     } catch (err) {
       const errorMsg = err.message || 'Failed to scan URL';
@@ -54,6 +71,67 @@ const URLScanner = () => {
     setCopied(true);
     toast.success('URL copied to clipboard!');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleFeedbackSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!feedback.scanId) {
+      toast.error('Scan ID not found');
+      return;
+    }
+
+    if (feedback.rating === 0) {
+      toast.error('Please rate the detection accuracy');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await submitFeedback(
+        feedback.scanId,
+        feedback.type,
+        feedback.isAccurate,
+        feedback.comments,
+        feedback.rating
+      );
+      setFeedbackSubmitted(true);
+      toast.success('Thank you for your feedback!');
+      setTimeout(() => {
+        setShowFeedback(false);
+        setFeedbackSubmitted(false);
+      }, 3000);
+    } catch (error) {
+      toast.error('Failed to submit feedback');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const renderStars = () => {
+    return [1, 2, 3, 4, 5].map((star) => (
+      <button
+        key={star}
+        type="button"
+        onClick={() => setFeedback({ ...feedback, rating: star })}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          fontSize: '30px',
+          transition: 'transform 0.2s',
+          padding: '0 4px'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+      >
+        {star <= feedback.rating ? (
+          <FaStar style={{ color: '#ffc107' }} />
+        ) : (
+          <FaRegStar style={{ color: '#ddd' }} />
+        )}
+      </button>
+    ));
   };
 
   const getRiskColor = (score) => {
@@ -432,6 +510,135 @@ const URLScanner = () => {
             </div>
           )}
 
+          {/* Feedback Section - Same as Feedback Page */}
+          {showFeedback && !feedbackSubmitted && (
+            <div className="card" style={{ marginTop: '24px', marginBottom: '24px' }}>
+              <form onSubmit={handleFeedbackSubmit}>
+                <div className="input-group">
+                  <label className="label">Scan ID</label>
+                  <input
+                    type="text"
+                    value={feedback.scanId}
+                    disabled
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '2px solid #e0e0e0',
+                      borderRadius: '8px',
+                      background: '#f5f5f5'
+                    }}
+                  />
+                  <p style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
+                    This Scan ID is automatically taken from your scan
+                  </p>
+                </div>
+
+                <div className="input-group">
+                  <label className="label">Was the detection accurate?</label>
+                  <div style={{ display: 'flex', gap: '15px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setFeedback({ ...feedback, isAccurate: true })}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 20px',
+                        background: feedback.isAccurate === true ? '#e8f5e9' : '#f5f5f5',
+                        border: feedback.isAccurate === true ? '2px solid #4caf50' : '2px solid transparent',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        color: feedback.isAccurate === true ? '#2e7d32' : '#666',
+                        fontWeight: feedback.isAccurate === true ? '600' : '400'
+                      }}
+                    >
+                      <FaThumbsUp />
+                      <span>Yes, accurate</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFeedback({ ...feedback, isAccurate: false })}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 20px',
+                        background: feedback.isAccurate === false ? '#ffebee' : '#f5f5f5',
+                        border: feedback.isAccurate === false ? '2px solid #f44336' : '2px solid transparent',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        color: feedback.isAccurate === false ? '#c62828' : '#666',
+                        fontWeight: feedback.isAccurate === false ? '600' : '400'
+                      }}
+                    >
+                      <FaThumbsDown />
+                      <span>No, inaccurate</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="input-group">
+                  <label className="label">Rate the detection quality *</label>
+                  <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {renderStars()}
+                    {feedback.rating > 0 && (
+                      <span style={{ marginLeft: '10px', color: '#666', fontSize: '14px' }}>
+                        {feedback.rating === 5 ? 'Excellent!' : 
+                         feedback.rating === 4 ? 'Good' : 
+                         feedback.rating === 3 ? 'Average' : 
+                         feedback.rating === 2 ? 'Poor' : 'Very Poor'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="input-group">
+                  <label className="label" htmlFor="comments">
+                    Additional Comments
+                  </label>
+                  <textarea
+                    id="comments"
+                    rows="4"
+                    value={feedback.comments}
+                    onChange={(e) => setFeedback({ ...feedback, comments: e.target.value })}
+                    placeholder="Tell us more about your experience..."
+                    className="input-field"
+                    style={{ resize: 'vertical' }}
+                  />
+                  <p style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
+                    {feedback.comments.length}/500 characters
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="btn-primary"
+                  style={{ width: '100%' }}
+                >
+                  {submitting ? 'Submitting...' : 'Submit Feedback'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Thank You Message */}
+          {feedbackSubmitted && (
+            <div style={{
+              marginTop: '24px',
+              marginBottom: '24px',
+              padding: '20px',
+              background: '#e8f5e9',
+              borderRadius: '12px',
+              textAlign: 'center',
+              border: '1px solid #4caf50'
+            }}>
+              <FaThumbsUp style={{ fontSize: '40px', color: '#4caf50', marginBottom: '10px' }} />
+              <h3 style={{ color: '#2e7d32', marginBottom: '8px' }}>Thank You for Your Feedback!</h3>
+              <p style={{ color: '#666' }}>Your feedback helps us improve our detection accuracy.</p>
+            </div>
+          )}
+
           {/* Recommendation */}
           <div style={{
             background: `linear-gradient(135deg, ${riskColor.bg}15 0%, white 100%)`,
@@ -477,6 +684,60 @@ const URLScanner = () => {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+
+        .input-field {
+          width: 100%;
+          padding: 12px;
+          border: 2px solid #e0e0e0;
+          border-radius: 8px;
+          font-size: 16px;
+          transition: border-color 0.2s;
+        }
+
+        .input-field:focus {
+          outline: none;
+          border-color: #667eea;
+        }
+
+        .label {
+          display: block;
+          margin-bottom: 8px;
+          font-weight: 600;
+          color: #333;
+        }
+
+        .input-group {
+          margin-bottom: 20px;
+        }
+
+        .btn-primary {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 12px 24px;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-primary:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .card {
+          background: white;
+          border-radius: 12px;
+          padding: 24px;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
       `}</style>
     </div>
