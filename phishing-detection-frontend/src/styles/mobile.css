@@ -1,0 +1,260 @@
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  /* Dashboard Stats Grid */
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Stat Cards */
+  .stat-card-premium {
+    padding: 20px !important;
+  }
+  
+  .stat-value {
+    font-size: 28px !important;
+  }
+  
+  /* Welcome Section */
+  .welcome-title {
+    font-size: 28px !important;
+  }
+  
+  .welcome-subtitle {
+    font-size: 14px !important;
+  }
+  
+  /* Charts */
+  .chart-container {
+    padding: 16px !important;
+  }
+  
+  .chart-title {
+    font-size: 16px !important;
+  }
+  
+  /* Tables */
+  .table-premium td,
+  .table-premium th {
+    padding: 12px !important;
+    font-size: 12px !important;
+  }
+  
+  /* Navbar */
+  .navbar-container {
+    padding: 0.75rem 1rem !important;
+  }
+  
+  .logo span {
+    font-size: 18px !important;
+  }
+  
+  /* Footer */
+  .footer-content {
+    grid-template-columns: 1fr !important;
+    gap: 30px !important;
+    text-align: center !important;
+  }
+  
+  .social-links {
+    justify-content: center !important;
+  }
+  
+  /* Scanner Pages */
+  .scanner-container {
+    padding: 20px 15px !important;
+  }
+  
+  .scanner-card {
+    padding: 20px !important;
+  }
+  
+  /* Result Cards */
+  .result-card {
+    padding: 16px !important;
+  }
+  
+  .risk-score-container {
+    margin: 15px 0 !important;
+  }
+  
+  /* Features Grid */
+  .features-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  
+  /* Buttons */
+  .btn-primary, .btn-secondary {
+    padding: 10px 20px !important;
+    font-size: 14px !important;
+  }
+  
+  /* Forms */
+  .input-field {
+    padding: 10px !important;
+    font-size: 14px !important;
+  }
+  
+  /* Modals */
+  .modal-content {
+    width: 95% !important;
+    margin: 10px !important;
+  }
+  
+  .modal-header {
+    padding: 15px !important;
+  }
+  
+  .modal-body {
+    padding: 15px !important;
+  }
+  
+  /* History Page */
+  .history-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 15px !important;
+  }
+  
+  /* Feedback Page */
+  .feedback-form {
+    padding: 20px !important;
+  }
+  
+  .stars-container {
+    justify-content: center !important;
+  }
+  
+  /* URL and Message Scanner */
+  .scan-input-container {
+    flex-direction: column !important;
+  }
+  
+  .scan-input-container button {
+    width: 100% !important;
+    margin-top: 10px !important;
+  }
+  
+  /* Dashboard Charts */
+  .charts-row {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Container Padding */
+  .container {
+    padding: 0 15px !important;
+  }
+  
+  /* Cards */
+  .card {
+    padding: 16px !important;
+  }
+  
+  /* Risk Score Display */
+  .risk-score-display {
+    font-size: 32px !important;
+  }
+  
+  /* Feature Analysis */
+  .feature-item {
+    flex-direction: column !important;
+    gap: 5px !important;
+  }
+  
+  /* Tabs */
+  .tabs-container {
+    flex-direction: column !important;
+  }
+  
+  .tab-button {
+    width: 100% !important;
+    margin-bottom: 5px !important;
+  }
+}
+
+/* Small Mobile Devices (max-width: 480px) */
+@media (max-width: 480px) {
+  .stat-value {
+    font-size: 24px !important;
+  }
+  
+  .welcome-title {
+    font-size: 24px !important;
+  }
+  
+  .table-premium td,
+  .table-premium th {
+    padding: 8px !important;
+    font-size: 10px !important;
+  }
+  
+  .modal-header h2 {
+    font-size: 18px !important;
+  }
+  
+  .badge {
+    font-size: 10px !important;
+    padding: 3px 6px !important;
+  }
+  
+  .risk-score-display {
+    font-size: 28px !important;
+  }
+}
+
+/* Tablet Devices (769px to 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  .charts-row {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Landscape Mode for Mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  .navbar-container {
+    padding: 0.5rem 1rem !important;
+  }
+  
+  .modal-content {
+    max-height: 90vh !important;
+  }
+  
+  .result-card {
+    margin-top: 20px !important;
+  }
+}
+
+/* Smooth Scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom Selection */
+::selection {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+/* Custom Scrollbar for Mobile */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 2px;
+  }
+}
