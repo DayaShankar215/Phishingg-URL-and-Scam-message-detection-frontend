@@ -7,7 +7,7 @@ import Dashboard from './pages/Dashboard';
 import URLScanner from './pages/URLScanner';
 import MessageScanner from './pages/MessageScanner';
 import History from './pages/History';
-import Feedback from './pages/Feedback';
+// import Feedback from './pages/Feedback';
 
 function App() {
   return (
@@ -20,7 +20,7 @@ function App() {
             <Route path="/url-scan" element={<URLScanner />} />
             <Route path="/message-scan" element={<MessageScanner />} />
             <Route path="/history" element={<History />} />
-            <Route path="/feedback" element={<Feedback />} />
+            {/* <Route path="/feedback" element={<Feedback />} /> */}
           </Routes>
         </main>
         <Footer />

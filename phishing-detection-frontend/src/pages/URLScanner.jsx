@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { scanURL } from '../services/api';
+import { scanURL, submitFeedback } from '../services/api';
 import { validateURL } from '../utils/validators';
-import { FaShieldAlt, FaDownload, FaInfoCircle, FaLink, FaExclamationTriangle, FaCheckCircle, FaCopy, FaExternalLinkAlt } from 'react-icons/fa';
+import { FaShieldAlt, FaDownload, FaInfoCircle, FaLink, FaExclamationTriangle, FaCheckCircle, FaCopy, FaExternalLinkAlt, FaStar, FaRegStar, FaThumbsUp, FaThumbsDown } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../services/pdfGenerator';
 
@@ -11,6 +11,18 @@ const URLScanner = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  
+  // Feedback state
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedback, setFeedback] = useState({
+    scanId: '',
+    type: 'url',
+    isAccurate: true,
+    rating: 0,
+    comments: ''
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   const handleScan = async (e) => {
     e.preventDefault();
@@ -24,10 +36,14 @@ const URLScanner = () => {
 
     setLoading(true);
     setError(null);
+    setShowFeedback(false);
+    setFeedbackSubmitted(false);
     
     try {
       const response = await scanURL(url);
       setResult(response);
+      setShowFeedback(true);
+      setFeedback(prev => ({ ...prev, scanId: response.id }));
       toast.success('Scan completed successfully!');
     } catch (err) {
       const errorMsg = err.message || 'Failed to scan URL';
@@ -54,6 +70,67 @@ const URLScanner = () => {
     setCopied(true);
     toast.success('URL copied to clipboard!');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleFeedbackSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!feedback.scanId) {
+      toast.error('Scan ID not found');
+      return;
+    }
+
+    if (feedback.rating === 0) {
+      toast.error('Please rate the detection accuracy');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await submitFeedback(
+        feedback.scanId,
+        feedback.type,
+        feedback.isAccurate,
+        feedback.comments,
+        feedback.rating
+      );
+      setFeedbackSubmitted(true);
+      toast.success('Thank you for your feedback! 🎉');
+      setTimeout(() => {
+        setShowFeedback(false);
+        setFeedbackSubmitted(false);
+      }, 3000);
+    } catch (error) {
+      toast.error('Failed to submit feedback');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const renderStars = () => {
+    return [1, 2, 3, 4, 5].map((star) => (
+      <button
+        key={star}
+        type="button"
+        onClick={() => setFeedback({ ...feedback, rating: star })}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          fontSize: '30px',
+          transition: 'transform 0.2s',
+          padding: '0 4px'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+      >
+        {star <= feedback.rating ? (
+          <FaStar style={{ color: '#ffc107' }} />
+        ) : (
+          <FaRegStar style={{ color: '#ddd' }} />
+        )}
+      </button>
+    ));
   };
 
   const getRiskColor = (score) => {
@@ -234,7 +311,7 @@ const URLScanner = () => {
             marginBottom: '24px',
             border: `1px solid ${riskColor.bg}40`
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
               <div>
                 <h3 style={{ fontSize: '18px', color: '#64748b', marginBottom: '8px' }}>Risk Assessment</h3>
                 <div style={{ fontSize: '48px', fontWeight: '800', color: riskColor.text }}>
@@ -429,6 +506,246 @@ const URLScanner = () => {
                   </strong>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Feedback Section */}
+          {showFeedback && !feedbackSubmitted && (
+            <div style={{
+              background: 'white',
+              borderRadius: '24px',
+              padding: '32px',
+              marginBottom: '24px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+              border: '1px solid #e2e8f0'
+            }}>
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  background: 'linear-gradient(135deg, #667eea20 0%, #764ba220 100%)',
+                  padding: '8px 20px',
+                  borderRadius: '100px',
+                  marginBottom: '16px'
+                }}>
+                  <FaThumbsUp style={{ color: '#667eea' }} />
+                  <span style={{ fontWeight: '600', color: '#667eea' }}>Help Us Improve</span>
+                </div>
+                <h3 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b' }}>Was this detection accurate?</h3>
+                <p style={{ color: '#64748b', marginTop: '8px' }}>Your feedback helps us train better AI models</p>
+              </div>
+
+              <form onSubmit={handleFeedbackSubmit}>
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '8px',
+                    fontWeight: '600',
+                    color: '#1e293b',
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Scan ID
+                  </label>
+                  <input
+                    type="text"
+                    value={feedback.scanId}
+                    disabled
+                    style={{
+                      width: '100%',
+                      padding: '14px 16px',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '12px',
+                      background: '#f8fafc',
+                      fontSize: '14px',
+                      color: '#64748b'
+                    }}
+                  />
+                  <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px' }}>
+                    This Scan ID is automatically taken from your scan
+                  </p>
+                </div>
+
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '12px',
+                    fontWeight: '600',
+                    color: '#1e293b',
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Was the detection accurate?
+                  </label>
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setFeedback({ ...feedback, isAccurate: true })}
+                      style={{
+                        flex: 1,
+                        padding: '14px',
+                        background: feedback.isAccurate === true ? '#10b981' : '#f8fafc',
+                        color: feedback.isAccurate === true ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '14px',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        transition: 'all 0.3s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <FaThumbsUp />
+                      Yes, accurate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFeedback({ ...feedback, isAccurate: false })}
+                      style={{
+                        flex: 1,
+                        padding: '14px',
+                        background: feedback.isAccurate === false ? '#ef4444' : '#f8fafc',
+                        color: feedback.isAccurate === false ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '14px',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        transition: 'all 0.3s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <FaThumbsDown />
+                      No, inaccurate
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '12px',
+                    fontWeight: '600',
+                    color: '#1e293b',
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Rate Detection Quality *
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {renderStars()}
+                    {feedback.rating > 0 && (
+                      <span style={{
+                        marginLeft: '16px',
+                        padding: '6px 12px',
+                        background: '#f1f5f9',
+                        borderRadius: '20px',
+                        fontSize: '14px',
+                        color: '#64748b'
+                      }}>
+                        {feedback.rating === 5 ? '🌟 Excellent!' :
+                         feedback.rating === 4 ? '😊 Good' :
+                         feedback.rating === 3 ? '😐 Average' :
+                         feedback.rating === 2 ? '😕 Poor' : '😞 Very Poor'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '28px' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '8px',
+                    fontWeight: '600',
+                    color: '#1e293b',
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Additional Comments
+                  </label>
+                  <textarea
+                    rows="4"
+                    value={feedback.comments}
+                    onChange={(e) => setFeedback({ ...feedback, comments: e.target.value })}
+                    placeholder="Tell us more about your experience... What could we improve?"
+                    style={{
+                      width: '100%',
+                      padding: '16px',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '16px',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      resize: 'vertical',
+                      transition: 'all 0.3s ease',
+                      outline: 'none'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                    onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                  />
+                  <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px', textAlign: 'right' }}>
+                    {feedback.comments.length}/500 characters
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  style={{
+                    width: '100%',
+                    background: submitting ? '#94a3b8' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    padding: '16px',
+                    border: 'none',
+                    borderRadius: '16px',
+                    fontSize: '16px',
+                    fontWeight: '700',
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  {submitting ? 'Submitting Feedback...' : 'Submit Feedback'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Thank You Message */}
+          {feedbackSubmitted && (
+            <div style={{
+              marginBottom: '24px',
+              padding: '32px',
+              background: 'linear-gradient(135deg, #10b98115 0%, #05966915 100%)',
+              borderRadius: '24px',
+              textAlign: 'center',
+              border: '1px solid #10b98130'
+            }}>
+              <div style={{
+                width: '80px',
+                height: '80px',
+                background: 'linear-gradient(135deg, #10b98120 0%, #05966920 100%)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px'
+              }}>
+                <FaCheckCircle style={{ fontSize: '48px', color: '#10b981' }} />
+              </div>
+              <h3 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', marginBottom: '12px' }}>
+                Thank You for Your Feedback!
+              </h3>
+              <p style={{ color: '#64748b' }}>
+                Your feedback helps us improve our AI models and make the internet safer for everyone.
+              </p>
             </div>
           )}
 
