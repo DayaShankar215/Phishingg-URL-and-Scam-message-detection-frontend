@@ -31,7 +31,7 @@ const Navbar = () => {
     { path: '/url-scan', label: 'URL Scanner', icon: FaGlobe },
     { path: '/message-scan', label: 'Message Scanner', icon: FaEnvelope },
     { path: '/history', label: 'History', icon: FaHistory },
-    { path: '/feedback', label: 'Feedback', icon: FaComments }
+    // { path: '/feedback', label: 'Feedback', icon: FaComments }
   ];
 
   const isActive = (path) => location.pathname === path;
