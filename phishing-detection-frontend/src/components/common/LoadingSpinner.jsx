@@ -17,6 +17,7 @@ const LoadingSpinner = ({ text = 'Loading...' }) => {
         ariaLabel="loading"
         visible={true}
       />
+      
       {text && <p style={{ marginTop: '20px', color: '#666' }}>{text}</p>}
     </div>
   );
