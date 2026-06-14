@@ -1,11 +1,11 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = "http://localhost:8080/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
   timeout: 30000,
 });
@@ -13,20 +13,20 @@ const api = axios.create({
 // URL Detection
 export const scanURL = async (url) => {
   try {
-    const response = await api.post('/scan/url', { url });
+    const response = await api.post("/scan/url", { url });
     return response.data;
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to scan URL' };
+    throw error.response?.data || { message: "Failed to scan URL" };
   }
 };
 
 // Message Detection
 export const scanMessage = async (message) => {
   try {
-    const response = await api.post('/scan/message', { message });
+    const response = await api.post("/scan/message", { message });
     return response.data;
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to scan message' };
+    throw error.response?.data || { message: "Failed to scan message" };
   }
 };
 
@@ -34,10 +34,10 @@ export const scanMessage = async (message) => {
 export const getScanHistory = async (type = null) => {
   try {
     const params = type ? { type } : {};
-    const response = await api.get('/scans', { params });
+    const response = await api.get("/scans", { params });
     return response.data;
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to fetch scan history' };
+    throw error.response?.data || { message: "Failed to fetch scan history" };
   }
 };
 
@@ -47,32 +47,36 @@ export const getScanById = async (id, type) => {
     const response = await api.get(`/scans/${type}/${id}`);
     return response.data;
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to fetch scan details' };
+    throw error.response?.data || { message: "Failed to fetch scan details" };
   }
 };
 
 // Submit Feedback
 export const submitFeedback = async (scanId, type, isAccurate, comments) => {
   try {
-    const response = await api.post('/feedback', {
+    const response = await api.post("/feedback", {
       scanId,
       type,
       isAccurate,
-      comments
+      comments,
     });
     return response.data;
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to submit feedback' };
+    throw error.response?.data || { message: "Failed to submit feedback" };
   }
 };
 
 // Get Dashboard Statistics
 export const getDashboardStats = async () => {
   try {
-    const response = await api.get('/dashboard/stats');
+    const response = await api.get("/dashboard/stats");
     return response.data;
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to fetch dashboard statistics' };
+    throw (
+      error.response?.data || {
+        message: "Failed to fetch dashboard statistics",
+      }
+    );
   }
 };
 
@@ -80,11 +84,11 @@ export const getDashboardStats = async () => {
 export const downloadPDFReport = async (scanId, type) => {
   try {
     const response = await api.get(`/reports/${type}/${scanId}/pdf`, {
-      responseType: 'blob'
+      responseType: "blob",
     });
     return response;
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to download PDF report' };
+    throw error.response?.data || { message: "Failed to download PDF report" };
   }
 };
 
