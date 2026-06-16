@@ -1,0 +1,25 @@
+export default {
+  primary: {
+    50: '#eff6ff',
+    100: '#dbeafe',
+    200: '#bfdbfe',
+    300: '#93c5fd',
+    400: '#60a5fa',
+    500: '#3b82f6',
+    600: '#2563eb',
+    700: '#1d4ed8',
+    800: '#1e40af',
+    900: '#1e3a8a',
+  },
+  danger: '#ef4444',
+  warning: '#f59e0b',
+  success: '#10b981',
+  dark: '#1e293b',
+  light: '#f8fafc',
+  gray: '#64748b',
+  lightGray: '#e2e8f0',
+  gradient: {
+    start: '#667eea',
+    end: '#764ba2',
+  },
+};
