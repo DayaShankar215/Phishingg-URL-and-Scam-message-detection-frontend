@@ -37,7 +37,7 @@ const Footer = () => {
     { name: "URL Scanner", path: "/url-scan" },
     { name: "Message Scanner", path: "/message-scan" },
     { name: "History", path: "/history" },
-    { name: "Feedback", path: "/feedback" },
+   
   ];
 
   const resources = [
