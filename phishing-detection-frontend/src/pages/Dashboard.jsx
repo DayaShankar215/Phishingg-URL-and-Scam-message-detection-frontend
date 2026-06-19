@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { getDashboardStats } from "../services/api";
+import { useNavigate } from "react-router-dom";
 import {
   FaShieldAlt,
   FaEnvelope,
@@ -10,6 +11,9 @@ import {
   FaBell,
   FaArrowUp,
   FaArrowDown,
+  FaRocket,
+  FaLink,
+  FaComment,
 } from "react-icons/fa";
 import {
   LineChart,
@@ -37,6 +41,7 @@ const Dashboard = () => {
     weeklyData: [],
   });
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboardStats();
@@ -129,6 +134,185 @@ const Dashboard = () => {
           Your AI-Powered Security Guardian • Real-time Protection Against Cyber
           Threats
         </p>
+      </div>
+
+      {/* Hero CTA Section - Start Scan */}
+      <div
+        style={{
+          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          borderRadius: "24px",
+          padding: "40px 48px",
+          marginBottom: "48px",
+          position: "relative",
+          overflow: "hidden",
+          color: "white",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "20px",
+        }}
+      >
+        {/* Decorative Background Elements */}
+        <div
+          style={{
+            position: "absolute",
+            top: "-80px",
+            right: "-80px",
+            width: "250px",
+            height: "250px",
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.05)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: "-60px",
+            left: "-60px",
+            width: "180px",
+            height: "180px",
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.05)",
+          }}
+        />
+        <div style={{ position: "relative", zIndex: 1, flex: 1 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginBottom: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                background: "rgba(255,255,255,0.15)",
+                padding: "4px 14px",
+                borderRadius: "100px",
+                fontSize: "12px",
+                fontWeight: "600",
+                letterSpacing: "0.5px",
+              }}
+            >
+              🛡️ AI-POWERED THREAT DETECTION
+            </span>
+            <span
+              style={{
+                background: "rgba(16, 185, 129, 0.25)",
+                padding: "4px 14px",
+                borderRadius: "100px",
+                fontSize: "12px",
+                fontWeight: "600",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "8px",
+                  height: "8px",
+                  background: "#10b981",
+                  borderRadius: "50%",
+                  animation: "pulse 2s infinite",
+                }}
+              />
+              LIVE PROTECTION
+            </span>
+          </div>
+          <h2
+            style={{
+              fontSize: "28px",
+              fontWeight: "700",
+              marginBottom: "8px",
+              lineHeight: "1.2",
+            }}
+          >
+            Check before you click or reply.
+          </h2>
+          <p
+            style={{
+              fontSize: "16px",
+              opacity: 0.9,
+              maxWidth: "480px",
+              lineHeight: "1.6",
+            }}
+          >
+            Scan suspicious URLs and messages in seconds with clear risk
+            explanations.
+          </p>
+        </div>
+        <div
+          style={{
+            position: "relative",
+            zIndex: 1,
+            display: "flex",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            onClick={() => navigate("/url-scan")}
+            style={{
+              background: "white",
+              color: "#667eea",
+              padding: "14px 28px",
+              border: "none",
+              borderRadius: "12px",
+              fontSize: "16px",
+              fontWeight: "600",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "10px",
+              transition: "all 0.3s ease",
+              boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+              e.currentTarget.style.boxShadow = "0 8px 25px rgba(0,0,0,0.3)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "translateY(0) scale(1)";
+              e.currentTarget.style.boxShadow = "0 4px 15px rgba(0,0,0,0.2)";
+            }}
+          >
+            <FaLink />
+            Scan URL
+          </button>
+          <button
+            onClick={() => navigate("/message-scan")}
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              color: "white",
+              padding: "14px 28px",
+              border: "1px solid rgba(255,255,255,0.3)",
+              borderRadius: "12px",
+              fontSize: "16px",
+              fontWeight: "600",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "10px",
+              transition: "all 0.3s ease",
+              backdropFilter: "blur(10px)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.3)";
+              e.currentTarget.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.2)";
+              e.currentTarget.style.transform = "translateY(0)";
+            }}
+          >
+            <FaComment />
+            Scan Message
+          </button>
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -361,6 +545,13 @@ const Dashboard = () => {
           </table>
         </div>
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `}</style>
     </div>
   );
 };
