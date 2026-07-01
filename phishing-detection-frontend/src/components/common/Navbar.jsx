@@ -6,17 +6,17 @@ import {
   FaGlobe,
   FaEnvelope,
   FaHistory,
-  FaComments,
   FaBars,
   FaTimes,
-  FaRobot,
-  FaUserShield,
 } from "react-icons/fa";
+import ThemeToggle from './ThemeToggle';
+import { useTheme } from '../../context/ThemeContext';
 
 const Navbar = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { isDark } = useTheme();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -31,10 +31,22 @@ const Navbar = () => {
     { path: "/url-scan", label: "URL Scanner", icon: FaGlobe },
     { path: "/message-scan", label: "Message Scanner", icon: FaEnvelope },
     { path: "/history", label: "History", icon: FaHistory },
-   
   ];
 
   const isActive = (path) => location.pathname === path;
+
+  // Theme-based colors
+  const themeColors = {
+    background: isDark ? '#0f172a' : 'rgba(255, 255, 255, 0.98)',
+    backgroundScrolled: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+    backgroundMobile: isDark ? '#1e293b' : 'white',
+    text: isDark ? '#f1f5f9' : '#475569',
+    textActive: isDark ? '#93c5fd' : '#667eea',
+    textInactive: isDark ? '#94a3b8' : '#475569',
+    border: isDark ? '#334155' : '#e2e8f0',
+    hoverBg: isDark ? '#334155' : '#f1f5f9',
+    shadow: isDark ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 20px rgba(0, 0, 0, 0.1)',
+  };
 
   return (
     <nav
@@ -43,11 +55,12 @@ const Navbar = () => {
         top: 0,
         zIndex: 1000,
         background: scrolled
-          ? "rgba(255, 255, 255, 0.98)"
-          : "rgba(255, 255, 255, 0.95)",
+          ? themeColors.backgroundScrolled
+          : themeColors.background,
         backdropFilter: "blur(20px)",
-        boxShadow: scrolled ? "0 4px 20px rgba(0, 0, 0, 0.1)" : "none",
+        boxShadow: scrolled ? themeColors.shadow : "none",
         transition: "all 0.3s ease",
+        borderBottom: `1px solid ${themeColors.border}`,
       }}
     >
       <div
@@ -101,7 +114,7 @@ const Navbar = () => {
               style={{
                 fontSize: "10px",
                 display: "block",
-                color: "#64748b",
+                color: isDark ? "#94a3b8" : "#64748b",
                 letterSpacing: "0.5px",
               }}
             >
@@ -123,7 +136,7 @@ const Navbar = () => {
                 padding: "10px 20px",
                 borderRadius: "12px",
                 textDecoration: "none",
-                color: isActive(item.path) ? "white" : "#475569",
+                color: isActive(item.path) ? "white" : themeColors.textInactive,
                 background: isActive(item.path)
                   ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
                   : "transparent",
@@ -134,7 +147,7 @@ const Navbar = () => {
               }}
               onMouseEnter={(e) => {
                 if (!isActive(item.path)) {
-                  e.currentTarget.style.background = "#f1f5f9";
+                  e.currentTarget.style.background = themeColors.hoverBg;
                 }
               }}
               onMouseLeave={(e) => {
@@ -147,6 +160,8 @@ const Navbar = () => {
               <span>{item.label}</span>
             </Link>
           ))}
+          {/* Theme Toggle */}
+          <ThemeToggle />
         </div>
 
         {/* Mobile Menu Button */}
@@ -158,7 +173,7 @@ const Navbar = () => {
             border: "none",
             fontSize: "24px",
             cursor: "pointer",
-            color: "#475569",
+            color: themeColors.text,
             padding: "8px",
           }}
           className="mobile-menu-btn"
@@ -172,8 +187,8 @@ const Navbar = () => {
         <div
           style={{
             padding: "20px",
-            background: "white",
-            borderTop: "1px solid #e2e8f0",
+            background: themeColors.backgroundMobile,
+            borderTop: `1px solid ${themeColors.border}`,
             display: "none",
           }}
           className="mobile-menu"
@@ -190,8 +205,8 @@ const Navbar = () => {
                 padding: "12px",
                 borderRadius: "12px",
                 textDecoration: "none",
-                color: isActive(item.path) ? "#667eea" : "#475569",
-                background: isActive(item.path) ? "#f1f5f9" : "transparent",
+                color: isActive(item.path) ? themeColors.textActive : themeColors.text,
+                background: isActive(item.path) ? themeColors.hoverBg : "transparent",
                 fontWeight: "500",
                 marginBottom: "8px",
               }}
@@ -200,19 +215,24 @@ const Navbar = () => {
               <span>{item.label}</span>
             </Link>
           ))}
+          {/* Theme Toggle in Mobile Menu */}
+          <div style={{ 
+            marginTop: "12px", 
+            paddingTop: "12px", 
+            borderTop: `1px solid ${themeColors.border}` 
+          }}>
+            <ThemeToggle />
+          </div>
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         @media (max-width: 768px) {
           .mobile-menu-btn {
             display: block !important;
           }
           .mobile-menu {
             display: block !important;
-          }
-          .desktop-menu {
-            display: none;
           }
         }
       `}</style>
