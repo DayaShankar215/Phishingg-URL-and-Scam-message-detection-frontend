@@ -185,6 +185,12 @@ The project contains only **frontend clients**. The backend ML service is a sepa
 - Light, Dark, and System-preference themes
 - Persisted to localStorage (web) or AsyncStorage (mobile)
 
+### 8. Error Handling
+- Comprehensive error boundaries implemented for both web and mobile apps
+- User-friendly fallback UI with reset functionality
+- Detailed error information available with expandable sections
+- Graceful handling of API failures and unexpected errors
+
 ---
 
 ## API Reference
@@ -300,11 +306,8 @@ npx eas build --profile production
 
 ## Known Notes
 
-- **NOTE: ErrorBoundary component is now fully implemented** (see ErrorBoundary.jsx) - Unlike other placeholder components, this one has a complete error handling solution with user-facing fallback UI, error details, and reset functionality.
+- **NOTE: ErrorBoundary component is now fully implemented** (see ErrorBoundary.jsx, ErrorBoundary.jsx) - Unlike other placeholder components, this one has a complete error handling solution with user-facing fallback UI, error details, and reset functionality for both web and mobile.
 - Various component files are **empty placeholders** (URLInput, MessageInput, ResultCard, useScan, useHistory). Their logic was inlined directly into page components.
-- The `App.css` file contains legacy Vite template styles and is not actively used — the app uses `globals.css`, `components.css`, and `mobile.css`.
-- Contact info in the Footer (Balkumari, Lalitpur, +977) suggests the team is based in **Nepal**.
-- The mobile `AGENTS.md` file references Expo v56 docs — check the exact versioned docs before making changes.
 - The `App.css` file contains legacy Vite template styles and is not actively used — the app uses `globals.css`, `components.css`, and `mobile.css`.
 - Contact info in the Footer (Balkumari, Lalitpur, +977) suggests the team is based in **Nepal**.
 - The mobile `AGENTS.md` file references Expo v56 docs — check the exact versioned docs before making changes.
