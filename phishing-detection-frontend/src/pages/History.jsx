@@ -1,3 +1,4 @@
+// History.jsx --for web
 import React, { useState, useEffect } from "react";
 import {
   getScanHistory,

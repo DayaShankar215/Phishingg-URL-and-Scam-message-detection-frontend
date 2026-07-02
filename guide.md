@@ -87,7 +87,7 @@ The project contains only **frontend clients**. The backend ML service is a sepa
 │       │   │   ├── ThemeToggle.jsx # Light/Dark/System toggle
 │       │   │   ├── RiskBadge.jsx  # Risk level badge
 │       │   │   ├── LoadingSpinner.jsx # Loading indicator
-│       │   │   └── ErrorBoundary.jsx # Placeholder
+│       │   │   └── ErrorBoundary.jsx # Error boundary component (fully implemented)
 │       │   ├── dashboard/
 │       │   │   ├── StatCard.jsx   # Stats display card
 │       │   │   ├── TrendChart.jsx # Detection trends line chart
@@ -300,7 +300,11 @@ npx eas build --profile production
 
 ## Known Notes
 
-- Several component files are **empty placeholders** (URLInput, MessageInput, ResultCard, ErrorBoundary, useScan, useHistory). Their logic was inlined directly into page components.
+- **NOTE: ErrorBoundary component is now fully implemented** (see ErrorBoundary.jsx) - Unlike other placeholder components, this one has a complete error handling solution with user-facing fallback UI, error details, and reset functionality.
+- Various component files are **empty placeholders** (URLInput, MessageInput, ResultCard, useScan, useHistory). Their logic was inlined directly into page components.
+- The `App.css` file contains legacy Vite template styles and is not actively used — the app uses `globals.css`, `components.css`, and `mobile.css`.
+- Contact info in the Footer (Balkumari, Lalitpur, +977) suggests the team is based in **Nepal**.
+- The mobile `AGENTS.md` file references Expo v56 docs — check the exact versioned docs before making changes.
 - The `App.css` file contains legacy Vite template styles and is not actively used — the app uses `globals.css`, `components.css`, and `mobile.css`.
 - Contact info in the Footer (Balkumari, Lalitpur, +977) suggests the team is based in **Nepal**.
 - The mobile `AGENTS.md` file references Expo v56 docs — check the exact versioned docs before making changes.

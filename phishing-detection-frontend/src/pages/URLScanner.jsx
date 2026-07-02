@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { scanURL, submitFeedback } from "../services/api";
+import { scanURL, submitFeedback, downloadAndSharePDF } from "../services/api";
 import { validateURL } from "../utils/validators";
 import {
   FaShieldAlt,
@@ -9,7 +9,6 @@ import {
   FaExclamationTriangle,
   FaCheckCircle,
   FaCopy,
-  FaExternalLinkAlt,
   FaStar,
   FaRegStar,
   FaThumbsUp,
@@ -24,6 +23,7 @@ const URLScanner = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Feedback state
   const [showFeedback, setShowFeedback] = useState(false);
@@ -68,13 +68,16 @@ const URLScanner = () => {
   };
 
   const handleDownloadPDF = async () => {
-    if (result) {
-      try {
-        await generatePDFReport(result, "url");
-        toast.success("PDF report downloaded successfully!");
-      } catch (error) {
-        toast.error("Failed to generate PDF report");
-      }
+    if (!result) return;
+    
+    setDownloading(true);
+    try {
+      await downloadAndSharePDF(result.id, "url");
+      toast.success("PDF report downloaded successfully!");
+    } catch (error) {
+      toast.error("Failed to download PDF report");
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -388,22 +391,33 @@ const URLScanner = () => {
               </div>
               <button
                 onClick={handleDownloadPDF}
+                disabled={downloading}
                 style={{
                   background: "white",
                   border: `2px solid ${riskColor.bg}`,
                   padding: "12px 24px",
                   borderRadius: "12px",
-                  cursor: "pointer",
+                  cursor: downloading ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
                   fontWeight: "600",
                   color: riskColor.text,
                   transition: "all 0.3s ease",
+                  opacity: downloading ? 0.6 : 1,
                 }}
               >
-                <FaDownload />
-                <span>Download Report</span>
+                {downloading ? (
+                  <>
+                    <div className="spinner-small" style={{ borderColor: riskColor.bg, borderTopColor: 'transparent' }}></div>
+                    <span>Downloading...</span>
+                  </>
+                ) : (
+                  <>
+                    <FaDownload />
+                    <span>Download Report</span>
+                  </>
+                )}
               </button>
             </div>
 

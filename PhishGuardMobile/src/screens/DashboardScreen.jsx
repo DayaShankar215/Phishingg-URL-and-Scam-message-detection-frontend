@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, RefreshControl, 
-  TouchableOpacity, Linking 
+  TouchableOpacity, Dimensions 
 } from 'react-native';
 import { getDashboardStats } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
@@ -10,20 +10,31 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 
-const StatCard = ({ title, value, icon, color, trend, colors }) => (
+const { width } = Dimensions.get('window');
+
+const StatCard = ({ title, value, icon, color, trend, colors, subtitle }) => (
   <View style={[styles.statCard, { 
     backgroundColor: colors.backgroundCard,
-    shadowColor: colors.shadow,
+    borderColor: colors.borderLight,
   }]}>
-    <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
-      <Ionicons name={icon} size={28} color={color} />
+    <View style={[styles.statIcon, { backgroundColor: color + '15' }]}>
+      <Ionicons name={icon} size={24} color={color} />
     </View>
     <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{title}</Text>
+    {subtitle && (
+      <Text style={[styles.statSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
+    )}
     {trend && (
-      <Text style={[styles.statTrend, { color: trend >= 0 ? colors.success : colors.danger }]}>
-        {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}% from last week
-      </Text>
+      <View style={[styles.trendBadge, { 
+        backgroundColor: trend >= 0 ? colors.success + '20' : colors.danger + '20',
+        borderColor: trend >= 0 ? colors.success + '40' : colors.danger + '40',
+      }]}>
+        <Text style={[styles.trendText, { color: trend >= 0 ? colors.success : colors.danger }]}>
+          {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
+        </Text>
+        <Text style={[styles.trendLabel, { color: colors.textMuted }]}>vs last week</Text>
+      </View>
     )}
   </View>
 );
@@ -70,72 +81,42 @@ export default function DashboardScreen() {
       style={[styles.container, { backgroundColor: colors.background }]} 
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.contentContainer}
     >
-      {/* Animated Background Circles */}
-      <View style={styles.bgCircles}>
-        <View style={[styles.circle, styles.circle1, { backgroundColor: colors.primary[600] + '08' }]} />
-        <View style={[styles.circle, styles.circle2, { backgroundColor: colors.primary[600] + '08' }]} />
-        <View style={[styles.circle, styles.circle3, { backgroundColor: colors.primary[600] + '08' }]} />
-      </View>
-
-      {/* Welcome Section */}
-      <View style={styles.header}>
-        <Text style={[styles.welcomeTitle, { color: colors.text }]}>Welcome to PhishGuard</Text>
-        <Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
-          Your AI-Powered Security Guardian • Real-time Protection
-        </Text>
-      </View>
-
-      {/* Hero CTA Section */}
-      <View style={[styles.heroContainer, { backgroundColor: colors.primary[600] }]}>
-        <View style={styles.heroBadges}>
-          <View style={[styles.badgeAi, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-            <Text style={styles.badgeAiText}>🛡️ AI-POWERED</Text>
+      {/* Animated Gradient Header */}
+      <LinearGradient
+        colors={isDark ? ['#1e293b', '#0f172a'] : ['#667eea', '#764ba2']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerGradient}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <View style={styles.headerIconContainer}>
+              <Ionicons name="shield-checkmark" size={24} color="white" />
+            </View>
+            <View>
+              <Text style={styles.headerTitle}>Dashboard</Text>
+              <Text style={styles.headerSubtitle}>Welcome back!</Text>
+            </View>
           </View>
-          <View style={[styles.badgeLive, { backgroundColor: 'rgba(16,185,129,0.25)' }]}>
-            <View style={[styles.pulseDot, { backgroundColor: colors.success }]} />
-            <Text style={styles.badgeLiveText}>LIVE PROTECTION</Text>
+          <View style={styles.headerBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.headerBadgeText}>LIVE</Text>
           </View>
         </View>
-        
-        <Text style={styles.heroTitle}>Check before you click or reply.</Text>
-        <Text style={styles.heroSubtitle}>
-          Scan suspicious URLs and messages in seconds with clear risk explanations.
-        </Text>
-        
-        <View style={styles.heroButtons}>
-          <TouchableOpacity 
-            style={[styles.btnScanUrl, { backgroundColor: 'white' }]}
-            onPress={() => navigation.navigate('URL Scanner')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="link-outline" size={20} color={colors.primary[600]} />
-            <Text style={[styles.btnScanUrlText, { color: colors.primary[600] }]}>Scan URL</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.btnScanMessage, { 
-              backgroundColor: 'rgba(255,255,255,0.2)', 
-              borderColor: 'rgba(255,255,255,0.3)' 
-            }]}
-            onPress={() => navigation.navigate('Message Scanner')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="chatbubble-outline" size={20} color="white" />
-            <Text style={styles.btnScanMessageText}>Scan Message</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      </LinearGradient>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - Modern Cards */}
       <View style={styles.statsGrid}>
         <StatCard 
           title="Total Scans" 
           value={stats.totalScans} 
-          icon="shield-outline" 
+          icon="scan-outline" 
           color={colors.primary[600]} 
           trend={12}
           colors={colors}
+          subtitle="All time"
         />
         <StatCard 
           title="Phishing URLs" 
@@ -144,6 +125,7 @@ export default function DashboardScreen() {
           color={colors.danger} 
           trend={-5}
           colors={colors}
+          subtitle="Detected"
         />
         <StatCard 
           title="Scam Messages" 
@@ -152,6 +134,7 @@ export default function DashboardScreen() {
           color={colors.warning} 
           trend={8}
           colors={colors}
+          subtitle="Blocked"
         />
         <StatCard 
           title="Safe Detections" 
@@ -160,187 +143,368 @@ export default function DashboardScreen() {
           color={colors.success} 
           trend={15}
           colors={colors}
+          subtitle="Verified"
         />
+      </View>
+
+      {/* Quick Actions */}
+      <View style={styles.quickActions}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
+        <View style={styles.actionRow}>
+          <TouchableOpacity 
+            style={[styles.actionCard, { 
+              backgroundColor: colors.backgroundCard,
+              borderColor: colors.borderLight,
+            }]}
+            onPress={() => navigation.navigate('URL Scanner')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: colors.primary[600] + '20' }]}>
+              <Ionicons name="link-outline" size={28} color={colors.primary[600]} />
+            </View>
+            <Text style={[styles.actionTitle, { color: colors.text }]}>Scan URL</Text>
+            <Text style={[styles.actionSubtitle, { color: colors.textMuted }]}>Check suspicious links</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionCard, { 
+              backgroundColor: colors.backgroundCard,
+              borderColor: colors.borderLight,
+            }]}
+            onPress={() => navigation.navigate('Message Scanner')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: '#f5576c20' }]}>
+              <Ionicons name="chatbubble-outline" size={28} color="#f5576c" />
+            </View>
+            <Text style={[styles.actionTitle, { color: colors.text }]}>Scan Message</Text>
+            <Text style={[styles.actionSubtitle, { color: colors.textMuted }]}>Detect scam texts</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Recent Scans Section */}
       <View style={styles.recentSection}>
         <View style={styles.recentHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Security Scans</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Activity</Text>
           <TouchableOpacity onPress={() => navigation.navigate('History')}>
             <Text style={[styles.viewAllText, { color: colors.primary[600] }]}>View All</Text>
           </TouchableOpacity>
         </View>
         
         {stats.recentScans.length === 0 ? (
-          <View style={[styles.emptyState, { backgroundColor: colors.backgroundCard }]}>
-            <Ionicons name="shield-outline" size={48} color={colors.textMuted} />
+          <View style={[styles.emptyState, { 
+            backgroundColor: colors.backgroundCard,
+            borderColor: colors.borderLight,
+          }]}>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="shield-outline" size={48} color={colors.textMuted} />
+            </View>
             <Text style={[styles.emptyText, { color: colors.textMuted }]}>No scans yet</Text>
             <Text style={[styles.emptySubText, { color: colors.textMuted }]}>Start scanning URLs or messages</Text>
           </View>
         ) : (
           stats.recentScans.slice(0, 5).map((scan, index) => (
-            <View key={index} style={[styles.scanItem, { 
-              backgroundColor: colors.backgroundCard,
-              shadowColor: colors.shadow,
-            }]}>
-              <View style={styles.scanHeader}>
-                <Text style={[styles.typeBadge, scan.type === 'url' ? styles.urlBadge : styles.messageBadge]}>
-                  {scan.type === 'url' ? '🔗 URL' : '💬 Message'}
-                </Text>
-                <Text style={[styles.scanDate, { color: colors.textMuted }]}>{formatDate(scan.date)}</Text>
-              </View>
-              <Text style={[styles.scanContent, { color: colors.text }]} numberOfLines={2}>{scan.content}</Text>
-              <View style={styles.riskContainer}>
-                <View style={[styles.riskBar, { backgroundColor: colors.borderLight }]}>
-                  <View style={[
-                    styles.riskFill, 
-                    { 
-                      width: `${scan.riskScore}%`, 
-                      backgroundColor: scan.riskScore > 70 ? colors.danger : scan.riskScore > 30 ? colors.warning : colors.success 
-                    }
-                  ]} />
+            <TouchableOpacity 
+              key={index} 
+              style={[styles.scanItem, { 
+                backgroundColor: colors.backgroundCard,
+                borderColor: colors.borderLight,
+              }]}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('History')}
+            >
+              <View style={styles.scanLeft}>
+                <View style={[styles.scanTypeIcon, { 
+                  backgroundColor: scan.type === 'url' ? colors.primary[600] + '20' : '#f5576c20' 
+                }]}>
+                  <Ionicons 
+                    name={scan.type === 'url' ? 'link-outline' : 'chatbubble-outline'} 
+                    size={16} 
+                    color={scan.type === 'url' ? colors.primary[600] : '#f5576c'} 
+                  />
                 </View>
-                <Text style={[styles.riskScore, { color: colors.text }]}>{scan.riskScore}%</Text>
+                <View style={styles.scanInfo}>
+                  <Text style={[styles.scanContent, { color: colors.text }]} numberOfLines={1}>
+                    {scan.content}
+                  </Text>
+                  <Text style={[styles.scanDate, { color: colors.textMuted }]}>{formatDate(scan.date)}</Text>
+                </View>
               </View>
-              <View style={styles.scanStatus}>
-                <View style={[
-                  styles.statusDot, 
-                  { backgroundColor: scan.result === 'safe' ? colors.success : colors.danger }
-                ]} />
-                <Text style={[
-                  styles.statusText, 
-                  { color: scan.result === 'safe' ? colors.success : colors.danger }
-                ]}>
-                  {scan.result === 'safe' ? '✅ Safe' : scan.result === 'phishing' ? '⚠️ Phishing' : '⚠️ Scam'}
-                </Text>
+              <View style={styles.scanRight}>
+                <View style={[styles.scanRiskBadge, {
+                  backgroundColor: scan.riskScore > 70 ? colors.danger + '20' : 
+                                  scan.riskScore > 30 ? colors.warning + '20' : 
+                                  colors.success + '20',
+                }]}>
+                  <Text style={[styles.scanRiskText, {
+                    color: scan.riskScore > 70 ? colors.danger : 
+                           scan.riskScore > 30 ? colors.warning : 
+                           colors.success,
+                  }]}>
+                    {scan.riskScore}%
+                  </Text>
+                </View>
+                <View style={[styles.scanStatusDot, {
+                  backgroundColor: scan.result === 'safe' ? colors.success : colors.danger,
+                }]} />
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </View>
+
+      {/* Footer Spacing */}
+      <View style={{ height: 30 }} />
     </ScrollView>
   );
 }
 
+// Import LinearGradient
+import { LinearGradient } from 'expo-linear-gradient';
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  
-  // Animated Background Circles
-  bgCircles: { position: 'absolute', width: '100%', height: '100%' },
-  circle: { position: 'absolute', borderRadius: 999 },
-  circle1: { width: 200, height: 200, top: -50, right: -50 },
-  circle2: { width: 150, height: 150, bottom: 100, left: -50 },
-  circle3: { width: 120, height: 120, top: '40%', left: '30%' },
+  contentContainer: { paddingBottom: 20 },
 
-  // Welcome Section
-  header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  welcomeTitle: { fontSize: 28, fontWeight: '800', marginBottom: 4 },
-  welcomeSubtitle: { fontSize: 14, lineHeight: 20 },
-
-  // Hero CTA Section
-  heroContainer: {
-    marginHorizontal: 20,
-    marginBottom: 24,
-    padding: 24,
-    borderRadius: 20,
-    overflow: 'hidden',
+  // Header Gradient
+  headerGradient: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
-  heroBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  badgeAi: { 
-    paddingHorizontal: 12, 
-    paddingVertical: 4, 
-    borderRadius: 100,
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  badgeAiText: { fontSize: 10, fontWeight: '600', color: 'white', letterSpacing: 0.5 },
-  badgeLive: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: 'white',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  headerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12, 
-    paddingVertical: 4, 
-    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  pulseDot: { 
-    width: 8, 
-    height: 8, 
+  liveDot: {
+    width: 8,
+    height: 8,
     borderRadius: 4,
+    backgroundColor: '#10b981',
   },
-  badgeLiveText: { fontSize: 10, fontWeight: '600', color: 'white' },
-  heroTitle: { fontSize: 22, fontWeight: '700', color: 'white', marginBottom: 8, lineHeight: 28 },
-  heroSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginBottom: 20, lineHeight: 20 },
-  heroButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  btnScanUrl: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+  headerBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'white',
+    letterSpacing: 0.5,
   },
-  btnScanUrlText: { fontSize: 14, fontWeight: '600' },
-  btnScanMessage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  btnScanMessageText: { fontSize: 14, fontWeight: '600', color: 'white' },
 
   // Stats Grid
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 12 },
-  statCard: { 
-    flex: 1, 
-    minWidth: '45%', 
-    borderRadius: 20, 
-    padding: 16, 
-    marginBottom: 12,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    marginTop: -10,
+    gap: 12,
   },
-  statIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  statValue: { fontSize: 28, fontWeight: '800', marginBottom: 4 },
-  statLabel: { fontSize: 12, textTransform: 'uppercase', fontWeight: '500' },
-  statTrend: { fontSize: 11, marginTop: 8 },
+  statCard: {
+    flex: 1,
+    minWidth: (width - 48) / 2,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    position: 'relative',
+  },
+  statIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  statValue: {
+    fontSize: 26,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  statSubtitle: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  trendBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+  },
+  trendText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  trendLabel: {
+    fontSize: 9,
+  },
+
+  // Quick Actions
+  quickActions: {
+    paddingHorizontal: 16,
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 14,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  actionIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  actionSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
 
   // Recent Scans
-  recentSection: { padding: 20 },
-  recentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '700' },
-  viewAllText: { fontSize: 14, fontWeight: '500' },
-  emptyState: { alignItems: 'center', padding: 40, borderRadius: 16 },
-  emptyText: { marginTop: 12, fontSize: 16, fontWeight: '500' },
-  emptySubText: { fontSize: 14, marginTop: 4 },
-  scanItem: { 
-    borderRadius: 12, 
-    padding: 16, 
-    marginBottom: 12,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+  recentSection: {
+    paddingHorizontal: 16,
+    marginTop: 24,
   },
-  scanHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  typeBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, fontSize: 12, fontWeight: '600' },
-  urlBadge: { backgroundColor: '#e3f2fd', color: '#1976d2' },
-  messageBadge: { backgroundColor: '#f3e5f5', color: '#7b1fa2' },
-  scanDate: { fontSize: 12 },
-  scanContent: { fontSize: 14, marginBottom: 12 },
-  riskContainer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
-  riskBar: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
-  riskFill: { height: '100%', borderRadius: 3 },
-  riskScore: { fontSize: 12, fontWeight: '600', minWidth: 40 },
-  scanStatus: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 12, fontWeight: '500' },
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  emptyIconContainer: {
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  emptySubText: {
+    fontSize: 13,
+    marginTop: 4,
+  },
+
+  scanItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  scanLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  scanTypeIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanInfo: {
+    flex: 1,
+  },
+  scanContent: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  scanDate: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  scanRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  scanRiskBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  scanRiskText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  scanStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
 });

@@ -51,15 +51,12 @@ export const getScanById = async (id, type) => {
   }
 };
 
-// Submit Feedback
-export const submitFeedback = async (scanId, type, isAccurate, comments) => {
+// Submit Feedback (with rating)
+export const submitFeedback = async (scanId, type, isAccurate, comments, rating = null) => {
   try {
-    const response = await api.post("/feedback", {
-      scanId,
-      type,
-      isAccurate,
-      comments,
-    });
+    const body = { scanId, type, isAccurate, comments };
+    if (rating !== null) body.rating = rating;
+    const response = await api.post("/feedback", body);
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: "Failed to submit feedback" };
@@ -80,15 +77,39 @@ export const getDashboardStats = async () => {
   }
 };
 
-// Download PDF Report
+// ==================== PDF REPORT ENDPOINTS ====================
+
+// Download PDF Report (Web - Direct Download)
 export const downloadPDFReport = async (scanId, type) => {
   try {
     const response = await api.get(`/reports/${type}/${scanId}/pdf`, {
       responseType: "blob",
     });
+    
+    // Create download link
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `security_report_${scanId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
     return response;
   } catch (error) {
     throw error.response?.data || { message: "Failed to download PDF report" };
+  }
+};
+
+// Download and Share PDF (Web - Aligned with Mobile)
+export const downloadAndSharePDF = async (scanId, type) => {
+  try {
+    const response = await downloadPDFReport(scanId, type);
+    return response;
+  } catch (error) {
+    throw error.response?.data || { message: "Failed to download and share PDF" };
   }
 };
 

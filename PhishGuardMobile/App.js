@@ -10,6 +10,7 @@ import URLScannerScreen from './src/screens/URLScannerScreen';
 import MessageScannerScreen from './src/screens/MessageScannerScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import Navbar from './src/components/Navbar';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 const Tab = createBottomTabNavigator();
 
@@ -18,58 +19,60 @@ const AppContent = () => {
   const colors = getColors(isDark);
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <NavigationContainer theme={{
-          colors: {
-            background: colors.background,
-            card: colors.backgroundCard,
-            text: colors.text,
-            border: colors.border,
-            primary: colors.primary[600],
-          },
-        }}>
-          <Navbar />
-          <Tab.Navigator
-            screenOptions={({ route }) => ({
-              tabBarIcon: ({ focused, color, size }) => {
-                let iconName;
-                if (route.name === 'Dashboard') iconName = focused ? 'grid' : 'grid-outline';
-                else if (route.name === 'URL Scanner') iconName = focused ? 'link' : 'link-outline';
-                else if (route.name === 'Message Scanner') iconName = focused ? 'chatbubble' : 'chatbubble-outline';
-                else if (route.name === 'History') iconName = focused ? 'time' : 'time-outline';
-                return <Ionicons name={iconName} size={size} color={color} />;
-              },
-              tabBarActiveTintColor: colors.primary[600],
-              tabBarInactiveTintColor: colors.textMuted,
-              headerShown: false,
-              tabBarStyle: {
-                backgroundColor: colors.backgroundCard,
-                borderTopColor: colors.border,
-                borderTopWidth: 1,
-                height: 60,
-                paddingBottom: 8,
-                paddingTop: 4,
-                shadowColor: colors.shadow,
-                shadowOffset: { width: 0, height: -2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 4,
-                elevation: 4,
-              },
-              tabBarLabelStyle: {
-                fontSize: 11,
-                fontWeight: '500',
-              },
-            })}
-          >
-            <Tab.Screen name="Dashboard" component={DashboardScreen} />
-            <Tab.Screen name="URL Scanner" component={URLScannerScreen} />
-            <Tab.Screen name="Message Scanner" component={MessageScannerScreen} />
-            <Tab.Screen name="History" component={HistoryScreen} />
-          </Tab.Navigator>
-        </NavigationContainer>
-      </SafeAreaView>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <NavigationContainer theme={{
+            colors: {
+              background: colors.background,
+              card: colors.backgroundCard,
+              text: colors.text,
+              border: colors.border,
+              primary: colors.primary[600],
+            },
+          }}>
+            <Navbar />
+            <Tab.Navigator
+              screenOptions={({ route }) => ({
+                tabBarIcon: ({ focused, color, size }) => {
+                  let iconName;
+                  if (route.name === 'Dashboard') iconName = focused ? 'grid' : 'grid-outline';
+                  else if (route.name === 'URL Scanner') iconName = focused ? 'link' : 'link-outline';
+                  else if (route.name === 'Message Scanner') iconName = focused ? 'chatbubble' : 'chatbubble-outline';
+                  else if (route.name === 'History') iconName = focused ? 'time' : 'time-outline';
+                  return <Ionicons name={iconName} size={size} color={color} />;
+                },
+                tabBarActiveTintColor: colors.primary[600],
+                tabBarInactiveTintColor: colors.textMuted,
+                headerShown: false,
+                tabBarStyle: {
+                  backgroundColor: colors.backgroundCard,
+                  borderTopColor: colors.border,
+                  borderTopWidth: 1,
+                  height: 60,
+                  paddingBottom: 8,
+                  paddingTop: 4,
+                  shadowColor: colors.shadow,
+                  shadowOffset: { width: 0, height: -2 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 4,
+                  elevation: 4,
+                },
+                tabBarLabelStyle: {
+                  fontSize: 11,
+                  fontWeight: '500',
+                },
+              })}
+            >
+              <Tab.Screen name="Dashboard" component={DashboardScreen} />
+              <Tab.Screen name="URL Scanner" component={URLScannerScreen} />
+              <Tab.Screen name="Message Scanner" component={MessageScannerScreen} />
+              <Tab.Screen name="History" component={HistoryScreen} />
+            </Tab.Navigator>
+          </NavigationContainer>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 };
 
