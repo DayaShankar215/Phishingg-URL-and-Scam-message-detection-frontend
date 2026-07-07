@@ -1,3 +1,4 @@
+// api.js
 import axios from "axios";
 
 const API_BASE_URL = "http://localhost:8080/api";
@@ -86,20 +87,20 @@ export const downloadPDFReport = async (scanId, type) => {
       responseType: "blob",
     });
     
-    // Create download link
-    const blob = new Blob([response.data], { type: 'application/pdf' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `security_report_${scanId}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-    
+    // Return the full response object
     return response;
   } catch (error) {
-    throw error.response?.data || { message: "Failed to download PDF report" };
+    // Try to parse error message from response
+    if (error.response && error.response.data) {
+      const errorText = await error.response.data.text();
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw errorJson;
+      } catch {
+        throw { message: errorText || "Failed to download PDF report" };
+      }
+    }
+    throw { message: "Failed to download PDF report" };
   }
 };
 

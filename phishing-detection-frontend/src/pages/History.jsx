@@ -1,4 +1,4 @@
-// History.jsx --for web
+// History.jsx
 import React, { useState, useEffect } from "react";
 import {
   getScanHistory,
@@ -18,6 +18,7 @@ import {
   FaShieldAlt,
   FaLink,
   FaEnvelope,
+  FaSpinner,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 
@@ -28,6 +29,7 @@ const History = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedScan, setSelectedScan] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null); // Track which scan is downloading
   const [stats, setStats] = useState({
     total: 0,
     url: 0,
@@ -46,10 +48,27 @@ const History = () => {
   const fetchHistory = async () => {
     try {
       setLoading(true);
-      const data = await getScanHistory(filter === "all" ? null : filter);
-      setScans(data);
+      const response = await getScanHistory(filter === "all" ? null : filter);
+      
+      let scansData = [];
+      if (response) {
+        if (response.response && Array.isArray(response.response)) {
+          scansData = response.response;
+        } else if (response.query && response.query.response && Array.isArray(response.query.response)) {
+          scansData = response.query.response;
+        } else if (Array.isArray(response)) {
+          scansData = response;
+        } else if (response.data && Array.isArray(response.data)) {
+          scansData = response.data;
+        } else if (response.scans && Array.isArray(response.scans)) {
+          scansData = response.scans;
+        }
+      }
+      
+      setScans(scansData);
     } catch (error) {
       toast.error("Failed to load scan history");
+      setScans([]);
     } finally {
       setLoading(false);
     }
@@ -59,14 +78,20 @@ const History = () => {
     const total = scans.length;
     const url = scans.filter((s) => s.type === "url").length;
     const message = scans.filter((s) => s.type === "message").length;
-    const avgRisk = scans.reduce((sum, s) => sum + s.riskScore, 0) / total || 0;
+    const avgRisk = total > 0 ? scans.reduce((sum, s) => sum + (s.riskScore || 0), 0) / total : 0;
     setStats({ total, url, message, avgRisk });
   };
 
   const handleViewDetails = async (id, type) => {
     try {
-      const scan = await getScanById(id, type);
-      setSelectedScan(scan);
+      const response = await getScanById(id, type);
+      let scanData = response;
+      if (response && response.response && Array.isArray(response.response) && response.response.length > 0) {
+        scanData = response.response[0];
+      } else if (response && response.data) {
+        scanData = response.data;
+      }
+      setSelectedScan(scanData);
       setShowModal(true);
     } catch (error) {
       toast.error("Failed to load scan details");
@@ -74,28 +99,61 @@ const History = () => {
   };
 
   const handleDownloadPDF = async (id, type) => {
+    // Prevent multiple downloads
+    if (downloadingId === id) return;
+    
+    setDownloadingId(id);
     try {
       const response = await downloadPDFReport(id, type);
-      const blob = new Blob([response.data], { type: "application/pdf" });
+      
+      // Check if response has data
+      if (!response || !response.data) {
+        throw new Error("No data received from server");
+      }
+
+      // Create blob from response data
+      const blob = new Blob([response.data], { 
+        type: response.headers?.['content-type'] || 'application/pdf' 
+      });
+      
+      // Create download URL
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `security_report_${id}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      toast.success("PDF report downloaded!");
+      
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `security_report_${id}.pdf`;
+      link.style.display = 'none';
+      
+      // Append to body, click, and cleanup
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup after download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      toast.success("PDF report downloaded successfully!");
     } catch (error) {
-      toast.error("Failed to download PDF");
+      console.error("PDF Download Error:", error);
+      toast.error(error.message || "Failed to download PDF report");
+    } finally {
+      setDownloadingId(null);
     }
   };
 
-  const filteredScans = scans.filter(
-    (scan) =>
-      scan.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      scan.id?.toString().includes(searchTerm),
-  );
+  // Safely filter scans with proper null checks
+  const filteredScans = Array.isArray(scans) 
+    ? scans.filter(
+        (scan) =>
+          scan?.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          scan?.message?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          scan?.id?.toString().includes(searchTerm) ||
+          scan?._id?.toString().includes(searchTerm)
+      )
+    : [];
 
   if (loading) {
     return <LoadingSpinner text="Loading security history..." />;
@@ -427,166 +485,188 @@ const History = () => {
                   </td>
                 </tr>
               ) : (
-                filteredScans.map((scan) => (
-                  <tr
-                    key={scan.id}
-                    style={{
-                      borderBottom: "1px solid #f1f5f9",
-                      transition: "background 0.3s",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "#f8fafc")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "white")
-                    }
-                  >
-                    <td
+                filteredScans.map((scan) => {
+                  const scanId = scan.id || scan._id;
+                  const isDownloading = downloadingId === scanId;
+                  
+                  return (
+                    <tr
+                      key={scanId || Math.random()}
                       style={{
-                        padding: "16px 20px",
-                        fontWeight: "600",
-                        color: "#667eea",
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background 0.3s",
                       }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = "#f8fafc")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "white")
+                      }
                     >
-                      #{scan.id}
-                    </td>
-                    <td style={{ padding: "16px 20px" }}>
-                      <span
+                      <td
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          padding: "6px 12px",
-                          borderRadius: "10px",
-                          fontSize: "12px",
+                          padding: "16px 20px",
                           fontWeight: "600",
-                          background:
-                            scan.type === "url" ? "#e3f2fd" : "#f3e5f5",
-                          color: scan.type === "url" ? "#1976d2" : "#7b1fa2",
+                          color: "#667eea",
                         }}
                       >
-                        {scan.type === "url" ? (
-                          <FaLink size={12} />
-                        ) : (
-                          <FaEnvelope size={12} />
-                        )}
-                        {scan.type === "url" ? "URL" : "Message"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "16px 20px", maxWidth: "400px" }}>
-                      <div
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          color: "#475569",
-                        }}
-                        title={scan.content}
-                      >
-                        {truncateText(scan.content, 60)}
-                      </div>
-                    </td>
-                    <td style={{ padding: "16px 20px" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "12px",
-                        }}
-                      >
-                        <div style={{ flex: 1, width: "100px" }}>
-                          <div
-                            style={{
-                              width: "100%",
-                              height: "6px",
-                              background: "#e2e8f0",
-                              borderRadius: "3px",
-                              overflow: "hidden",
-                            }}
-                          >
+                        #{scanId || "N/A"}
+                      </td>
+                      <td style={{ padding: "16px 20px" }}>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "6px 12px",
+                            borderRadius: "10px",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            background:
+                              scan.type === "url" ? "#e3f2fd" : "#f3e5f5",
+                            color: scan.type === "url" ? "#1976d2" : "#7b1fa2",
+                          }}
+                        >
+                          {scan.type === "url" ? (
+                            <FaLink size={12} />
+                          ) : (
+                            <FaEnvelope size={12} />
+                          )}
+                          {scan.type === "url" ? "URL" : "Message"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "16px 20px", maxWidth: "400px" }}>
+                        <div
+                          style={{
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            color: "#475569",
+                          }}
+                          title={scan.content || scan.message || "N/A"}
+                        >
+                          {truncateText(scan.content || scan.message || "N/A", 60)}
+                        </div>
+                      </td>
+                      <td style={{ padding: "16px 20px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                          }}
+                        >
+                          <div style={{ flex: 1, width: "100px" }}>
                             <div
                               style={{
-                                width: `${scan.riskScore}%`,
-                                height: "100%",
-                                background:
-                                  scan.riskScore > 70
-                                    ? "#ef4444"
-                                    : scan.riskScore > 30
-                                      ? "#f59e0b"
-                                      : "#10b981",
+                                width: "100%",
+                                height: "6px",
+                                background: "#e2e8f0",
+                                borderRadius: "3px",
+                                overflow: "hidden",
                               }}
-                            ></div>
+                            >
+                              <div
+                                style={{
+                                  width: `${scan.riskScore || 0}%`,
+                                  height: "100%",
+                                  background:
+                                    (scan.riskScore || 0) > 70
+                                      ? "#ef4444"
+                                      : (scan.riskScore || 0) > 30
+                                        ? "#f59e0b"
+                                        : "#10b981",
+                                }}
+                              ></div>
+                            </div>
                           </div>
+                          <span style={{ fontWeight: "600", minWidth: "45px" }}>
+                            {scan.riskScore || 0}%
+                          </span>
                         </div>
-                        <span style={{ fontWeight: "600", minWidth: "45px" }}>
-                          {scan.riskScore}%
-                        </span>
-                      </div>
-                    </td>
-                    <td
-                      style={{
-                        padding: "16px 20px",
-                        color: "#64748b",
-                        fontSize: "14px",
-                      }}
-                    >
-                      <div
+                      </td>
+                      <td
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
+                          padding: "16px 20px",
+                          color: "#64748b",
+                          fontSize: "14px",
                         }}
                       >
-                        <FaCalendar size={12} />
-                        {formatDate(scan.date)}
-                      </div>
-                    </td>
-                    <td style={{ padding: "16px 20px" }}>
-                      <div style={{ display: "flex", gap: "12px" }}>
-                        <button
-                          onClick={() => handleViewDetails(scan.id, scan.type)}
+                        <div
                           style={{
-                            background: "none",
-                            border: "none",
-                            color: "#667eea",
-                            cursor: "pointer",
-                            padding: "6px",
-                            borderRadius: "8px",
-                            transition: "background 0.3s",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
                           }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = "#f1f5f9")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = "transparent")
-                          }
                         >
-                          <FaEye />
-                        </button>
-                        <button
-                          onClick={() => handleDownloadPDF(scan.id, scan.type)}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            color: "#64748b",
-                            cursor: "pointer",
-                            padding: "6px",
-                            borderRadius: "8px",
-                            transition: "background 0.3s",
-                          }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = "#f1f5f9")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = "transparent")
-                          }
-                        >
-                          <FaDownload />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          <FaCalendar size={12} />
+                          {formatDate(scan.date || scan.timestamp || Date.now())}
+                        </div>
+                      </td>
+                      <td style={{ padding: "16px 20px" }}>
+                        <div style={{ display: "flex", gap: "12px" }}>
+                          <button
+                            onClick={() => handleViewDetails(scanId, scan.type)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#667eea",
+                              cursor: "pointer",
+                              padding: "6px",
+                              borderRadius: "8px",
+                              transition: "background 0.3s",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = "#f1f5f9")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background = "transparent")
+                            }
+                          >
+                            <FaEye />
+                          </button>
+                          <button
+                            onClick={() => handleDownloadPDF(scanId, scan.type)}
+                            disabled={isDownloading}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: isDownloading ? "#94a3b8" : "#64748b",
+                              cursor: isDownloading ? "not-allowed" : "pointer",
+                              padding: "6px",
+                              borderRadius: "8px",
+                              transition: "all 0.3s",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isDownloading) {
+                                e.currentTarget.style.background = "#f1f5f9";
+                                e.currentTarget.style.color = "#667eea";
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isDownloading) {
+                                e.currentTarget.style.background = "transparent";
+                                e.currentTarget.style.color = "#64748b";
+                              }
+                            }}
+                          >
+                            {isDownloading ? (
+                              <>
+                                <FaSpinner className="spinning" size={14} />
+                                <span style={{ fontSize: "11px" }}>...</span>
+                              </>
+                            ) : (
+                              <FaDownload />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -686,7 +766,7 @@ const History = () => {
                     wordBreak: "break-all",
                   }}
                 >
-                  {selectedScan.content}
+                  {selectedScan.content || selectedScan.message || "N/A"}
                 </div>
               </div>
 
@@ -723,12 +803,12 @@ const History = () => {
                     >
                       <div
                         style={{
-                          width: `${selectedScan.riskScore}%`,
+                          width: `${selectedScan.riskScore || 0}%`,
                           height: "100%",
                           background:
-                            selectedScan.riskScore > 70
+                            (selectedScan.riskScore || 0) > 70
                               ? "#ef4444"
-                              : selectedScan.riskScore > 30
+                              : (selectedScan.riskScore || 0) > 30
                                 ? "#f59e0b"
                                 : "#10b981",
                         }}
@@ -742,35 +822,37 @@ const History = () => {
                       color: "#1e293b",
                     }}
                   >
-                    {selectedScan.riskScore}%
+                    {selectedScan.riskScore || 0}%
                   </span>
                 </div>
               </div>
 
-              <div style={{ marginBottom: "24px" }}>
-                <h3
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    color: "#64748b",
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  AI Analysis
-                </h3>
-                <div
-                  style={{
-                    padding: "16px",
-                    background: "#e3f2fd",
-                    borderRadius: "16px",
-                    color: "#1e293b",
-                    lineHeight: "1.6",
-                  }}
-                >
-                  {selectedScan.explanation}
+              {selectedScan.explanation && (
+                <div style={{ marginBottom: "24px" }}>
+                  <h3
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: "#64748b",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    AI Analysis
+                  </h3>
+                  <div
+                    style={{
+                      padding: "16px",
+                      background: "#e3f2fd",
+                      borderRadius: "16px",
+                      color: "#1e293b",
+                      lineHeight: "1.6",
+                    }}
+                  >
+                    {selectedScan.explanation}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <h3
@@ -796,8 +878,53 @@ const History = () => {
                   }}
                 >
                   <FaCalendar />
-                  {formatDate(selectedScan.date)}
+                  {formatDate(selectedScan.date || selectedScan.timestamp || Date.now())}
                 </div>
+              </div>
+
+              {/* Download Button in Modal */}
+              <div style={{ marginTop: "24px" }}>
+                <button
+                  onClick={() => {
+                    const scanId = selectedScan.id || selectedScan._id;
+                    if (scanId) {
+                      handleDownloadPDF(scanId, selectedScan.type);
+                    }
+                  }}
+                  disabled={downloadingId === (selectedScan.id || selectedScan._id)}
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    background: downloadingId === (selectedScan.id || selectedScan._id)
+                      ? "#94a3b8"
+                      : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "12px",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    cursor: downloadingId === (selectedScan.id || selectedScan._id) 
+                      ? "not-allowed" 
+                      : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    transition: "all 0.3s ease",
+                  }}
+                >
+                  {downloadingId === (selectedScan.id || selectedScan._id) ? (
+                    <>
+                      <FaSpinner className="spinning" />
+                      <span>Downloading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FaDownload />
+                      <span>Download PDF Report</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -814,6 +941,15 @@ const History = () => {
             opacity: 1;
             transform: translateY(0);
           }
+        }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        .spinning {
+          animation: spin 1s linear infinite;
         }
       `}</style>
     </div>
