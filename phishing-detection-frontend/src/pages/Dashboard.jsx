@@ -1,3 +1,4 @@
+// Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import { getDashboardStats } from "../services/api";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +15,8 @@ import {
   FaRocket,
   FaLink,
   FaComment,
+  FaEye,
+  FaChevronRight,
 } from "react-icons/fa";
 import {
   LineChart,
@@ -434,12 +437,63 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Recent Scans Table */}
+      {/* Recent Scans Table with View All Button */}
       <div className="chart-container">
-        <div className="chart-title">
-          <FaClock style={{ color: "#667eea" }} />
-          <span>Recent Security Scans</span>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "20px",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <div className="chart-title" style={{ marginBottom: 0 }}>
+            <FaClock style={{ color: "#667eea" }} />
+            <span>Recent Security Scans</span>
+            <span
+              style={{
+                fontSize: "14px",
+                fontWeight: "400",
+                color: "#94a3b8",
+                marginLeft: "8px",
+              }}
+            >
+              ({stats.recentScans?.length || 0} total)
+            </span>
+          </div>
+          <button
+            onClick={() => navigate("/history")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 20px",
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: "12px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: "pointer",
+              transition: "all 0.3s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+              e.currentTarget.style.boxShadow = "0 8px 25px rgba(102,126,234,0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "translateY(0) scale(1)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            <FaEye />
+            View All
+            <FaChevronRight size={12} />
+          </button>
         </div>
+
         <div style={{ overflowX: "auto" }}>
           <table className="table-premium">
             <thead>
@@ -452,7 +506,7 @@ const Dashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {stats.recentScans.length === 0 ? (
+              {stats.recentScans?.length === 0 ? (
                 <tr>
                   <td
                     colSpan="5"
@@ -476,7 +530,7 @@ const Dashboard = () => {
                   </td>
                 </tr>
               ) : (
-                stats.recentScans.map((scan, index) => (
+                stats.recentScans?.map((scan, index) => (
                   <tr key={index}>
                     <td>
                       <span
@@ -493,7 +547,7 @@ const Dashboard = () => {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {scan.content}
+                      {scan.content || scan.message || "N/A"}
                     </td>
                     <td>
                       <div className="risk-indicator">
@@ -501,18 +555,18 @@ const Dashboard = () => {
                           <div
                             className="risk-fill"
                             style={{
-                              width: `${scan.riskScore}%`,
+                              width: `${scan.riskScore || 0}%`,
                               background:
-                                scan.riskScore > 70
+                                (scan.riskScore || 0) > 70
                                   ? "#ef4444"
-                                  : scan.riskScore > 30
+                                  : (scan.riskScore || 0) > 30
                                     ? "#f59e0b"
                                     : "#10b981",
                             }}
                           ></div>
                         </div>
                         <span style={{ fontWeight: "600", minWidth: "45px" }}>
-                          {scan.riskScore}%
+                          {scan.riskScore || 0}%
                         </span>
                       </div>
                     </td>
@@ -536,7 +590,7 @@ const Dashboard = () => {
                       </span>
                     </td>
                     <td style={{ color: "#64748b", fontSize: "14px" }}>
-                      {new Date(scan.date).toLocaleDateString()}
+                      {new Date(scan.date || scan.timestamp || Date.now()).toLocaleDateString()}
                     </td>
                   </tr>
                 ))
