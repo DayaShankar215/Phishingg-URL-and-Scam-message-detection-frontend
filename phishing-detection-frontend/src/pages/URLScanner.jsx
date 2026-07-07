@@ -1,5 +1,6 @@
+// URLScanner.jsx
 import React, { useState } from "react";
-import { scanURL, submitFeedback, downloadAndSharePDF } from "../services/api";
+import { scanURL, submitFeedback, downloadPDFReport } from "../services/api";
 import { validateURL } from "../utils/validators";
 import {
   FaShieldAlt,
@@ -13,9 +14,9 @@ import {
   FaRegStar,
   FaThumbsUp,
   FaThumbsDown,
+  FaSpinner,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
-import { generatePDFReport } from "../services/pdfGenerator";
 
 const URLScanner = () => {
   const [url, setUrl] = useState("");
@@ -56,7 +57,7 @@ const URLScanner = () => {
       const response = await scanURL(url);
       setResult(response);
       setShowFeedback(true);
-      setFeedback((prev) => ({ ...prev, scanId: response.id }));
+      setFeedback((prev) => ({ ...prev, scanId: response.id || response._id }));
       toast.success("Scan completed successfully!");
     } catch (err) {
       const errorMsg = err.message || "Failed to scan URL";
@@ -68,14 +69,50 @@ const URLScanner = () => {
   };
 
   const handleDownloadPDF = async () => {
-    if (!result) return;
+    if (!result || downloading) return;
     
+    const scanId = result.id || result._id;
+    if (!scanId) {
+      toast.error("Scan ID not found");
+      return;
+    }
+
     setDownloading(true);
     try {
-      await downloadAndSharePDF(result.id, "url");
+      const response = await downloadPDFReport(scanId, "url");
+      
+      if (!response || !response.data) {
+        throw new Error("No data received from server");
+      }
+
+      // Create blob from response data
+      const blob = new Blob([response.data], { 
+        type: response.headers?.['content-type'] || 'application/pdf' 
+      });
+      
+      // Create download URL
+      const downloadUrl = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `security_report_${scanId}.pdf`;
+      link.style.display = 'none';
+      
+      // Append to body, click, and cleanup
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup after download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 100);
+      
       toast.success("PDF report downloaded successfully!");
     } catch (error) {
-      toast.error("Failed to download PDF report");
+      console.error("PDF Download Error:", error);
+      toast.error(error.message || "Failed to download PDF report");
     } finally {
       setDownloading(false);
     }
@@ -305,7 +342,7 @@ const URLScanner = () => {
               >
                 {loading ? (
                   <>
-                    <div className="spinner-small"></div>
+                    <FaSpinner className="spinning" />
                     <span>Scanning...</span>
                   </>
                 ) : (
@@ -409,7 +446,7 @@ const URLScanner = () => {
               >
                 {downloading ? (
                   <>
-                    <div className="spinner-small" style={{ borderColor: riskColor.bg, borderTopColor: 'transparent' }}></div>
+                    <FaSpinner className="spinning" />
                     <span>Downloading...</span>
                   </>
                 ) : (
@@ -965,7 +1002,14 @@ const URLScanner = () => {
                     transition: "all 0.3s ease",
                   }}
                 >
-                  {submitting ? "Submitting Feedback..." : "Submit Feedback"}
+                  {submitting ? (
+                    <>
+                      <FaSpinner className="spinning" />
+                      <span> Submitting Feedback...</span>
+                    </>
+                  ) : (
+                    "Submit Feedback"
+                  )}
                 </button>
               </form>
             </div>
@@ -1058,18 +1102,13 @@ const URLScanner = () => {
           }
         }
         
-        .spinner-small {
-          width: 20px;
-          height: 20px;
-          border: 2px solid white;
-          border-top: 2px solid transparent;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-        
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        .spinning {
+          animation: spin 1s linear infinite;
         }
       `}</style>
     </div>
