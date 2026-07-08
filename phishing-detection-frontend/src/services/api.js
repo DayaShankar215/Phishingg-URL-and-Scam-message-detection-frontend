@@ -1,7 +1,7 @@
 // api.js
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL = "http://192.168.1.78:8080/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -86,11 +86,8 @@ export const downloadPDFReport = async (scanId, type) => {
     const response = await api.get(`/reports/${type}/${scanId}/pdf`, {
       responseType: "blob",
     });
-    
-    // Return the full response object
     return response;
   } catch (error) {
-    // Try to parse error message from response
     if (error.response && error.response.data) {
       const errorText = await error.response.data.text();
       try {
@@ -111,6 +108,49 @@ export const downloadAndSharePDF = async (scanId, type) => {
     return response;
   } catch (error) {
     throw error.response?.data || { message: "Failed to download and share PDF" };
+  }
+};
+
+// ==================== HISTORY MANAGEMENT ENDPOINTS ====================
+
+// Clear all scan history
+export const clearScanHistory = async () => {
+  try {
+    const response = await api.delete("/scans/clear");
+    return response.data;
+  } catch (error) {
+    if (error.response && error.response.data) {
+      throw error.response.data;
+    }
+    throw { message: error.message || "Failed to clear scan history" };
+  }
+};
+
+// Delete scan by ID
+export const deleteScanById = async (id, type) => {
+  try {
+    const response = await api.delete(`/scans/${type}/${id}`);
+    return response.data;
+  } catch (error) {
+    if (error.response && error.response.data) {
+      throw error.response.data;
+    }
+    throw { message: error.message || "Failed to delete scan" };
+  }
+};
+
+// Delete multiple scans by IDs
+export const deleteMultipleScans = async (ids, type) => {
+  try {
+    const response = await api.delete("/scans/bulk", { 
+      data: { ids, type } 
+    });
+    return response.data;
+  } catch (error) {
+    if (error.response && error.response.data) {
+      throw error.response.data;
+    }
+    throw { message: error.message || "Failed to delete scans" };
   }
 };
 

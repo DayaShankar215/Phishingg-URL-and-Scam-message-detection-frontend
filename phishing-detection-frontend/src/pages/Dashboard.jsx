@@ -17,6 +17,9 @@ import {
   FaComment,
   FaEye,
   FaChevronRight,
+  FaChartPie,
+  FaCalendarAlt,
+  FaInbox,
 } from "react-icons/fa";
 import {
   LineChart,
@@ -31,6 +34,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Legend,
 } from "recharts";
 import toast from "react-hot-toast";
 
@@ -62,13 +66,36 @@ const Dashboard = () => {
     }
   };
 
-  const StatCard = ({ title, value, icon: Icon, gradient, trend, color }) => (
+  // Process weekly data from actual scans or use default
+  const processWeeklyData = () => {
+    if (stats.weeklyData && stats.weeklyData.length > 0) {
+      return stats.weeklyData;
+    }
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days.map(day => ({
+      day,
+      phishing: 0,
+      scam: 0,
+      safe: 0,
+    }));
+  };
+
+  const weeklyData = processWeeklyData();
+  const hasData = stats.totalScans > 0;
+  const hasWeeklyData = weeklyData.some(d => d.phishing > 0 || d.scam > 0 || d.safe > 0);
+
+  const StatCard = ({ title, value, icon: Icon, gradient, trend, subtitle }) => (
     <div className="stat-card-premium">
       <div className="stat-icon" style={{ background: gradient }}>
         <Icon style={{ color: "white", fontSize: "28px" }} />
       </div>
       <div className="stat-value">{value}</div>
       <div className="stat-label">{title}</div>
+      {subtitle && (
+        <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px" }}>
+          {subtitle}
+        </div>
+      )}
       {trend && (
         <div
           className="stat-trend"
@@ -81,11 +108,122 @@ const Dashboard = () => {
     </div>
   );
 
+  // Calculate total threats and percentages for pie chart
+  const totalThreats = stats.phishingDetected + stats.scamMessages + stats.safeDetections;
+  
   const pieData = [
-    { name: "Phishing URLs", value: stats.phishingDetected, color: "#ef4444" },
-    { name: "Scam Messages", value: stats.scamMessages, color: "#f59e0b" },
-    { name: "Safe", value: stats.safeDetections, color: "#10b981" },
+    { 
+      name: "Phishing URLs", 
+      value: stats.phishingDetected, 
+      color: "#ef4444",
+      percentage: totalThreats > 0 ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1) : 0
+    },
+    { 
+      name: "Scam Messages", 
+      value: stats.scamMessages, 
+      color: "#f59e0b",
+      percentage: totalThreats > 0 ? ((stats.scamMessages / totalThreats) * 100).toFixed(1) : 0
+    },
+    { 
+      name: "Safe", 
+      value: stats.safeDetections, 
+      color: "#10b981",
+      percentage: totalThreats > 0 ? ((stats.safeDetections / totalThreats) * 100).toFixed(1) : 0
+    },
   ];
+
+  // Custom Tooltip for charts
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{
+          background: "white",
+          padding: "12px 16px",
+          borderRadius: "12px",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
+          border: "1px solid #e2e8f0",
+        }}>
+          <p style={{ fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}>
+            {label}
+          </p>
+          {payload.map((entry, index) => (
+            <p key={index} style={{ color: entry.color, fontSize: "14px", margin: "4px 0" }}>
+              {entry.name}: {entry.value}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Custom Pie Label
+  const renderPieLabel = ({ name, percent, value }) => {
+    if (value === 0) return '';
+    return `${name}: ${(percent * 100).toFixed(1)}%`;
+  };
+
+  // Empty State Component
+  const EmptyChartState = ({ icon: Icon, title, description, actionText, onAction }) => (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "320px",
+        padding: "40px",
+        textAlign: "center",
+      }}
+    >
+      <div
+        style={{
+          width: "80px",
+          height: "80px",
+          borderRadius: "50%",
+          background: "linear-gradient(135deg, #667eea15 0%, #764ba215 100%)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: "20px",
+        }}
+      >
+        <Icon style={{ fontSize: "36px", color: "#94a3b8" }} />
+      </div>
+      <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}>
+        {title}
+      </h3>
+      <p style={{ fontSize: "14px", color: "#94a3b8", maxWidth: "300px", marginBottom: "16px" }}>
+        {description}
+      </p>
+      {onAction && (
+        <button
+          onClick={onAction}
+          style={{
+            padding: "10px 24px",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            color: "white",
+            border: "none",
+            borderRadius: "12px",
+            fontSize: "14px",
+            fontWeight: "600",
+            cursor: "pointer",
+            transition: "all 0.3s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 8px 25px rgba(102,126,234,0.4)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0) scale(1)";
+            e.currentTarget.style.boxShadow = "none";
+          }}
+        >
+          {actionText}
+        </button>
+      )}
+    </div>
+  );
 
   if (loading) {
     return (
@@ -107,7 +245,7 @@ const Dashboard = () => {
             top: "-150px",
             left: "-150px",
           }}
-        ></div>
+        />
         <div
           className="circle"
           style={{
@@ -117,7 +255,7 @@ const Dashboard = () => {
             right: "-100px",
             animationDelay: "5s",
           }}
-        ></div>
+        />
         <div
           className="circle"
           style={{
@@ -127,7 +265,7 @@ const Dashboard = () => {
             left: "50%",
             animationDelay: "10s",
           }}
-        ></div>
+        />
       </div>
 
       {/* Welcome Section */}
@@ -156,7 +294,6 @@ const Dashboard = () => {
           gap: "20px",
         }}
       >
-        {/* Decorative Background Elements */}
         <div
           style={{
             position: "absolute",
@@ -325,28 +462,32 @@ const Dashboard = () => {
           value={stats.totalScans}
           icon={FaShieldAlt}
           gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-          trend={12}
+          trend={hasData ? 12 : 0}
+          subtitle="All time scans"
         />
         <StatCard
           title="Phishing URLs"
           value={stats.phishingDetected}
           icon={FaExclamationTriangle}
           gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
-          trend={-5}
+          trend={hasData ? -5 : 0}
+          subtitle={`${totalThreats > 0 ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1) : 0}% of total`}
         />
         <StatCard
           title="Scam Messages"
           value={stats.scamMessages}
           icon={FaEnvelope}
           gradient="linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
-          trend={8}
+          trend={hasData ? 8 : 0}
+          subtitle={`${totalThreats > 0 ? ((stats.scamMessages / totalThreats) * 100).toFixed(1) : 0}% of total`}
         />
         <StatCard
           title="Safe Detections"
           value={stats.safeDetections}
           icon={FaCheckCircle}
           gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
-          trend={15}
+          trend={hasData ? 15 : 0}
+          subtitle={`${totalThreats > 0 ? ((stats.safeDetections / totalThreats) * 100).toFixed(1) : 0}% of total`}
         />
       </div>
 
@@ -359,81 +500,148 @@ const Dashboard = () => {
           marginBottom: "48px",
         }}
       >
-        {/* Area Chart */}
-        <div className="chart-container">
+        {/* Area Chart - Detection Trends */}
+        <div className="chart-container" style={{ position: "relative" }}>
           <div className="chart-title">
             <FaChartLine style={{ color: "#667eea" }} />
             <span>Detection Trends</span>
+            <span
+              style={{
+                fontSize: "12px",
+                fontWeight: "400",
+                color: "#94a3b8",
+                marginLeft: "8px",
+              }}
+            >
+              (Last 7 days)
+            </span>
           </div>
-          <ResponsiveContainer width="100%" height={320}>
-            <AreaChart data={stats.weeklyData}>
-              <defs>
-                <linearGradient id="colorPhishing" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorScam" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="day" stroke="#64748b" />
-              <YAxis stroke="#64748b" />
-              <Tooltip
-                contentStyle={{
-                  background: "white",
-                  border: "none",
-                  borderRadius: "12px",
-                  boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
-                  padding: "12px",
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="phishing"
-                stroke="#ef4444"
-                fill="url(#colorPhishing)"
-                name="Phishing URLs"
-              />
-              <Area
-                type="monotone"
-                dataKey="scam"
-                stroke="#f59e0b"
-                fill="url(#colorScam)"
-                name="Scam Messages"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {hasWeeklyData ? (
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={weeklyData}>
+                <defs>
+                  <linearGradient id="colorPhishing" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorScam" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorSafe" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="day" stroke="#64748b" fontSize={12} />
+                <YAxis stroke="#64748b" fontSize={12} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="phishing"
+                  stroke="#ef4444"
+                  fill="url(#colorPhishing)"
+                  name="Phishing URLs"
+                  strokeWidth={2}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="scam"
+                  stroke="#f59e0b"
+                  fill="url(#colorScam)"
+                  name="Scam Messages"
+                  strokeWidth={2}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="safe"
+                  stroke="#10b981"
+                  fill="url(#colorSafe)"
+                  name="Safe"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChartState
+              icon={FaInbox}
+              title="No Scan Data Available"
+              description="Start scanning URLs and messages to see detection trends over time."
+              actionText="Start Scanning"
+              onAction={() => navigate("/url-scan")}
+            />
+          )}
         </div>
 
-        {/* Pie Chart */}
-        <div className="chart-container">
+        {/* Pie Chart - Threat Distribution */}
+        <div className="chart-container" style={{ position: "relative" }}>
           <div className="chart-title">
-            <FaBell style={{ color: "#667eea" }} />
+            <FaChartPie style={{ color: "#667eea" }} />
             <span>Threat Distribution</span>
+            <span
+              style={{
+                fontSize: "12px",
+                fontWeight: "400",
+                color: "#94a3b8",
+                marginLeft: "8px",
+              }}
+            >
+              ({totalThreats} total)
+            </span>
           </div>
-          <ResponsiveContainer width="100%" height={320}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) =>
-                  `${name} ${(percent * 100).toFixed(0)}%`
-                }
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          {totalThreats > 0 ? (
+            <ResponsiveContainer width="100%" height={320}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={true}
+                  label={renderPieLabel}
+                  outerRadius={100}
+                  innerRadius={50}
+                  fill="#8884d8"
+                  dataKey="value"
+                  paddingAngle={2}
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.color}
+                      stroke="white"
+                      strokeWidth={2}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{
+                    background: "white",
+                    border: "none",
+                    borderRadius: "12px",
+                    boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
+                    padding: "12px",
+                  }}
+                />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36}
+                  formatter={(value, entry) => {
+                    const item = pieData.find(d => d.name === value);
+                    return `${value}: ${item?.percentage || 0}%`;
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChartState
+              icon={FaChartPie}
+              title="No Data to Display"
+              description="No scans have been performed yet. Start scanning to see threat distribution."
+              actionText="Start Scanning"
+              onAction={() => navigate("/message-scan")}
+            />
+          )}
         </div>
       </div>
 
@@ -494,43 +702,20 @@ const Dashboard = () => {
           </button>
         </div>
 
-        <div style={{ overflowX: "auto" }}>
-          <table className="table-premium">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Content</th>
-                <th>Risk Score</th>
-                <th>Status</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.recentScans?.length === 0 ? (
+        {stats.recentScans?.length > 0 ? (
+          <div style={{ overflowX: "auto" }}>
+            <table className="table-premium">
+              <thead>
                 <tr>
-                  <td
-                    colSpan="5"
-                    style={{
-                      textAlign: "center",
-                      padding: "60px",
-                      color: "#94a3b8",
-                    }}
-                  >
-                    <FaShieldAlt
-                      style={{
-                        fontSize: "48px",
-                        marginBottom: "16px",
-                        opacity: 0.5,
-                      }}
-                    />
-                    <p>
-                      No scans yet. Start scanning URLs or messages to see
-                      results here.
-                    </p>
-                  </td>
+                  <th>Type</th>
+                  <th>Content</th>
+                  <th>Risk Score</th>
+                  <th>Status</th>
+                  <th>Date</th>
                 </tr>
-              ) : (
-                stats.recentScans?.map((scan, index) => (
+              </thead>
+              <tbody>
+                {stats.recentScans?.map((scan, index) => (
                   <tr key={index}>
                     <td>
                       <span
@@ -563,7 +748,7 @@ const Dashboard = () => {
                                     ? "#f59e0b"
                                     : "#10b981",
                             }}
-                          ></div>
+                          />
                         </div>
                         <span style={{ fontWeight: "600", minWidth: "45px" }}>
                           {scan.riskScore || 0}%
@@ -590,14 +775,73 @@ const Dashboard = () => {
                       </span>
                     </td>
                     <td style={{ color: "#64748b", fontSize: "14px" }}>
-                      {new Date(scan.date || scan.timestamp || Date.now()).toLocaleDateString()}
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <FaCalendarAlt size={12} />
+                        {new Date(scan.date || scan.timestamp || Date.now()).toLocaleDateString()}
+                      </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "60px 20px",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                width: "80px",
+                height: "80px",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #667eea15 0%, #764ba215 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <FaShieldAlt style={{ fontSize: "36px", color: "#94a3b8" }} />
+            </div>
+            <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}>
+              No Scans Yet
+            </h3>
+            <p style={{ fontSize: "14px", color: "#94a3b8", maxWidth: "400px", marginBottom: "16px" }}>
+              Start scanning URLs or messages to see results here. Your scan history will appear in this table.
+            </p>
+            <button
+              onClick={() => navigate("/url-scan")}
+              style={{
+                padding: "10px 24px",
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: "12px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+                e.currentTarget.style.boxShadow = "0 8px 25px rgba(102,126,234,0.4)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0) scale(1)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              Start Scanning
+            </button>
+          </div>
+        )}
       </div>
 
       <style>{`

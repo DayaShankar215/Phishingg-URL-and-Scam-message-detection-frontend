@@ -7,7 +7,14 @@ const ThemeContext = createContext();
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    // Return default values instead of throwing error
+    return { 
+      isDark: false, 
+      currentTheme: 'light', 
+      theme: 'light', 
+      toggleTheme: () => {},
+      isLoading: false 
+    };
   }
   return context;
 };
@@ -16,6 +23,7 @@ export const ThemeProvider = ({ children }) => {
   const systemScheme = useColorScheme();
   const [theme, setTheme] = useState('system');
   const [currentTheme, setCurrentTheme] = useState('light');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadTheme();
@@ -43,6 +51,8 @@ export const ThemeProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Failed to load theme:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -64,6 +74,7 @@ export const ThemeProvider = ({ children }) => {
     toggleTheme,
     isDark: currentTheme === 'dark',
     isLight: currentTheme === 'light',
+    isLoading,
   };
 
   return (

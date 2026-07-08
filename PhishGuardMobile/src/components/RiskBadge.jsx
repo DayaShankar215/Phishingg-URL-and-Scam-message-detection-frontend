@@ -1,27 +1,122 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Colors from '../constants/colors';
 
-const RiskBadge = ({ score, size = 'medium' }) => {
+// Import your theme/colors
+import { useTheme } from '../context/ThemeContext';
+import { getColors } from '../constants/colors';
+
+const RiskBadge = ({ 
+  score = 0, 
+  size = 'medium', 
+  showIcon = true,
+  showPercentage = true,
+  style = {},
+  colors = null // Allow custom colors override
+}) => {
+  // Get theme colors if not provided
+  const { isDark } = useTheme();
+  const themeColors = colors || getColors(isDark);
+  
+  // Safe score value
+  const safeScore = typeof score === 'number' ? score : 0;
+  const roundedScore = Math.round(safeScore);
+  
+  // Determine risk level with safe defaults
   const getRiskLevel = () => {
-    if (score > 70) return { label: 'High Risk', color: Colors.danger, icon: '⚠️' };
-    if (score > 30) return { label: 'Medium Risk', color: Colors.warning, icon: '⚡' };
-    return { label: 'Low Risk', color: Colors.success, icon: '✅' };
+    if (safeScore > 70) {
+      return { 
+        label: 'High Risk', 
+        color: themeColors?.danger || '#dc2626',
+        bgColor: themeColors?.dangerBg || '#fee2e2',
+        icon: '🚨'
+      };
+    }
+    if (safeScore > 30) {
+      return { 
+        label: 'Medium Risk', 
+        color: themeColors?.warning || '#d97706',
+        bgColor: themeColors?.warningBg || '#fef3c7',
+        icon: '⚡'
+      };
+    }
+    return { 
+      label: 'Low Risk', 
+      color: themeColors?.success || '#16a34a',
+      bgColor: themeColors?.successBg || '#dcfce7',
+      icon: '✅'
+    };
   };
 
-  const { label, color, icon } = getRiskLevel();
+  const risk = getRiskLevel();
 
-  const sizeStyles = {
-    small: { paddingVertical: 4, paddingHorizontal: 8, fontSize: 12 },
-    medium: { paddingVertical: 6, paddingHorizontal: 12, fontSize: 14 },
-    large: { paddingVertical: 8, paddingHorizontal: 16, fontSize: 16 },
+  // Size configurations
+  const sizeConfigs = {
+    small: {
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      fontSize: 11,
+      iconSize: 12,
+      borderRadius: 12,
+      gap: 4,
+    },
+    medium: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      fontSize: 13,
+      iconSize: 14,
+      borderRadius: 16,
+      gap: 6,
+    },
+    large: {
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      fontSize: 15,
+      iconSize: 16,
+      borderRadius: 20,
+      gap: 8,
+    },
   };
+
+  const sizeConfig = sizeConfigs[size] || sizeConfigs.medium;
 
   return (
-    <View style={[styles.container, { backgroundColor: color + '20', borderColor: color }]}>
-      <Text style={styles.icon}>{icon}</Text>
-      <Text style={[styles.label, { color, fontSize: sizeStyles[size].fontSize }]}>{label}</Text>
-      <Text style={[styles.score, { color, fontSize: sizeStyles[size].fontSize }]}>{Math.round(score)}%</Text>
+    <View style={[
+      styles.container,
+      {
+        backgroundColor: risk.bgColor,
+        borderColor: risk.color,
+        paddingVertical: sizeConfig.paddingVertical,
+        paddingHorizontal: sizeConfig.paddingHorizontal,
+        borderRadius: sizeConfig.borderRadius,
+        gap: sizeConfig.gap,
+      },
+      style
+    ]}>
+      {showIcon && (
+        <Text style={[styles.icon, { fontSize: sizeConfig.iconSize }]}>
+          {risk.icon}
+        </Text>
+      )}
+      <Text style={[
+        styles.label, 
+        { 
+          color: risk.color,
+          fontSize: sizeConfig.fontSize,
+        }
+      ]}>
+        {risk.label}
+      </Text>
+      {showPercentage && (
+        <Text style={[
+          styles.score,
+          { 
+            color: risk.color,
+            fontSize: sizeConfig.fontSize,
+          }
+        ]}>
+          {roundedScore}%
+        </Text>
+      )}
     </View>
   );
 };
@@ -30,16 +125,21 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
     borderWidth: 1,
     alignSelf: 'flex-start',
   },
-  icon: { fontSize: 14 },
-  label: { fontWeight: '600' },
-  score: { fontWeight: 'bold' },
+  icon: {
+    lineHeight: 16,
+  },
+  label: {
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  score: {
+    fontWeight: 'bold',
+    letterSpacing: 0.3,
+  },
 });
 
-export default RiskBadge;
+// Export with memo for performance
+export default React.memo(RiskBadge);
