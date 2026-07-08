@@ -1,4 +1,4 @@
-// MessageScanner.jsx
+// MessageScanner.jsx - Professional Analysis Display
 import React, { useState } from "react";
 import { scanMessage, submitFeedback, downloadPDFReport } from "../services/api";
 import { validateMessage } from "../utils/validators";
@@ -15,6 +15,18 @@ import {
   FaThumbsDown,
   FaCheckCircle,
   FaSpinner,
+  FaCheck,
+  FaTimes,
+  FaClock,
+  FaUserSecret,
+  FaLink,
+  FaPhone,
+  FaHashtag,
+  FaQuoteRight,
+  FaShieldVirus,
+  FaRobot,
+  FaBrain,
+  FaChartBar,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 
@@ -85,25 +97,19 @@ const MessageScanner = () => {
         throw new Error("No data received from server");
       }
 
-      // Create blob from response data
       const blob = new Blob([response.data], { 
         type: response.headers?.['content-type'] || 'application/pdf' 
       });
       
-      // Create download URL
       const downloadUrl = window.URL.createObjectURL(blob);
-      
-      // Create a temporary link element
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = `security_report_${scanId}.pdf`;
       link.style.display = 'none';
       
-      // Append to body, click, and cleanup
       document.body.appendChild(link);
       link.click();
       
-      // Cleanup after download starts
       setTimeout(() => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(downloadUrl);
@@ -190,15 +196,41 @@ const MessageScanner = () => {
     ));
   };
 
+  const getRiskLevel = (score) => {
+    if (score > 70) return { 
+      label: "High Risk", 
+      color: "#ef4444", 
+      bg: "#fee2e2", 
+      border: "#fca5a5",
+      icon: "🚨",
+      badge: "Dangerous"
+    };
+    if (score > 30) return { 
+      label: "Medium Risk", 
+      color: "#f59e0b", 
+      bg: "#fef3c7", 
+      border: "#fcd34d",
+      icon: "⚠️",
+      badge: "Suspicious"
+    };
+    return { 
+      label: "Low Risk", 
+      color: "#10b981", 
+      bg: "#d1fae5", 
+      border: "#6ee7b7",
+      icon: "✅",
+      badge: "Safe"
+    };
+  };
+
   const getRiskColor = (score) => {
-    if (score > 70)
-      return { bg: "#ef4444", light: "#fee", text: "#dc2626", icon: "🚨" };
-    if (score > 30)
-      return { bg: "#f59e0b", light: "#fff3e0", text: "#ed6c02", icon: "⚠️" };
-    return { bg: "#10b981", light: "#e8f5e9", text: "#2e7d32", icon: "✅" };
+    if (score > 70) return { bg: "#ef4444", light: "#fee", text: "#dc2626" };
+    if (score > 30) return { bg: "#f59e0b", light: "#fff3e0", text: "#ed6c02" };
+    return { bg: "#10b981", light: "#e8f5e9", text: "#2e7d32" };
   };
 
   const riskColor = result ? getRiskColor(result.riskScore) : null;
+  const riskLevel = result ? getRiskLevel(result.riskScore) : null;
 
   return (
     <div
@@ -207,6 +239,7 @@ const MessageScanner = () => {
         margin: "0 auto",
         padding: "40px 24px",
         minHeight: "calc(100vh - 200px)",
+        background: "#f8fafc",
       }}
     >
       {/* Hero Section */}
@@ -393,71 +426,137 @@ const MessageScanner = () => {
       {/* Results Section */}
       {result && (
         <div style={{ animation: "slideUp 0.5s ease-out" }}>
-          {/* Risk Score Card */}
+          {/* ============================================================ */}
+          {/* RISK SCORE CARD - Professional Design */}
+          {/* ============================================================ */}
           <div
             style={{
-              background: `linear-gradient(135deg, ${riskColor.light} 0%, white 100%)`,
+              background: "white",
               borderRadius: "24px",
               padding: "32px",
-              marginBottom: "24px",
-              border: `1px solid ${riskColor.bg}40`,
+              marginBottom: "32px",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+              border: `1px solid ${riskLevel.border}`,
+              position: "relative",
+              overflow: "hidden",
             }}
           >
+            {/* Gradient Background */}
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                right: 0,
+                width: "300px",
+                height: "300px",
+                borderRadius: "50%",
+                background: `radial-gradient(circle, ${riskLevel.color}15 0%, transparent 70%)`,
+                transform: "translate(100px, -100px)",
+              }}
+            />
+            
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "24px",
                 flexWrap: "wrap",
-                gap: "16px",
+                gap: "20px",
+                position: "relative",
+                zIndex: 1,
               }}
             >
               <div>
-                <h3
+                <div
                   style={{
-                    fontSize: "18px",
-                    color: "#64748b",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
                     marginBottom: "8px",
                   }}
                 >
-                  Scam Risk Score
-                </h3>
+                  <span style={{ fontSize: "28px" }}>{riskLevel.icon}</span>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: riskLevel.color,
+                      background: riskLevel.bg,
+                      padding: "4px 16px",
+                      borderRadius: "100px",
+                    }}
+                  >
+                    {riskLevel.badge}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: "500",
+                      color: "#94a3b8",
+                    }}
+                  >
+                    Scam Risk Assessment
+                  </span>
+                </div>
                 <div
                   style={{
                     display: "flex",
                     alignItems: "baseline",
-                    gap: "12px",
+                    gap: "16px",
                   }}
                 >
                   <span
                     style={{
-                      fontSize: "48px",
+                      fontSize: "56px",
                       fontWeight: "800",
-                      color: riskColor.text,
+                      color: riskLevel.color,
+                      lineHeight: 1,
                     }}
                   >
                     {Math.round(result.riskScore)}%
                   </span>
-                  <span style={{ fontSize: "32px" }}>{riskColor.icon}</span>
+                  <span
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "600",
+                      color: riskLevel.color,
+                    }}
+                  >
+                    {riskLevel.label}
+                  </span>
                 </div>
               </div>
+
               <button
                 onClick={handleDownloadPDF}
                 disabled={downloading}
                 style={{
-                  background: "white",
-                  border: `2px solid ${riskColor.bg}`,
-                  padding: "12px 24px",
-                  borderRadius: "12px",
+                  background: riskLevel.color,
+                  color: "white",
+                  padding: "14px 28px",
+                  border: "none",
+                  borderRadius: "14px",
                   cursor: downloading ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px",
+                  gap: "10px",
                   fontWeight: "600",
-                  color: riskColor.text,
+                  fontSize: "15px",
                   transition: "all 0.3s ease",
                   opacity: downloading ? 0.6 : 1,
+                  boxShadow: `0 4px 16px ${riskLevel.color}40`,
+                }}
+                onMouseEnter={(e) => {
+                  if (!downloading) {
+                    e.currentTarget.style.transform = "scale(1.02)";
+                    e.currentTarget.style.boxShadow = `0 6px 24px ${riskLevel.color}50`;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!downloading) {
+                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.boxShadow = `0 4px 16px ${riskLevel.color}40`;
+                  }
                 }}
               >
                 {downloading ? (
@@ -474,13 +573,14 @@ const MessageScanner = () => {
               </button>
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
+            {/* Progress Bar */}
+            <div style={{ marginTop: "20px", position: "relative", zIndex: 1 }}>
               <div
                 style={{
                   width: "100%",
-                  height: "12px",
-                  background: "#e2e8f0",
-                  borderRadius: "6px",
+                  height: "8px",
+                  background: "#f1f5f9",
+                  borderRadius: "4px",
                   overflow: "hidden",
                 }}
               >
@@ -488,18 +588,35 @@ const MessageScanner = () => {
                   style={{
                     width: `${result.riskScore}%`,
                     height: "100%",
-                    background: riskColor.bg,
+                    background: `linear-gradient(90deg, ${riskLevel.color}80, ${riskLevel.color})`,
+                    borderRadius: "4px",
                     transition: "width 1s ease",
                   }}
-                ></div>
+                />
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: "8px",
+                  fontSize: "12px",
+                  color: "#94a3b8",
+                }}
+              >
+                <span>Safe (0%)</span>
+                <span>Suspicious (50%)</span>
+                <span>Dangerous (100%)</span>
               </div>
             </div>
 
             <p
               style={{
-                fontSize: "16px",
-                color: riskColor.text,
+                marginTop: "16px",
+                fontSize: "15px",
+                color: riskLevel.color,
                 fontWeight: "500",
+                position: "relative",
+                zIndex: 1,
               }}
             >
               {result.riskScore > 70
@@ -510,53 +627,89 @@ const MessageScanner = () => {
             </p>
           </div>
 
-          {/* Message Content Display */}
+          {/* ============================================================ */}
+          {/* MESSAGE CONTENT CARD */}
+          {/* ============================================================ */}
           <div
             style={{
               background: "white",
               borderRadius: "20px",
-              padding: "24px",
-              marginBottom: "24px",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-              border: "1px solid #e2e8f0",
+              padding: "28px",
+              marginBottom: "32px",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+              border: "1px solid #f1f5f9",
             }}
           >
-            <h3
+            <div
               style={{
-                fontSize: "18px",
-                fontWeight: "700",
-                color: "#1e293b",
-                marginBottom: "16px",
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: "14px",
+                marginBottom: "20px",
               }}
             >
-              <FaEnvelope style={{ color: "#f5576c" }} />
-              Analyzed Message
-            </h3>
+              <div
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  background:
+                    "linear-gradient(135deg, #f093fb20 0%, #f5576c20 100%)",
+                  borderRadius: "14px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "20px",
+                }}
+              >
+                <FaQuoteRight />
+              </div>
+              <div>
+                <h3
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    color: "#1e293b",
+                    margin: 0,
+                  }}
+                >
+                  Analyzed Message
+                </h3>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#94a3b8",
+                    margin: 0,
+                  }}
+                >
+                  Content that was scanned
+                </p>
+              </div>
+            </div>
             <div
               style={{
                 background: "#f8fafc",
-                padding: "20px",
-                borderRadius: "16px",
+                padding: "20px 24px",
+                borderRadius: "14px",
+                borderLeft: `4px solid ${riskLevel.color}`,
+                fontSize: "15px",
+                color: "#1e293b",
+                lineHeight: "1.8",
                 fontStyle: "italic",
-                color: "#475569",
-                lineHeight: "1.6",
-                borderLeft: `4px solid ${riskColor.bg}`,
               }}
             >
               "{result.message || result.content}"
             </div>
           </div>
 
-          {/* Detailed Analysis Grid */}
+          {/* ============================================================ */}
+          {/* TWO COLUMN ANALYSIS */}
+          {/* ============================================================ */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
               gap: "24px",
-              marginBottom: "24px",
+              marginBottom: "32px",
             }}
           >
             {/* Classification Card */}
@@ -564,15 +717,16 @@ const MessageScanner = () => {
               style={{
                 background: "white",
                 borderRadius: "20px",
-                padding: "24px",
-                boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+                padding: "28px",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+                border: "1px solid #f1f5f9",
               }}
             >
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "12px",
+                  gap: "14px",
                   marginBottom: "20px",
                 }}
               >
@@ -582,47 +736,80 @@ const MessageScanner = () => {
                     height: "48px",
                     background:
                       "linear-gradient(135deg, #f093fb20 0%, #f5576c20 100%)",
-                    borderRadius: "16px",
+                    borderRadius: "14px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                  }}
-                >
-                  <FaInfoCircle
-                    style={{ color: "#f5576c", fontSize: "24px" }}
-                  />
-                </div>
-                <h3
-                  style={{
                     fontSize: "20px",
-                    fontWeight: "700",
-                    color: "#1e293b",
                   }}
                 >
-                  AI Classification
-                </h3>
+                  <FaRobot />
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: "#1e293b",
+                      margin: 0,
+                    }}
+                  >
+                    AI Classification
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#94a3b8",
+                      margin: 0,
+                    }}
+                  >
+                    AI-Powered Prediction
+                  </p>
+                </div>
               </div>
-              <p
+              <div
                 style={{
-                  color: "#475569",
-                  lineHeight: "1.6",
+                  padding: "16px",
+                  background: "#f8fafc",
+                  borderRadius: "12px",
                   marginBottom: "16px",
                 }}
               >
-                {result.classification}
-              </p>
+                <p
+                  style={{
+                    fontSize: "15px",
+                    color: "#1e293b",
+                    lineHeight: "1.6",
+                    margin: 0,
+                    fontWeight: "500",
+                  }}
+                >
+                  {result.classification}
+                </p>
+              </div>
               <div
                 style={{
-                  display: "inline-block",
-                  padding: "6px 12px",
-                  background: `${riskColor.bg}20`,
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  color: riskColor.text,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
                 }}
               >
-                Confidence: {((result.confidence || 0.5) * 100).toFixed(1)}%
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 14px",
+                    background: `${riskLevel.color}15`,
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    color: riskLevel.color,
+                  }}
+                >
+                  <FaBrain size={14} />
+                  Confidence: {((result.confidence || 0.5) * 100).toFixed(1)}%
+                </div>
               </div>
             </div>
 
@@ -631,15 +818,16 @@ const MessageScanner = () => {
               style={{
                 background: "white",
                 borderRadius: "20px",
-                padding: "24px",
-                boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+                padding: "28px",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+                border: "1px solid #f1f5f9",
               }}
             >
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "12px",
+                  gap: "14px",
                   marginBottom: "20px",
                 }}
               >
@@ -649,198 +837,544 @@ const MessageScanner = () => {
                     height: "48px",
                     background:
                       "linear-gradient(135deg, #fa709a20 0%, #fee14020 100%)",
-                    borderRadius: "16px",
+                    borderRadius: "14px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                  }}
-                >
-                  <FaExclamationTriangle
-                    style={{ color: "#fa709a", fontSize: "24px" }}
-                  />
-                </div>
-                <h3
-                  style={{
                     fontSize: "20px",
-                    fontWeight: "700",
-                    color: "#1e293b",
                   }}
                 >
-                  Red Flags Detected
-                </h3>
+                  🚩
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: "#1e293b",
+                      margin: 0,
+                    }}
+                  >
+                    Red Flags Detected
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#94a3b8",
+                      margin: 0,
+                    }}
+                  >
+                    Key Scam Indicators
+                  </p>
+                </div>
               </div>
-              <p style={{ color: "#475569", lineHeight: "1.6" }}>
-                {result.explanation}
-              </p>
+              <div
+                style={{
+                  padding: "16px",
+                  background: "#f8fafc",
+                  borderRadius: "12px",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "14px",
+                    color: "#475569",
+                    lineHeight: "1.7",
+                    margin: 0,
+                  }}
+                >
+                  {result.explanation}
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Message Features */}
+          {/* ============================================================ */}
+          {/* MESSAGE FEATURES - Professional Grid */}
+          {/* ============================================================ */}
           {result.features && (
             <div
               style={{
                 background: "white",
                 borderRadius: "20px",
-                padding: "24px",
-                boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-                marginBottom: "24px",
+                padding: "28px",
+                marginBottom: "32px",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+                border: "1px solid #f1f5f9",
               }}
             >
-              <h3
+              <div
                 style={{
-                  fontSize: "20px",
-                  fontWeight: "700",
-                  color: "#1e293b",
-                  marginBottom: "20px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "14px",
+                  marginBottom: "24px",
                 }}
               >
-                Message Analysis Details
-              </h3>
+                <div
+                  style={{
+                    width: "48px",
+                    height: "48px",
+                    background:
+                      "linear-gradient(135deg, #06b6d420 0%, #3b82f620 100%)",
+                    borderRadius: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "20px",
+                  }}
+                >
+                  📊
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "700",
+                      color: "#1e293b",
+                      margin: 0,
+                    }}
+                  >
+                    Message Analysis Details
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#94a3b8",
+                      margin: 0,
+                    }}
+                  >
+                    Technical Message Features
+                  </p>
+                </div>
+              </div>
+
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                  gap: "16px",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: "12px",
                 }}
               >
+                {/* Message Length */}
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
                     background: "#f8fafc",
                     borderRadius: "12px",
+                    border: "1px solid #f1f5f9",
                   }}
                 >
-                  <span style={{ color: "#64748b" }}>Message Length:</span>
-                  <strong>{result.features.length} chars</strong>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    background: "#f8fafc",
-                    borderRadius: "12px",
-                  }}
-                >
-                  <span style={{ color: "#64748b" }}>Uppercase Ratio:</span>
-                  <strong>
-                    {(result.features.uppercaseRatio * 100).toFixed(1)}%
-                  </strong>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    background: "#f8fafc",
-                    borderRadius: "12px",
-                  }}
-                >
-                  <span style={{ color: "#64748b" }}>Contains URL:</span>
-                  <strong
+                  <div
                     style={{
+                      width: "36px",
+                      height: "36px",
+                      background: "#e0f2fe",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#0ea5e9",
+                      fontSize: "16px",
+                    }}
+                  >
+                    <FaEnvelope />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Message Length
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: "#1e293b",
+                      }}
+                    >
+                      {result.features.length || 0} chars
+                    </div>
+                  </div>
+                </div>
+
+                {/* Uppercase Ratio */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
+                    background: "#f8fafc",
+                    borderRadius: "12px",
+                    border: "1px solid #f1f5f9",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      background: "#fef3c7",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#f59e0b",
+                      fontSize: "16px",
+                    }}
+                  >
+                    <FaHashtag />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Uppercase Ratio
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: "#1e293b",
+                      }}
+                    >
+                      {(result.features.uppercaseRatio || 0 * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contains URL */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
+                    background: result.features.hasURL ? "#fef2f2" : "#ecfdf5",
+                    borderRadius: "12px",
+                    border: `1px solid ${result.features.hasURL ? "#fca5a5" : "#6ee7b7"}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      background: result.features.hasURL ? "#fee2e2" : "#d1fae5",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       color: result.features.hasURL ? "#ef4444" : "#10b981",
+                      fontSize: "16px",
                     }}
                   >
-                    {result.features.hasURL ? "⚠️ Yes" : "✓ No"}
-                  </strong>
+                    <FaLink />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Contains URL
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: result.features.hasURL ? "#ef4444" : "#10b981",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      {result.features.hasURL ? (
+                        <>
+                          <FaExclamationTriangle size={14} /> Yes
+                        </>
+                      ) : (
+                        <>
+                          <FaCheck size={14} /> No
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
+
+                {/* Contains Phone */}
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    background: "#f8fafc",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
+                    background: result.features.hasPhone ? "#fef2f2" : "#ecfdf5",
                     borderRadius: "12px",
+                    border: `1px solid ${result.features.hasPhone ? "#fca5a5" : "#6ee7b7"}`,
                   }}
                 >
-                  <span style={{ color: "#64748b" }}>Contains Phone:</span>
-                  <strong
+                  <div
                     style={{
+                      width: "36px",
+                      height: "36px",
+                      background: result.features.hasPhone ? "#fee2e2" : "#d1fae5",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       color: result.features.hasPhone ? "#ef4444" : "#10b981",
+                      fontSize: "16px",
                     }}
                   >
-                    {result.features.hasPhone ? "⚠️ Yes" : "✓ No"}
-                  </strong>
+                    <FaPhone />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Contains Phone
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: result.features.hasPhone ? "#ef4444" : "#10b981",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      {result.features.hasPhone ? (
+                        <>
+                          <FaExclamationTriangle size={14} /> Yes
+                        </>
+                      ) : (
+                        <>
+                          <FaCheck size={14} /> No
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
+
+                {/* Suspicious Keywords */}
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    background: "#f8fafc",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
+                    background: (result.features.suspiciousKeywordCount || 0) > 0 ? "#fef2f2" : "#ecfdf5",
                     borderRadius: "12px",
+                    border: `1px solid ${(result.features.suspiciousKeywordCount || 0) > 0 ? "#fca5a5" : "#6ee7b7"}`,
                   }}
                 >
-                  <span style={{ color: "#64748b" }}>Suspicious Keywords:</span>
-                  <strong
+                  <div
                     style={{
-                      color:
-                        result.features.suspiciousKeywordCount > 0
-                          ? "#ef4444"
-                          : "#10b981",
+                      width: "36px",
+                      height: "36px",
+                      background: (result.features.suspiciousKeywordCount || 0) > 0 ? "#fee2e2" : "#d1fae5",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: (result.features.suspiciousKeywordCount || 0) > 0 ? "#ef4444" : "#10b981",
+                      fontSize: "16px",
                     }}
                   >
-                    {result.features.suspiciousKeywordCount} found
-                  </strong>
+                    <FaUserSecret />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Suspicious Keywords
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: (result.features.suspiciousKeywordCount || 0) > 0 ? "#ef4444" : "#10b981",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      {(result.features.suspiciousKeywordCount || 0) > 0 ? (
+                        <>
+                          <FaExclamationTriangle size={14} /> {result.features.suspiciousKeywordCount} found
+                        </>
+                      ) : (
+                        <>
+                          <FaCheck size={14} /> None
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
+
+                {/* Special Symbols */}
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
                     background: "#f8fafc",
                     borderRadius: "12px",
+                    border: "1px solid #f1f5f9",
                   }}
                 >
-                  <span style={{ color: "#64748b" }}>Special Symbols:</span>
-                  <strong>{result.features.specialCharCount}</strong>
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      background: "#fce4ec",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#e91e63",
+                      fontSize: "16px",
+                    }}
+                  >
+                    <FaHashtag />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Special Symbols
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: "#1e293b",
+                      }}
+                    >
+                      {result.features.specialCharCount || 0}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Detected URLs */}
+          {/* ============================================================ */}
+          {/* DETECTED URLs */}
+          {/* ============================================================ */}
           {result.extractedUrls && result.extractedUrls.length > 0 && (
             <div
               style={{
-                background: "#fff3e0",
+                background: "white",
                 borderRadius: "20px",
-                padding: "24px",
-                marginBottom: "24px",
-                border: "1px solid #ffe0b2",
+                padding: "28px",
+                marginBottom: "32px",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+                border: "1px solid #fcd34d",
               }}
             >
-              <h3
+              <div
                 style={{
-                  fontSize: "18px",
-                  fontWeight: "700",
-                  color: "#ed6c02",
-                  marginBottom: "16px",
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px",
+                  gap: "14px",
+                  marginBottom: "20px",
                 }}
               >
-                <FaExclamationTriangle />
-                Suspicious URLs Detected
-              </h3>
+                <div
+                  style={{
+                    width: "48px",
+                    height: "48px",
+                    background: "#fef3c7",
+                    borderRadius: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "20px",
+                  }}
+                >
+                  🔗
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: "#ed6c02",
+                      margin: 0,
+                    }}
+                  >
+                    Suspicious URLs Detected
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#94a3b8",
+                      margin: 0,
+                    }}
+                  >
+                    {result.extractedUrls.length} suspicious link{result.extractedUrls.length > 1 ? 's' : ''} found in message
+                  </p>
+                </div>
+              </div>
               {result.extractedUrls.map((url, index) => (
                 <div
                   key={index}
                   style={{
-                    padding: "12px",
-                    background: "white",
-                    borderRadius: "12px",
+                    padding: "12px 16px",
+                    background: "#f8fafc",
+                    borderRadius: "10px",
                     marginBottom: "8px",
                     fontFamily: "monospace",
                     fontSize: "14px",
                     wordBreak: "break-all",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    border: "1px solid #f1f5f9",
                   }}
                 >
-                  🔗 {url}
+                  <span style={{ color: "#ef4444", fontSize: "16px" }}>⚠️</span>
+                  <span style={{ color: "#1e293b" }}>{url}</span>
                 </div>
               ))}
               <p
@@ -848,13 +1382,89 @@ const MessageScanner = () => {
                   fontSize: "13px",
                   color: "#ed6c02",
                   marginTop: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
                 }}
               >
-                These URLs have been automatically analyzed and contributed to
-                the risk score.
+                <FaExclamationTriangle size={14} />
+                These URLs have been automatically analyzed and contributed to the risk score.
               </p>
             </div>
           )}
+
+          {/* ============================================================ */}
+          {/* RECOMMENDATION */}
+          {/* ============================================================ */}
+          <div
+            style={{
+              background: `linear-gradient(135deg, ${riskLevel.bg} 0%, white 100%)`,
+              borderRadius: "20px",
+              padding: "28px",
+              marginBottom: "32px",
+              border: `2px solid ${riskLevel.border}`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                marginBottom: "16px",
+              }}
+            >
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  background: riskLevel.bg,
+                  borderRadius: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "22px",
+                }}
+              >
+                🛡️
+              </div>
+              <div>
+                <h3
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: "700",
+                    color: riskLevel.color,
+                    margin: 0,
+                  }}
+                >
+                  Security Recommendation
+                </h3>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#94a3b8",
+                    margin: 0,
+                  }}
+                >
+                  What you should do next
+                </p>
+              </div>
+            </div>
+            <p
+              style={{
+                fontSize: "15px",
+                color: "#475569",
+                lineHeight: "1.7",
+                margin: 0,
+                paddingLeft: "8px",
+              }}
+            >
+              {result.riskScore > 70
+                ? "🚫 DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier."
+                : result.riskScore > 30
+                  ? "⚠️ Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels."
+                  : "✓ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers."}
+            </p>
+          </div>
 
           {/* Feedback Section */}
           {showFeedback && !feedbackSubmitted && (
@@ -1180,34 +1790,6 @@ const MessageScanner = () => {
               </p>
             </div>
           )}
-
-          {/* Final Recommendation */}
-          <div
-            style={{
-              background: `linear-gradient(135deg, ${riskColor.bg}15 0%, white 100%)`,
-              borderRadius: "20px",
-              padding: "24px",
-              border: `2px solid ${riskColor.bg}30`,
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "18px",
-                fontWeight: "700",
-                color: riskColor.text,
-                marginBottom: "12px",
-              }}
-            >
-              Security Recommendation
-            </h3>
-            <p style={{ color: "#475569", lineHeight: "1.6" }}>
-              {result.riskScore > 70
-                ? "🚫 DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier."
-                : result.riskScore > 30
-                  ? "⚠️ Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels."
-                  : "✓ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers."}
-            </p>
-          </div>
         </div>
       )}
 

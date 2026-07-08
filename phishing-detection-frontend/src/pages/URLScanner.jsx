@@ -1,4 +1,4 @@
-// URLScanner.jsx
+// URLScanner.jsx - Professional Analysis Display
 import React, { useState } from "react";
 import { scanURL, submitFeedback, downloadPDFReport } from "../services/api";
 import { validateURL } from "../utils/validators";
@@ -15,6 +15,21 @@ import {
   FaThumbsUp,
   FaThumbsDown,
   FaSpinner,
+  FaLock,
+  FaUnlock,
+  FaGlobe,
+  FaServer,
+  FaClock,
+  FaSearch,
+  FaChartLine,
+  FaDatabase,
+  FaCode,
+  FaShieldVirus,
+  FaUserSecret,
+  FaExternalLinkAlt,
+  FaCheck,
+  FaTimes,
+  FaArrowRight,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 
@@ -85,25 +100,19 @@ const URLScanner = () => {
         throw new Error("No data received from server");
       }
 
-      // Create blob from response data
       const blob = new Blob([response.data], { 
         type: response.headers?.['content-type'] || 'application/pdf' 
       });
       
-      // Create download URL
       const downloadUrl = window.URL.createObjectURL(blob);
-      
-      // Create a temporary link element
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = `security_report_${scanId}.pdf`;
       link.style.display = 'none';
       
-      // Append to body, click, and cleanup
       document.body.appendChild(link);
       link.click();
       
-      // Cleanup after download starts
       setTimeout(() => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(downloadUrl);
@@ -186,6 +195,33 @@ const URLScanner = () => {
     ));
   };
 
+  const getRiskLevel = (score) => {
+    if (score > 70) return { 
+      label: "High Risk", 
+      color: "#ef4444", 
+      bg: "#fee2e2", 
+      border: "#fca5a5",
+      icon: "🚨",
+      badge: "Dangerous"
+    };
+    if (score > 30) return { 
+      label: "Medium Risk", 
+      color: "#f59e0b", 
+      bg: "#fef3c7", 
+      border: "#fcd34d",
+      icon: "⚠️",
+      badge: "Suspicious"
+    };
+    return { 
+      label: "Low Risk", 
+      color: "#10b981", 
+      bg: "#d1fae5", 
+      border: "#6ee7b7",
+      icon: "✅",
+      badge: "Safe"
+    };
+  };
+
   const getRiskColor = (score) => {
     if (score > 70) return { bg: "#ef4444", light: "#fee", text: "#dc2626" };
     if (score > 30) return { bg: "#f59e0b", light: "#fff3e0", text: "#ed6c02" };
@@ -193,6 +229,7 @@ const URLScanner = () => {
   };
 
   const riskColor = result ? getRiskColor(result.riskScore) : null;
+  const riskLevel = result ? getRiskLevel(result.riskScore) : null;
 
   return (
     <div
@@ -201,6 +238,7 @@ const URLScanner = () => {
         margin: "0 auto",
         padding: "40px 24px",
         minHeight: "calc(100vh - 200px)",
+        background: "#f8fafc",
       }}
     >
       {/* Hero Section */}
@@ -386,62 +424,137 @@ const URLScanner = () => {
       {/* Results Section */}
       {result && (
         <div style={{ animation: "slideUp 0.5s ease-out" }}>
-          {/* Risk Score Card */}
+          {/* ============================================================ */}
+          {/* RISK SCORE CARD - Professional Design */}
+          {/* ============================================================ */}
           <div
             style={{
-              background: `linear-gradient(135deg, ${riskColor.light} 0%, white 100%)`,
+              background: "white",
               borderRadius: "24px",
               padding: "32px",
-              marginBottom: "24px",
-              border: `1px solid ${riskColor.bg}40`,
+              marginBottom: "32px",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+              border: `1px solid ${riskLevel.border}`,
+              position: "relative",
+              overflow: "hidden",
             }}
           >
+            {/* Gradient Background */}
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                right: 0,
+                width: "300px",
+                height: "300px",
+                borderRadius: "50%",
+                background: `radial-gradient(circle, ${riskLevel.color}15 0%, transparent 70%)`,
+                transform: "translate(100px, -100px)",
+              }}
+            />
+            
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "24px",
                 flexWrap: "wrap",
-                gap: "16px",
+                gap: "20px",
+                position: "relative",
+                zIndex: 1,
               }}
             >
               <div>
-                <h3
+                <div
                   style={{
-                    fontSize: "18px",
-                    color: "#64748b",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
                     marginBottom: "8px",
                   }}
                 >
-                  Risk Assessment
-                </h3>
+                  <span style={{ fontSize: "28px" }}>{riskLevel.icon}</span>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: riskLevel.color,
+                      background: riskLevel.bg,
+                      padding: "4px 16px",
+                      borderRadius: "100px",
+                    }}
+                  >
+                    {riskLevel.badge}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: "500",
+                      color: "#94a3b8",
+                    }}
+                  >
+                    Risk Assessment
+                  </span>
+                </div>
                 <div
                   style={{
-                    fontSize: "48px",
-                    fontWeight: "800",
-                    color: riskColor.text,
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: "16px",
                   }}
                 >
-                  {Math.round(result.riskScore)}%
+                  <span
+                    style={{
+                      fontSize: "56px",
+                      fontWeight: "800",
+                      color: riskLevel.color,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {Math.round(result.riskScore)}%
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "600",
+                      color: riskLevel.color,
+                    }}
+                  >
+                    {riskLevel.label}
+                  </span>
                 </div>
               </div>
+
               <button
                 onClick={handleDownloadPDF}
                 disabled={downloading}
                 style={{
-                  background: "white",
-                  border: `2px solid ${riskColor.bg}`,
-                  padding: "12px 24px",
-                  borderRadius: "12px",
+                  background: riskLevel.color,
+                  color: "white",
+                  padding: "14px 28px",
+                  border: "none",
+                  borderRadius: "14px",
                   cursor: downloading ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px",
+                  gap: "10px",
                   fontWeight: "600",
-                  color: riskColor.text,
+                  fontSize: "15px",
                   transition: "all 0.3s ease",
                   opacity: downloading ? 0.6 : 1,
+                  boxShadow: `0 4px 16px ${riskLevel.color}40`,
+                }}
+                onMouseEnter={(e) => {
+                  if (!downloading) {
+                    e.currentTarget.style.transform = "scale(1.02)";
+                    e.currentTarget.style.boxShadow = `0 6px 24px ${riskLevel.color}50`;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!downloading) {
+                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.boxShadow = `0 4px 16px ${riskLevel.color}40`;
+                  }
                 }}
               >
                 {downloading ? (
@@ -458,13 +571,14 @@ const URLScanner = () => {
               </button>
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
+            {/* Progress Bar */}
+            <div style={{ marginTop: "20px", position: "relative", zIndex: 1 }}>
               <div
                 style={{
                   width: "100%",
-                  height: "12px",
-                  background: "#e2e8f0",
-                  borderRadius: "6px",
+                  height: "8px",
+                  background: "#f1f5f9",
+                  borderRadius: "4px",
                   overflow: "hidden",
                 }}
               >
@@ -472,35 +586,54 @@ const URLScanner = () => {
                   style={{
                     width: `${result.riskScore}%`,
                     height: "100%",
-                    background: riskColor.bg,
+                    background: `linear-gradient(90deg, ${riskLevel.color}80, ${riskLevel.color})`,
+                    borderRadius: "4px",
                     transition: "width 1s ease",
                   }}
-                ></div>
+                />
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: "8px",
+                  fontSize: "12px",
+                  color: "#94a3b8",
+                }}
+              >
+                <span>Low Risk (0%)</span>
+                <span>Medium (50%)</span>
+                <span>High Risk (100%)</span>
               </div>
             </div>
 
             <p
               style={{
-                fontSize: "16px",
-                color: riskColor.text,
+                marginTop: "16px",
+                fontSize: "15px",
+                color: riskLevel.color,
                 fontWeight: "500",
+                position: "relative",
+                zIndex: 1,
               }}
             >
               {result.riskScore > 70
-                ? "⚠️ HIGH RISK: This website appears to be a phishing site! Do not proceed."
+                ? "🚫 HIGH RISK: This website appears to be a phishing site! Do not proceed."
                 : result.riskScore > 30
                   ? "⚠️ MEDIUM RISK: This website shows suspicious characteristics. Exercise caution."
                   : "✅ LOW RISK: This website appears to be safe."}
             </p>
           </div>
 
-          {/* Detailed Analysis Grid */}
+          {/* ============================================================ */}
+          {/* TWO COLUMN ANALYSIS - Professional Cards */}
+          {/* ============================================================ */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
               gap: "24px",
-              marginBottom: "24px",
+              marginBottom: "32px",
             }}
           >
             {/* Classification Card */}
@@ -508,15 +641,16 @@ const URLScanner = () => {
               style={{
                 background: "white",
                 borderRadius: "20px",
-                padding: "24px",
-                boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+                padding: "28px",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+                border: "1px solid #f1f5f9",
               }}
             >
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "12px",
+                  gap: "14px",
                   marginBottom: "20px",
                 }}
               >
@@ -526,47 +660,80 @@ const URLScanner = () => {
                     height: "48px",
                     background:
                       "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)",
-                    borderRadius: "16px",
+                    borderRadius: "14px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                  }}
-                >
-                  <FaInfoCircle
-                    style={{ color: "#667eea", fontSize: "24px" }}
-                  />
-                </div>
-                <h3
-                  style={{
                     fontSize: "20px",
-                    fontWeight: "700",
-                    color: "#1e293b",
                   }}
                 >
-                  Classification
-                </h3>
+                  🏷️
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: "#1e293b",
+                      margin: 0,
+                    }}
+                  >
+                    Classification
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#94a3b8",
+                      margin: 0,
+                    }}
+                  >
+                    AI-Powered Prediction
+                  </p>
+                </div>
               </div>
-              <p
+              <div
                 style={{
-                  color: "#475569",
-                  lineHeight: "1.6",
+                  padding: "16px",
+                  background: "#f8fafc",
+                  borderRadius: "12px",
                   marginBottom: "16px",
                 }}
               >
-                {result.classification}
-              </p>
+                <p
+                  style={{
+                    fontSize: "15px",
+                    color: "#1e293b",
+                    lineHeight: "1.6",
+                    margin: 0,
+                    fontWeight: "500",
+                  }}
+                >
+                  {result.classification}
+                </p>
+              </div>
               <div
                 style={{
-                  display: "inline-block",
-                  padding: "6px 12px",
-                  background: `${riskColor.bg}20`,
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  color: riskColor.text,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
                 }}
               >
-                Confidence: {((result.confidence || 0.5) * 100).toFixed(1)}%
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 14px",
+                    background: `${riskLevel.color}15`,
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    color: riskLevel.color,
+                  }}
+                >
+                  <FaCheckCircle size={14} />
+                  Confidence: {((result.confidence || 0.5) * 100).toFixed(1)}%
+                </div>
               </div>
             </div>
 
@@ -575,15 +742,16 @@ const URLScanner = () => {
               style={{
                 background: "white",
                 borderRadius: "20px",
-                padding: "24px",
-                boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+                padding: "28px",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+                border: "1px solid #f1f5f9",
               }}
             >
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "12px",
+                  gap: "14px",
                   marginBottom: "20px",
                 }}
               >
@@ -593,147 +761,488 @@ const URLScanner = () => {
                     height: "48px",
                     background:
                       "linear-gradient(135deg, #f093fb20 0%, #f5576c20 100%)",
-                    borderRadius: "16px",
+                    borderRadius: "14px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                  }}
-                >
-                  <FaExclamationTriangle
-                    style={{ color: "#f5576c", fontSize: "24px" }}
-                  />
-                </div>
-                <h3
-                  style={{
                     fontSize: "20px",
-                    fontWeight: "700",
-                    color: "#1e293b",
                   }}
                 >
-                  Why It Was Flagged
-                </h3>
+                  📋
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: "#1e293b",
+                      margin: 0,
+                    }}
+                  >
+                    Why It Was Flagged
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#94a3b8",
+                      margin: 0,
+                    }}
+                  >
+                    Key Indicators
+                  </p>
+                </div>
               </div>
-              <p style={{ color: "#475569", lineHeight: "1.6" }}>
-                {result.explanation}
-              </p>
+              <div
+                style={{
+                  padding: "16px",
+                  background: "#f8fafc",
+                  borderRadius: "12px",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "14px",
+                    color: "#475569",
+                    lineHeight: "1.7",
+                    margin: 0,
+                  }}
+                >
+                  {result.explanation}
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Features Analyzed */}
+          {/* ============================================================ */}
+          {/* TECHNICAL ANALYSIS - Professional Grid */}
+          {/* ============================================================ */}
           {result.features && (
             <div
               style={{
                 background: "white",
                 borderRadius: "20px",
-                padding: "24px",
-                boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-                marginBottom: "24px",
+                padding: "28px",
+                marginBottom: "32px",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+                border: "1px solid #f1f5f9",
               }}
             >
-              <h3
+              <div
                 style={{
-                  fontSize: "20px",
-                  fontWeight: "700",
-                  color: "#1e293b",
-                  marginBottom: "20px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "14px",
+                  marginBottom: "24px",
                 }}
               >
-                Technical Analysis
-              </h3>
+                <div
+                  style={{
+                    width: "48px",
+                    height: "48px",
+                    background:
+                      "linear-gradient(135deg, #06b6d420 0%, #3b82f620 100%)",
+                    borderRadius: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "20px",
+                  }}
+                >
+                  🔍
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "700",
+                      color: "#1e293b",
+                      margin: 0,
+                    }}
+                  >
+                    Technical Analysis
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#94a3b8",
+                      margin: 0,
+                    }}
+                  >
+                    Detailed URL Features
+                  </p>
+                </div>
+              </div>
+
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                  gap: "16px",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: "12px",
                 }}
               >
+                {/* URL Length */}
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
                     background: "#f8fafc",
                     borderRadius: "12px",
+                    border: "1px solid #f1f5f9",
                   }}
                 >
-                  <span style={{ color: "#64748b" }}>URL Length:</span>
-                  <strong style={{ color: "#1e293b" }}>
-                    {result.features.urlLength}
-                  </strong>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    background: "#f8fafc",
-                    borderRadius: "12px",
-                  }}
-                >
-                  <span style={{ color: "#64748b" }}>HTTPS Usage:</span>
-                  <strong
+                  <div
                     style={{
+                      width: "36px",
+                      height: "36px",
+                      background: "#e0f2fe",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#0ea5e9",
+                      fontSize: "16px",
+                    }}
+                  >
+                    <FaLink />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      URL Length
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: "#1e293b",
+                      }}
+                    >
+                      {result.features.urlLength || "N/A"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* HTTPS Usage */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
+                    background: result.features.hasHTTPS ? "#ecfdf5" : "#fef2f2",
+                    borderRadius: "12px",
+                    border: `1px solid ${result.features.hasHTTPS ? "#6ee7b7" : "#fca5a5"}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      background: result.features.hasHTTPS ? "#d1fae5" : "#fee2e2",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       color: result.features.hasHTTPS ? "#10b981" : "#ef4444",
+                      fontSize: "16px",
                     }}
                   >
-                    {result.features.hasHTTPS ? "✓ Secure" : "✗ Not Secure"}
-                  </strong>
+                    {result.features.hasHTTPS ? <FaLock /> : <FaUnlock />}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      HTTPS Usage
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: result.features.hasHTTPS ? "#10b981" : "#ef4444",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      {result.features.hasHTTPS ? (
+                        <>
+                          <FaCheck size={14} /> Secure
+                        </>
+                      ) : (
+                        <>
+                          <FaTimes size={14} /> Not Secure
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
+
+                {/* Special Characters */}
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
                     background: "#f8fafc",
                     borderRadius: "12px",
+                    border: "1px solid #f1f5f9",
                   }}
                 >
-                  <span style={{ color: "#64748b" }}>Special Characters:</span>
-                  <strong>{result.features.specialChars}</strong>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    background: "#f8fafc",
-                    borderRadius: "12px",
-                  }}
-                >
-                  <span style={{ color: "#64748b" }}>IP Address:</span>
-                  <strong
+                  <div
                     style={{
+                      width: "36px",
+                      height: "36px",
+                      background: "#fef3c7",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#f59e0b",
+                      fontSize: "16px",
+                    }}
+                  >
+                    <FaCode />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Special Characters
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: "#1e293b",
+                      }}
+                    >
+                      {result.features.specialChars || 0}
+                    </div>
+                  </div>
+                </div>
+
+                {/* IP Address */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
+                    background: result.features.hasIP ? "#fef2f2" : "#ecfdf5",
+                    borderRadius: "12px",
+                    border: `1px solid ${result.features.hasIP ? "#fca5a5" : "#6ee7b7"}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      background: result.features.hasIP ? "#fee2e2" : "#d1fae5",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       color: result.features.hasIP ? "#ef4444" : "#10b981",
+                      fontSize: "16px",
                     }}
                   >
-                    {result.features.hasIP ? "Detected" : "Not Detected"}
-                  </strong>
+                    <FaServer />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      IP Address
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: result.features.hasIP ? "#ef4444" : "#10b981",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      {result.features.hasIP ? (
+                        <>
+                          <FaExclamationTriangle size={14} /> Detected
+                        </>
+                      ) : (
+                        <>
+                          <FaCheck size={14} /> Not Detected
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
+
+                {/* Suspicious Keywords */}
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    background: "#f8fafc",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "14px 18px",
+                    background: result.features.hasSuspiciousKeywords ? "#fef2f2" : "#ecfdf5",
                     borderRadius: "12px",
+                    border: `1px solid ${result.features.hasSuspiciousKeywords ? "#fca5a5" : "#6ee7b7"}`,
                   }}
                 >
-                  <span style={{ color: "#64748b" }}>Suspicious Keywords:</span>
-                  <strong
+                  <div
                     style={{
-                      color: result.features.hasSuspiciousKeywords
-                        ? "#ef4444"
-                        : "#10b981",
+                      width: "36px",
+                      height: "36px",
+                      background: result.features.hasSuspiciousKeywords ? "#fee2e2" : "#d1fae5",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: result.features.hasSuspiciousKeywords ? "#ef4444" : "#10b981",
+                      fontSize: "16px",
                     }}
                   >
-                    {result.features.hasSuspiciousKeywords
-                      ? "Found"
-                      : "Not Found"}
-                  </strong>
+                    <FaUserSecret />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Suspicious Keywords
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: result.features.hasSuspiciousKeywords ? "#ef4444" : "#10b981",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      {result.features.hasSuspiciousKeywords ? (
+                        <>
+                          <FaExclamationTriangle size={14} /> Found
+                        </>
+                      ) : (
+                        <>
+                          <FaCheck size={14} /> Not Found
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
+
+          {/* ============================================================ */}
+          {/* RECOMMENDATION */}
+          {/* ============================================================ */}
+          <div
+            style={{
+              background: `linear-gradient(135deg, ${riskLevel.bg} 0%, white 100%)`,
+              borderRadius: "20px",
+              padding: "28px",
+              marginBottom: "32px",
+              border: `2px solid ${riskLevel.border}`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                marginBottom: "16px",
+              }}
+            >
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  background: riskLevel.bg,
+                  borderRadius: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "22px",
+                }}
+              >
+                🛡️
+              </div>
+              <div>
+                <h3
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: "700",
+                    color: riskLevel.color,
+                    margin: 0,
+                  }}
+                >
+                  Security Recommendation
+                </h3>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#94a3b8",
+                    margin: 0,
+                  }}
+                >
+                  What you should do next
+                </p>
+              </div>
+            </div>
+            <p
+              style={{
+                fontSize: "15px",
+                color: "#475569",
+                lineHeight: "1.7",
+                margin: 0,
+                paddingLeft: "8px",
+              }}
+            >
+              {result.riskScore > 70
+                ? "🚫 DO NOT proceed to this website. Report this URL to security authorities immediately. This is a confirmed phishing attempt designed to steal your credentials."
+                : result.riskScore > 30
+                  ? "⚠️ Exercise extreme caution. Verify the website's authenticity through official channels before entering any personal information or credentials."
+                  : "✅ You can safely proceed. However, always verify the URL matches the official website before entering sensitive information."}
+            </p>
+          </div>
 
           {/* Feedback Section */}
           {showFeedback && !feedbackSubmitted && (
@@ -1059,34 +1568,6 @@ const URLScanner = () => {
               </p>
             </div>
           )}
-
-          {/* Recommendation */}
-          <div
-            style={{
-              background: `linear-gradient(135deg, ${riskColor.bg}15 0%, white 100%)`,
-              borderRadius: "20px",
-              padding: "24px",
-              border: `2px solid ${riskColor.bg}30`,
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "18px",
-                fontWeight: "700",
-                color: riskColor.text,
-                marginBottom: "12px",
-              }}
-            >
-              Security Recommendation
-            </h3>
-            <p style={{ color: "#475569", lineHeight: "1.6" }}>
-              {result.riskScore > 70
-                ? "🚫 DO NOT proceed to this website. Report this URL to security authorities immediately. This is a confirmed phishing attempt designed to steal your credentials."
-                : result.riskScore > 30
-                  ? "⚠️ Exercise extreme caution. Verify the website's authenticity through official channels before entering any personal information or credentials."
-                  : "✓ You can safely proceed. However, always verify the URL matches the official website before entering sensitive information."}
-            </p>
-          </div>
         </div>
       )}
 
