@@ -1,15 +1,22 @@
+// screens/MessageScannerScreen.jsx
 import React, { useState } from 'react';
 import { 
   View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  ScrollView, Alert, ActivityIndicator, Dimensions 
+  ScrollView, Alert, ActivityIndicator, Dimensions, Platform 
 } from 'react-native';
-import { scanMessage, submitFeedback, downloadAndSharePDF, generatePDFReport } from '../services/api';
+import { 
+  scanMessage, 
+  submitFeedback, 
+  downloadAndSharePDF, 
+  generatePDFReport 
+} from '../services/api';
 import { validateMessage } from '../utils/validators';
 import { useTheme } from '../context/ThemeContext';
 import { getColors } from '../constants/colors';
 import ResultCard from '../components/ResultCard';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Sharing from 'expo-sharing';
 
 const { width } = Dimensions.get('window');
 
@@ -28,6 +35,7 @@ export default function MessageScannerScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState('');
 
   const handleMessageChange = (text) => {
     setMessage(text);
@@ -60,30 +68,130 @@ export default function MessageScannerScreen() {
   };
 
   const handleDownloadPDF = async () => {
-    if (!result) return;
-    
+    if (!result) {
+      Alert.alert('Error', 'No scan result available');
+      return;
+    }
+
     setDownloading(true);
+    setDownloadProgress('Starting download...');
+
     try {
-      // Try to download from backend first, fallback to generate locally
+      console.log('📄 Starting PDF download for scan:', result.id);
+      
+      // Try to download from backend
       try {
-        await downloadAndSharePDF(result.id, 'message');
-        Alert.alert('Success', 'PDF downloaded and ready to share!');
-      } catch (err) {
-        // If backend PDF fails, generate locally
-        const fileUri = await generatePDFReport(result, 'message');
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'text/html',
-            dialogTitle: 'Security Report',
-          });
-          Alert.alert('Success', 'Report generated and ready to share!');
-        }
+        setDownloadProgress('Downloading from server...');
+        const { fileUri, saved } = await downloadAndSharePDF(result.id, 'message');
+        
+        setDownloadProgress('✅ Download complete!');
+        
+        // Show success message with file location
+        Alert.alert(
+          '✅ PDF Downloaded Successfully',
+          `Report saved to:\n${fileUri}\n\n${saved ? '📁 Also saved to device storage' : '📁 Saved in app directory'}`,
+          [
+            { text: 'OK', style: 'cancel' },
+            { 
+              text: '📤 Share', 
+              onPress: async () => {
+                try {
+                  await Sharing.shareAsync(fileUri, {
+                    mimeType: 'application/pdf',
+                    dialogTitle: 'Security Report',
+                  });
+                } catch (shareError) {
+                  Alert.alert('Error', 'Failed to share PDF');
+                }
+              }
+            }
+          ]
+        );
+        setDownloading(false);
+        return;
+      } catch (apiError) {
+        console.log('⚠️ Backend PDF failed, trying local:', apiError.message);
+        setDownloadProgress('Backend failed, generating local...');
       }
-    } catch (err) {
-      Alert.alert('Error', 'Failed to generate PDF report');
+      
+      // Fallback: Generate local PDF
+      try {
+        setDownloadProgress('Generating local report...');
+        const fileUri = await generatePDFReport(result, 'message');
+        setDownloadProgress('✅ Local report generated!');
+        
+        Alert.alert(
+          '✅ Local Report Generated',
+          `Report saved to:\n${fileUri}`,
+          [
+            { text: 'OK', style: 'cancel' },
+            { 
+              text: '📤 Share', 
+              onPress: async () => {
+                try {
+                  await Sharing.shareAsync(fileUri, {
+                    mimeType: 'text/html',
+                    dialogTitle: 'Security Report',
+                  });
+                } catch (shareError) {
+                  Alert.alert('Error', 'Failed to share report');
+                }
+              }
+            }
+          ]
+        );
+        setDownloading(false);
+        return;
+      } catch (localError) {
+        console.log('⚠️ Local PDF failed:', localError.message);
+      }
+      
+      // Last resort: Show report in dialog
+      const reportText = generateSimpleReport(result);
+      Alert.alert(
+        'Security Report',
+        reportText,
+        [
+          { text: 'OK', style: 'cancel' },
+          { 
+            text: '📋 Copy', 
+            onPress: () => {
+              Alert.alert('Info', 'Report text ready');
+            }
+          }
+        ]
+      );
+      
+    } catch (error) {
+      console.error('❌ PDF error:', error);
+      Alert.alert('Error', 'Failed to generate report. Please try again.');
     } finally {
       setDownloading(false);
+      setDownloadProgress('');
     }
+  };
+
+  const generateSimpleReport = (scan) => {
+    const safeScan = scan || {};
+    return `
+===========================================
+        PHISHING DETECTION REPORT
+===========================================
+
+Scan ID: ${safeScan.id || 'N/A'}
+Type: Message Scan
+Date: ${safeScan.date ? new Date(safeScan.date).toLocaleString() : 'N/A'}
+Content: ${safeScan.message || safeScan.content || 'N/A'}
+
+Risk Score: ${safeScan.riskScore || 0}%
+Classification: ${safeScan.classification || safeScan.result || 'Unknown'}
+Confidence: ${safeScan.confidence ? (safeScan.confidence * 100).toFixed(1) + '%' : 'N/A'}
+
+Explanation:
+${safeScan.explanation || 'No explanation available'}
+
+===========================================
+    `.trim();
   };
 
   const handleSubmitFeedback = async () => {
@@ -99,7 +207,7 @@ export default function MessageScannerScreen() {
       Alert.alert('Thank You!', 'Your feedback has been submitted.');
       setTimeout(() => { setShowFeedback(false); setFeedbackSubmitted(false); }, 3000);
     } catch (err) {
-      Alert.alert('Error', 'Failed to submit feedback');
+      Alert.alert('Error', err.message || 'Failed to submit feedback');
     } finally {
       setSubmitting(false);
     }
@@ -125,7 +233,6 @@ export default function MessageScannerScreen() {
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.contentContainer}
     >
-      {/* Header */}
       <LinearGradient
         colors={isDark ? ['#1e293b', '#0f172a'] : ['#f093fb', '#f5576c']}
         start={{ x: 0, y: 0 }}
@@ -149,7 +256,6 @@ export default function MessageScannerScreen() {
         </View>
       </LinearGradient>
 
-      {/* Input Card */}
       <View style={[styles.inputCard, { 
         backgroundColor: colors.backgroundCard,
         borderColor: colors.borderLight,
@@ -214,21 +320,25 @@ export default function MessageScannerScreen() {
 
       {result && (
         <>
-          {/* Download PDF Button */}
           <View style={[styles.pdfButtonContainer, { 
             backgroundColor: colors.backgroundCard,
             borderColor: colors.borderLight,
           }]}>
             <TouchableOpacity 
-              style={[styles.pdfButton, { 
-                backgroundColor: '#f5576c15',
-                borderColor: '#f5576c30',
+              style={[styles.pdfButton, downloading && styles.pdfButtonDisabled, { 
+                backgroundColor: downloading ? colors.textMuted + '30' : '#f5576c15',
+                borderColor: downloading ? colors.textMuted : '#f5576c30',
               }]}
               onPress={handleDownloadPDF}
               disabled={downloading}
             >
               {downloading ? (
-                <ActivityIndicator size="small" color="#f5576c" />
+                <>
+                  <ActivityIndicator size="small" color="#f5576c" />
+                  <Text style={[styles.pdfButtonText, { color: '#f5576c' }]}>
+                    {downloadProgress || 'Downloading...'}
+                  </Text>
+                </>
               ) : (
                 <>
                   <Ionicons name="document-text-outline" size={22} color="#f5576c" />
@@ -239,13 +349,16 @@ export default function MessageScannerScreen() {
                 </>
               )}
             </TouchableOpacity>
+            
+            <Text style={[styles.pdfHint, { color: colors.textMuted }]}>
+              {Platform.OS === 'android' ? 'PDF will be saved to your device storage' : 'PDF will be saved and shared'}
+            </Text>
           </View>
 
           <ResultCard result={result} type="message" />
         </>
       )}
 
-      {/* Extracted URLs */}
       {result?.extractedUrls?.length > 0 && (
         <View style={[styles.urlsCard, { 
           backgroundColor: colors.warning + '15', 
@@ -267,7 +380,6 @@ export default function MessageScannerScreen() {
         </View>
       )}
 
-      {/* Feedback Section */}
       {showFeedback && !feedbackSubmitted && result && (
         <View style={[styles.feedbackCard, { 
           backgroundColor: colors.info + '10', 
@@ -349,8 +461,6 @@ export default function MessageScannerScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   contentContainer: { paddingBottom: 30 },
-
-  // Header
   headerGradient: {
     paddingHorizontal: 24,
     paddingTop: 20,
@@ -407,8 +517,6 @@ const styles = StyleSheet.create({
     color: 'white',
     letterSpacing: 0.5,
   },
-
-  // Input Card
   inputCard: {
     marginHorizontal: 16,
     marginTop: -8,
@@ -463,8 +571,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-
-  // Error
   errorCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -479,8 +585,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     flex: 1,
   },
-
-  // PDF Download Button
   pdfButtonContainer: {
     marginHorizontal: 16,
     marginTop: 16,
@@ -497,12 +601,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
+  pdfButtonDisabled: {
+    opacity: 0.6,
+  },
   pdfButtonText: {
     fontSize: 15,
     fontWeight: '600',
   },
-
-  // URLs Card
+  pdfHint: {
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 8,
+  },
   urlsCard: {
     marginHorizontal: 16,
     marginTop: 16,
@@ -534,8 +644,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'monospace',
   },
-
-  // Feedback
   feedbackCard: {
     marginHorizontal: 16,
     marginTop: 20,
@@ -603,8 +711,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-
-  // Thank You
   thankYouCard: {
     marginHorizontal: 16,
     marginTop: 20,

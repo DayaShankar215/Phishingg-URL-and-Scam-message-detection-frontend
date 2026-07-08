@@ -1,7 +1,8 @@
+// screens/DashboardScreen.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, RefreshControl, 
-  TouchableOpacity, Dimensions 
+  TouchableOpacity, Dimensions, Alert 
 } from 'react-native';
 import { getDashboardStats } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
@@ -9,6 +10,7 @@ import { getColors } from '../constants/colors';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -24,17 +26,6 @@ const StatCard = ({ title, value, icon, color, trend, colors, subtitle }) => (
     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{title}</Text>
     {subtitle && (
       <Text style={[styles.statSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
-    )}
-    {trend && (
-      <View style={[styles.trendBadge, { 
-        backgroundColor: trend >= 0 ? colors.success + '20' : colors.danger + '20',
-        borderColor: trend >= 0 ? colors.success + '40' : colors.danger + '40',
-      }]}>
-        <Text style={[styles.trendText, { color: trend >= 0 ? colors.success : colors.danger }]}>
-          {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
-        </Text>
-        <Text style={[styles.trendLabel, { color: colors.textMuted }]}>vs last week</Text>
-      </View>
     )}
   </View>
 );
@@ -58,7 +49,16 @@ export default function DashboardScreen() {
       const data = await getDashboardStats();
       setStats(data);
     } catch (error) {
-      console.error(error);
+      console.error('Dashboard Error:', error);
+      Alert.alert('Connection Error', error.message || 'Failed to load dashboard statistics');
+      // Set default values
+      setStats({ 
+        totalScans: 0, 
+        phishingDetected: 0, 
+        scamMessages: 0, 
+        safeDetections: 0, 
+        recentScans: [] 
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -70,8 +70,14 @@ export default function DashboardScreen() {
   const onRefresh = () => { setRefreshing(true); fetchStats(); };
 
   const formatDate = (date) => {
-    const d = new Date(date);
-    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+    if (!date) return 'N/A';
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return 'N/A';
+      return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+    } catch {
+      return 'N/A';
+    }
   };
 
   if (loading) return <LoadingSpinner text="Loading dashboard..." />;
@@ -83,7 +89,7 @@ export default function DashboardScreen() {
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.contentContainer}
     >
-      {/* Animated Gradient Header */}
+      {/* Header */}
       <LinearGradient
         colors={isDark ? ['#1e293b', '#0f172a'] : ['#667eea', '#764ba2']}
         start={{ x: 0, y: 0 }}
@@ -107,41 +113,37 @@ export default function DashboardScreen() {
         </View>
       </LinearGradient>
 
-      {/* Stats Grid - Modern Cards */}
+      {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <StatCard 
           title="Total Scans" 
-          value={stats.totalScans} 
+          value={stats.totalScans || 0} 
           icon="scan-outline" 
           color={colors.primary[600]} 
-          trend={12}
           colors={colors}
           subtitle="All time"
         />
         <StatCard 
           title="Phishing URLs" 
-          value={stats.phishingDetected} 
+          value={stats.phishingDetected || 0} 
           icon="warning-outline" 
           color={colors.danger} 
-          trend={-5}
           colors={colors}
           subtitle="Detected"
         />
         <StatCard 
           title="Scam Messages" 
-          value={stats.scamMessages} 
+          value={stats.scamMessages || 0} 
           icon="chatbubble-outline" 
           color={colors.warning} 
-          trend={8}
           colors={colors}
           subtitle="Blocked"
         />
         <StatCard 
           title="Safe Detections" 
-          value={stats.safeDetections} 
+          value={stats.safeDetections || 0} 
           icon="checkmark-circle-outline" 
           color={colors.success} 
-          trend={15}
           colors={colors}
           subtitle="Verified"
         />
@@ -192,7 +194,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
         
-        {stats.recentScans.length === 0 ? (
+        {!stats.recentScans || stats.recentScans.length === 0 ? (
           <View style={[styles.emptyState, { 
             backgroundColor: colors.backgroundCard,
             borderColor: colors.borderLight,
@@ -226,23 +228,23 @@ export default function DashboardScreen() {
                 </View>
                 <View style={styles.scanInfo}>
                   <Text style={[styles.scanContent, { color: colors.text }]} numberOfLines={1}>
-                    {scan.content}
+                    {scan.content || 'N/A'}
                   </Text>
                   <Text style={[styles.scanDate, { color: colors.textMuted }]}>{formatDate(scan.date)}</Text>
                 </View>
               </View>
               <View style={styles.scanRight}>
                 <View style={[styles.scanRiskBadge, {
-                  backgroundColor: scan.riskScore > 70 ? colors.danger + '20' : 
-                                  scan.riskScore > 30 ? colors.warning + '20' : 
+                  backgroundColor: (scan.riskScore || 0) > 70 ? colors.danger + '20' : 
+                                  (scan.riskScore || 0) > 30 ? colors.warning + '20' : 
                                   colors.success + '20',
                 }]}>
                   <Text style={[styles.scanRiskText, {
-                    color: scan.riskScore > 70 ? colors.danger : 
-                           scan.riskScore > 30 ? colors.warning : 
+                    color: (scan.riskScore || 0) > 70 ? colors.danger : 
+                           (scan.riskScore || 0) > 30 ? colors.warning : 
                            colors.success,
                   }]}>
-                    {scan.riskScore}%
+                    {scan.riskScore || 0}%
                   </Text>
                 </View>
                 <View style={[styles.scanStatusDot, {
@@ -254,20 +256,14 @@ export default function DashboardScreen() {
         )}
       </View>
 
-      {/* Footer Spacing */}
       <View style={{ height: 30 }} />
     </ScrollView>
   );
 }
 
-// Import LinearGradient
-import { LinearGradient } from 'expo-linear-gradient';
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   contentContainer: { paddingBottom: 20 },
-
-  // Header Gradient
   headerGradient: {
     paddingHorizontal: 24,
     paddingTop: 20,
@@ -324,8 +320,6 @@ const styles = StyleSheet.create({
     color: 'white',
     letterSpacing: 0.5,
   },
-
-  // Stats Grid
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -339,7 +333,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    position: 'relative',
   },
   statIcon: {
     width: 44,
@@ -364,26 +357,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 2,
   },
-  trendBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    marginTop: 8,
-    borderWidth: 1,
-    alignSelf: 'flex-start',
-  },
-  trendText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  trendLabel: {
-    fontSize: 9,
-  },
-
-  // Quick Actions
   quickActions: {
     paddingHorizontal: 16,
     marginTop: 24,
@@ -420,8 +393,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
-
-  // Recent Scans
   recentSection: {
     paddingHorizontal: 16,
     marginTop: 24,
@@ -436,7 +407,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-
   emptyState: {
     alignItems: 'center',
     padding: 40,
@@ -454,7 +424,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
-
   scanItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
