@@ -1,4 +1,4 @@
-// History.jsx - Complete Refined Version with Smart Search
+// pages/History.jsx
 import React, { useState, useEffect } from "react";
 import {
   getScanHistory,
@@ -9,6 +9,9 @@ import {
 } from "../services/api";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import { formatDate, truncateText } from "../utils/formatters";
+import { useAuth } from "../context/AuthContext";
+import { useGuest } from "../context/GuestContext";
+import AuthModal from "../components/common/AuthModal";
 import {
   FaSearch,
   FaDownload,
@@ -25,6 +28,8 @@ import {
   FaCalendarAlt,
   FaTimes,
   FaHashtag,
+  FaUserPlus,
+  FaInfoCircle,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 
@@ -39,12 +44,16 @@ const History = () => {
   const [deletingId, setDeletingId] = useState(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearingAll, setClearingAll] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     url: 0,
     message: 0,
     avgRisk: 0,
   });
+
+  const { isAuthenticated } = useAuth();
+  const { scans: guestScans, getStats: getGuestStats, clearScans: clearGuestScans } = useGuest();
 
   // Date Filter State
   const [dateFilter, setDateFilter] = useState({
@@ -56,7 +65,7 @@ const History = () => {
 
   useEffect(() => {
     fetchHistory();
-  }, [filter]);
+  }, [filter, isAuthenticated]);
 
   useEffect(() => {
     calculateStats();
@@ -65,24 +74,35 @@ const History = () => {
   const fetchHistory = async () => {
     try {
       setLoading(true);
-      const response = await getScanHistory(filter === "all" ? null : filter);
+      
+      if (isAuthenticated) {
+        // Fetch from API for authenticated users
+        const response = await getScanHistory(filter === "all" ? null : filter);
 
-      let scansData = [];
-      if (response) {
-        if (response.response && Array.isArray(response.response)) {
-          scansData = response.response;
-        } else if (Array.isArray(response)) {
-          scansData = response;
-        } else if (response.data && Array.isArray(response.data)) {
-          scansData = response.data;
-        } else if (response.scans && Array.isArray(response.scans)) {
-          scansData = response.scans;
+        let scansData = [];
+        if (response) {
+          if (response.response && Array.isArray(response.response)) {
+            scansData = response.response;
+          } else if (Array.isArray(response)) {
+            scansData = response;
+          } else if (response.data && Array.isArray(response.data)) {
+            scansData = response.data;
+          } else if (response.scans && Array.isArray(response.scans)) {
+            scansData = response.scans;
+          }
         }
+        setScans(scansData);
+      } else {
+        // Use guest scans
+        const guestFiltered = filter === "all" 
+          ? guestScans 
+          : guestScans.filter(s => s.type === filter);
+        setScans(guestFiltered);
       }
-
-      setScans(scansData);
     } catch (error) {
-      toast.error("Failed to load scan history");
+      if (isAuthenticated) {
+        toast.error("Failed to load scan history");
+      }
       setScans([]);
     } finally {
       setLoading(false);
@@ -204,7 +224,7 @@ const History = () => {
   };
 
   // ============================================
-  // SMART SEARCH - FIXED
+  // SMART SEARCH
   // ============================================
   const smartSearch = (scan, term) => {
     if (!term || term.trim() === "") return true;
@@ -213,34 +233,24 @@ const History = () => {
     const scanId = (scan?.id || scan?._id || "").toString().toLowerCase();
     const content = (scan?.content || scan?.message || "").toLowerCase();
 
-    // Check if search term is a number (likely an ID search)
     const isNumeric = /^\d+$/.test(searchLower);
 
     if (isNumeric) {
-      // For numeric searches, FIRST check if ID matches
       if (scanId.includes(searchLower)) {
         return true;
       }
-      
-      // For content, only match if the number appears as a whole word
-      // or in common patterns like #5, ID: 5, (5), etc.
       const contentWords = content.split(/[\s\-_.,;:!?(){}[\]<>/\\|]+/);
       if (contentWords.some(word => word === searchLower)) {
         return true;
       }
-      
-      // Check for patterns like #5 or id:5
       if (content.includes(`#${searchLower}`) || 
           content.includes(`id: ${searchLower}`) ||
           content.includes(`id:${searchLower}`)) {
         return true;
       }
-      
-      // If none of the above match, exclude this scan
       return false;
     }
 
-    // For non-numeric searches, search in both ID and content
     return scanId.includes(searchLower) || content.includes(searchLower);
   };
 
@@ -248,6 +258,11 @@ const History = () => {
   // ACTION HANDLERS
   // ============================================
   const handleViewDetails = async (id, type) => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
     try {
       const response = await getScanById(id, type);
       let scanData = response;
@@ -268,6 +283,11 @@ const History = () => {
   };
 
   const handleDownloadPDF = async (id, type) => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
     if (downloadingId === id) return;
 
     setDownloadingId(id);
@@ -306,6 +326,11 @@ const History = () => {
   };
 
   const handleDeleteScan = async (id, type) => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
     if (deletingId === id) return;
 
     if (
@@ -342,15 +367,20 @@ const History = () => {
       return;
     }
 
+    if (!isAuthenticated) {
+      // Clear guest history
+      clearGuestScans();
+      toast.success("Guest history cleared successfully!");
+      setShowClearConfirm(false);
+      setScans([]);
+      return;
+    }
+
     setClearingAll(true);
     try {
       const result = await clearScanHistory();
-      console.log("✅ Clear result:", result);
-
       toast.success(result?.message || "All scan history cleared successfully!");
       setShowClearConfirm(false);
-
-      // Refresh the history list
       await fetchHistory();
     } catch (error) {
       console.error("❌ Clear History Error:", error);
@@ -362,7 +392,7 @@ const History = () => {
   };
 
   // ============================================
-  // FILTERED SCANS - USING SMART SEARCH
+  // FILTERED SCANS
   // ============================================
   const filteredScans = (() => {
     if (!Array.isArray(scans)) return [];
@@ -378,6 +408,128 @@ const History = () => {
 
   if (loading) {
     return <LoadingSpinner text="Loading security history..." />;
+  }
+
+  // Guest mode empty state with sign up prompt
+  if (!isAuthenticated && scans.length === 0) {
+    return (
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "40px 24px" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <h1
+            style={{
+              fontSize: "48px",
+              fontWeight: "800",
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              marginBottom: "12px",
+            }}
+          >
+            Security History
+          </h1>
+          <p style={{ fontSize: "18px", color: "#64748b" }}>
+            Track and analyze all your security scans
+          </p>
+        </div>
+
+        <div
+          style={{
+            background: "white",
+            borderRadius: "24px",
+            padding: "60px 40px",
+            textAlign: "center",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+          }}
+        >
+          <div
+            style={{
+              width: "100px",
+              height: "100px",
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 24px",
+            }}
+          >
+            <FaShieldAlt style={{ fontSize: "48px", color: "#667eea" }} />
+          </div>
+          <h2 style={{ fontSize: "28px", fontWeight: "700", color: "#1e293b", marginBottom: "12px" }}>
+            No Scans Yet
+          </h2>
+          <p style={{ fontSize: "16px", color: "#64748b", maxWidth: "480px", margin: "0 auto 8px" }}>
+            You haven't performed any scans yet. Start scanning URLs and messages to see results here.
+          </p>
+          <p style={{ fontSize: "14px", color: "#94a3b8", marginBottom: "24px" }}>
+            Sign up to save your scan history permanently and access it from any device.
+          </p>
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={() => window.location.href = "/url-scan"}
+              style={{
+                padding: "12px 28px",
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: "12px",
+                fontSize: "16px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                boxShadow: "0 4px 15px rgba(102,126,234,0.4)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 8px 25px rgba(102,126,234,0.5)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 4px 15px rgba(102,126,234,0.4)";
+              }}
+            >
+              Start Scanning
+            </button>
+            <button
+              onClick={() => setShowAuthModal(true)}
+              style={{
+                padding: "12px 28px",
+                background: "white",
+                color: "#667eea",
+                border: "2px solid #667eea",
+                borderRadius: "12px",
+                fontSize: "16px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#f8fafc";
+                e.currentTarget.style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "white";
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              <FaUserPlus style={{ marginRight: "8px" }} />
+              Sign Up to Save
+            </button>
+          </div>
+        </div>
+
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          initialMode="register"
+          onSuccess={() => {
+            setShowAuthModal(false);
+            fetchHistory();
+          }}
+        />
+      </div>
+    );
   }
 
   return (
@@ -402,7 +554,46 @@ const History = () => {
             Track and analyze all your security scans
           </p>
 
-          {/* CLEAR ALL BUTTON */}
+          {/* Guest Mode Indicator */}
+          {!isAuthenticated && scans.length > 0 && (
+            <div
+              style={{
+                marginTop: "12px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 20px",
+                background: "#fef3c7",
+                borderRadius: "100px",
+                border: "1px solid #fcd34d",
+              }}
+            >
+              <FaInfoCircle style={{ color: "#d97706" }} />
+              <span style={{ fontSize: "14px", color: "#92400e" }}>
+                Guest Mode • History is temporary and will be lost on browser refresh
+              </span>
+              <button
+                onClick={() => setShowAuthModal(true)}
+                style={{
+                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  color: "white",
+                  border: "none",
+                  padding: "4px 16px",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              >
+                Sign Up to Save
+              </button>
+            </div>
+          )}
+
+          {/* Clear All Button */}
           {scans.length > 0 && (
             <button
               onClick={() => setShowClearConfirm(true)}
@@ -579,7 +770,7 @@ const History = () => {
           )}
         </button>
 
-        {/* Search - with ID hint */}
+        {/* Search */}
         <div style={{ position: "relative", flex: "1", minWidth: "200px" }}>
           <FaSearch
             style={{
@@ -626,6 +817,7 @@ const History = () => {
             border: "1px solid #e2e8f0",
           }}
         >
+          {/* ... date picker content (same as before) ... */}
           <div
             style={{
               display: "flex",
@@ -969,8 +1161,8 @@ const History = () => {
                   const scanId = scan?.id || scan?._id;
                   const isDownloading = downloadingId === scanId;
                   const isDeleting = deletingId === scanId;
+                  const isGuest = scan?.isGuest === true;
 
-                  // Highlight matching text in content
                   const highlightText = (text, term) => {
                     if (!term || !text) return text;
                     const index = text.toLowerCase().indexOf(term.toLowerCase());
@@ -1001,20 +1193,36 @@ const History = () => {
                       style={{
                         borderBottom: "1px solid #f1f5f9",
                         transition: "background 0.3s",
+                        ...(isGuest ? { background: "#f8fafc" } : {}),
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = isGuest ? "#f8fafc" : "white")}
                     >
                       <td
                         style={{
                           padding: "16px 20px",
                           fontWeight: "600",
-                          color: "#667eea",
+                          color: isGuest ? "#94a3b8" : "#667eea",
                         }}
                       >
                         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                           <FaHashtag size={10} style={{ opacity: 0.5 }} />
                           {scanId || "N/A"}
+                          {isGuest && (
+                            <span
+                              style={{
+                                marginLeft: "8px",
+                                fontSize: "9px",
+                                background: "#94a3b8",
+                                color: "white",
+                                padding: "1px 8px",
+                                borderRadius: "4px",
+                                fontWeight: "500",
+                              }}
+                            >
+                              Guest
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td style={{ padding: "16px 20px" }}>
@@ -1101,29 +1309,24 @@ const History = () => {
                             style={{
                               background: "none",
                               border: "none",
-                              color: "#667eea",
-                              cursor: "pointer",
+                              color: isAuthenticated ? "#667eea" : "#94a3b8",
+                              cursor: isAuthenticated ? "pointer" : "not-allowed",
                               padding: "6px",
                               borderRadius: "8px",
                               transition: "background 0.3s",
                             }}
-                            onMouseEnter={(e) =>
-                              (e.currentTarget.style.background = "#f1f5f9")
-                            }
-                            onMouseLeave={(e) =>
-                              (e.currentTarget.style.background = "transparent")
-                            }
+                            title={isAuthenticated ? "View details" : "Sign in to view details"}
                           >
                             <FaEye />
                           </button>
                           <button
                             onClick={() => handleDownloadPDF(scanId, scan?.type)}
-                            disabled={isDownloading}
+                            disabled={isDownloading || !isAuthenticated}
                             style={{
                               background: "none",
                               border: "none",
-                              color: isDownloading ? "#94a3b8" : "#64748b",
-                              cursor: isDownloading ? "not-allowed" : "pointer",
+                              color: isDownloading ? "#94a3b8" : isAuthenticated ? "#64748b" : "#94a3b8",
+                              cursor: isDownloading || !isAuthenticated ? "not-allowed" : "pointer",
                               padding: "6px",
                               borderRadius: "8px",
                               transition: "all 0.3s",
@@ -1131,18 +1334,7 @@ const History = () => {
                               alignItems: "center",
                               gap: "4px",
                             }}
-                            onMouseEnter={(e) => {
-                              if (!isDownloading) {
-                                e.currentTarget.style.background = "#f1f5f9";
-                                e.currentTarget.style.color = "#667eea";
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isDownloading) {
-                                e.currentTarget.style.background = "transparent";
-                                e.currentTarget.style.color = "#64748b";
-                              }
-                            }}
+                            title={isAuthenticated ? "Download PDF" : "Sign in to download PDF"}
                           >
                             {isDownloading ? (
                               <>
@@ -1155,12 +1347,12 @@ const History = () => {
                           </button>
                           <button
                             onClick={() => handleDeleteScan(scanId, scan?.type)}
-                            disabled={isDeleting}
+                            disabled={isDeleting || !isAuthenticated}
                             style={{
                               background: "none",
                               border: "none",
-                              color: isDeleting ? "#94a3b8" : "#ef4444",
-                              cursor: isDeleting ? "not-allowed" : "pointer",
+                              color: isDeleting ? "#94a3b8" : isAuthenticated ? "#ef4444" : "#94a3b8",
+                              cursor: isDeleting || !isAuthenticated ? "not-allowed" : "pointer",
                               padding: "6px",
                               borderRadius: "8px",
                               transition: "all 0.3s",
@@ -1168,18 +1360,7 @@ const History = () => {
                               alignItems: "center",
                               gap: "4px",
                             }}
-                            onMouseEnter={(e) => {
-                              if (!isDeleting) {
-                                e.currentTarget.style.background = "#fee";
-                                e.currentTarget.style.color = "#dc2626";
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isDeleting) {
-                                e.currentTarget.style.background = "transparent";
-                                e.currentTarget.style.color = "#ef4444";
-                              }
-                            }}
+                            title={isAuthenticated ? "Delete scan" : "Sign in to delete"}
                           >
                             {isDeleting ? (
                               <>
@@ -1258,9 +1439,11 @@ const History = () => {
               This action cannot be undone. All {scans.length} scan records will be permanently
               deleted.
             </p>
-            <p style={{ color: "#94a3b8", fontSize: "14px", marginBottom: "24px" }}>
-              This includes both URL and Message scans.
-            </p>
+            {!isAuthenticated && (
+              <p style={{ color: "#d97706", fontSize: "14px", marginBottom: "24px", background: "#fef3c7", padding: "8px", borderRadius: "8px" }}>
+                ⚠️ Guest mode: Only temporary scans will be cleared.
+              </p>
+            )}
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
               <button
                 onClick={() => setShowClearConfirm(false)}
@@ -1389,6 +1572,7 @@ const History = () => {
             </div>
 
             <div style={{ padding: "32px" }}>
+              {/* ... details content (same as before) ... */}
               <div style={{ marginBottom: "24px" }}>
                 <h3
                   style={{
@@ -1529,12 +1713,12 @@ const History = () => {
                       handleDownloadPDF(scanId, selectedScan?.type);
                     }
                   }}
-                  disabled={downloadingId === (selectedScan?.id || selectedScan?._id)}
+                  disabled={downloadingId === (selectedScan?.id || selectedScan?._id) || !isAuthenticated}
                   style={{
                     width: "100%",
                     padding: "14px",
                     background:
-                      downloadingId === (selectedScan?.id || selectedScan?._id)
+                      downloadingId === (selectedScan?.id || selectedScan?._id) || !isAuthenticated
                         ? "#94a3b8"
                         : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                     color: "white",
@@ -1543,7 +1727,7 @@ const History = () => {
                     fontSize: "16px",
                     fontWeight: "600",
                     cursor:
-                      downloadingId === (selectedScan?.id || selectedScan?._id)
+                      downloadingId === (selectedScan?.id || selectedScan?._id) || !isAuthenticated
                         ? "not-allowed"
                         : "pointer",
                     display: "flex",
@@ -1558,6 +1742,11 @@ const History = () => {
                       <FaSpinner className="spinning" />
                       <span>Downloading...</span>
                     </>
+                  ) : !isAuthenticated ? (
+                    <>
+                      <FaUserPlus />
+                      <span>Sign in to Download PDF</span>
+                    </>
                   ) : (
                     <>
                       <FaDownload />
@@ -1570,6 +1759,17 @@ const History = () => {
           </div>
         </div>
       )}
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        initialMode="register"
+        onSuccess={() => {
+          setShowAuthModal(false);
+          fetchHistory();
+        }}
+      />
 
       <style>{`
         @keyframes spin {
