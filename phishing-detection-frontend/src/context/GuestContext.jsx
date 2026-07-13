@@ -19,7 +19,6 @@ export const GuestProvider = ({ children }) => {
   const [sessionId, setSessionId] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load guest data on mount
   useEffect(() => {
     const loadGuestData = () => {
       try {
@@ -47,7 +46,6 @@ export const GuestProvider = ({ children }) => {
     loadGuestData();
   }, []);
 
-  // Save guest data on changes
   useEffect(() => {
     if (isInitialized && sessionId !== null) {
       try {
@@ -97,10 +95,7 @@ export const GuestProvider = ({ children }) => {
   };
 
   const migrateToUser = async () => {
-    // This function is called when user logs in
-    // Returns the guest scans to be sent to the server
     const guestScans = [...scans];
-    // Clear guest data after migration
     clearScans();
     return guestScans;
   };

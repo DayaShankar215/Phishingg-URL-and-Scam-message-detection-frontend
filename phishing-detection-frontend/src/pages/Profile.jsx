@@ -19,7 +19,8 @@ const Profile = () => {
   const [saved, setSaved] = useState(false);
 
   // Profile form
-  const [name, setName] = useState(user?.name || "");
+  const [firstName, setFirstName] = useState(user?.firstName || "");
+  const [lastName, setLastName] = useState(user?.lastName || "");
   const [email, setEmail] = useState(user?.email || "");
 
   // Password form
@@ -33,7 +34,7 @@ const Profile = () => {
     setSaved(false);
 
     try {
-      const response = await updateProfile({ name, email });
+      const response = await updateProfile({ firstName, lastName, email });
       if (response.user) {
         setUser(response.user);
         toast.success("Profile updated successfully!");
@@ -135,11 +136,11 @@ const Profile = () => {
               boxShadow: "0 8px 24px rgba(102,126,234,0.3)",
             }}
           >
-            {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+            {user?.firstName ? user.firstName.charAt(0).toUpperCase() : "U"}
           </div>
           <div>
             <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#1e293b" }}>
-              {user?.name || "User"}
+              {user?.firstName} {user?.lastName || ""}
             </h2>
             <p style={{ color: "#64748b" }}>{user?.email || ""}</p>
             <span
@@ -154,7 +155,7 @@ const Profile = () => {
                 marginTop: "4px",
               }}
             >
-              Active
+              {user?.role || "User"}
             </span>
           </div>
         </div>
@@ -162,44 +163,87 @@ const Profile = () => {
         {/* Profile Form */}
         <form onSubmit={handleProfileUpdate}>
           <div style={{ display: "grid", gap: "20px" }}>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  color: "#1e293b",
-                  marginBottom: "6px",
-                }}
-              >
-                Full Name
-              </label>
-              <div style={{ position: "relative" }}>
-                <FaUser
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+              <div>
+                <label
                   style={{
-                    position: "absolute",
-                    left: "14px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "#94a3b8",
+                    display: "block",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    color: "#1e293b",
+                    marginBottom: "6px",
                   }}
-                />
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                >
+                  First Name
+                </label>
+                <div style={{ position: "relative" }}>
+                  <FaUser
+                    style={{
+                      position: "absolute",
+                      left: "14px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#94a3b8",
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px 12px 44px",
+                      border: "2px solid #e2e8f0",
+                      borderRadius: "12px",
+                      fontSize: "15px",
+                      outline: "none",
+                      transition: "border-color 0.3s",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = "#667eea")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
                   style={{
-                    width: "100%",
-                    padding: "12px 16px 12px 44px",
-                    border: "2px solid #e2e8f0",
-                    borderRadius: "12px",
-                    fontSize: "15px",
-                    outline: "none",
-                    transition: "border-color 0.3s",
+                    display: "block",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    color: "#1e293b",
+                    marginBottom: "6px",
                   }}
-                  onFocus={(e) => (e.target.style.borderColor = "#667eea")}
-                  onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
-                />
+                >
+                  Last Name
+                </label>
+                <div style={{ position: "relative" }}>
+                  <FaUser
+                    style={{
+                      position: "absolute",
+                      left: "14px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#94a3b8",
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px 12px 44px",
+                      border: "2px solid #e2e8f0",
+                      borderRadius: "12px",
+                      fontSize: "15px",
+                      outline: "none",
+                      transition: "border-color 0.3s",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = "#667eea")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
+                  />
+                </div>
               </div>
             </div>
 

@@ -1,6 +1,6 @@
 // pages/Dashboard.jsx
 import React, { useState, useEffect } from "react";
-import { getDashboardStats } from "../services/api";
+import { getScanHistory } from "../services/api";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useGuest } from "../context/GuestContext";
@@ -11,10 +11,8 @@ import {
   FaCheckCircle,
   FaChartLine,
   FaClock,
-  FaBell,
   FaArrowUp,
   FaArrowDown,
-  FaRocket,
   FaLink,
   FaComment,
   FaEye,
@@ -23,6 +21,8 @@ import {
   FaCalendarAlt,
   FaInbox,
   FaUserPlus,
+  FaSync,
+  FaHashtag,
 } from "react-icons/fa";
 import {
   AreaChart,
@@ -51,8 +51,9 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { getStats: getGuestStats, scans: guestScans } = useGuest();
 
   useEffect(() => {
@@ -62,40 +63,198 @@ const Dashboard = () => {
   const fetchDashboardStats = async () => {
     try {
       setLoading(true);
-      
+
       if (isAuthenticated) {
-        // Fetch real stats from API for authenticated users
-        const data = await getDashboardStats();
-        setStats(data);
+        // Fetch scan history
+        const historyResponse = await getScanHistory();
+        console.log("History Response:", historyResponse);
+
+        let allScans = [];
+        if (
+          historyResponse &&
+          historyResponse.scans &&
+          Array.isArray(historyResponse.scans)
+        ) {
+          allScans = historyResponse.scans;
+        } else if (Array.isArray(historyResponse)) {
+          allScans = historyResponse;
+        } else if (
+          historyResponse &&
+          historyResponse.response &&
+          Array.isArray(historyResponse.response)
+        ) {
+          allScans = historyResponse.response;
+        }
+
+        // Calculate stats from scans
+        const totalScans = allScans.length;
+        const phishingDetected = allScans.filter(
+          (s) =>
+            s.prediction?.toUpperCase() === "PHISHING" ||
+            s.prediction?.toUpperCase() === "DANGEROUS" ||
+            s.prediction?.toUpperCase() === "MALICIOUS",
+        ).length;
+
+        const scamMessages = allScans.filter(
+          (s) =>
+            s.prediction?.toUpperCase() === "SCAM" ||
+            s.prediction?.toUpperCase() === "SUSPICIOUS",
+        ).length;
+
+        const safeDetections = allScans.filter(
+          (s) =>
+            s.prediction?.toUpperCase() === "SAFE" ||
+            s.prediction?.toUpperCase() === "LEGITIMATE",
+        ).length;
+
+        // Format recent scans
+        const recentScans = allScans.slice(0, 5).map((scan) => ({
+          reference: scan.reference,
+          content: scan.url,
+          type: "url",
+
+          result: getResultFromPrediction(scan.prediction),
+          date: scan.scannedAt,
+          prediction: scan.prediction || "UNKNOWN",
+        }));
+
+        // Generate weekly data from scans
+        const weeklyData = generateWeeklyDataFromScans(allScans);
+
+        setStats({
+          totalScans,
+          phishingDetected,
+          scamMessages,
+          safeDetections,
+          recentScans,
+          weeklyData,
+        });
       } else {
         // Use guest stats
         const guestStats = getGuestStats();
+        const guestRecentScans = guestScans.slice(0, 5).map((scan) => ({
+          reference: scan.id || scan.reference || `guest_${Date.now()}`,
+          content: scan.content || scan.url || scan.message,
+          type: scan.type || "url",
+
+          result: scan.result || "unknown",
+          date: scan.date || new Date().toISOString(),
+          prediction: scan.prediction || "UNKNOWN",
+        }));
+
         setStats({
           totalScans: guestStats.total,
           phishingDetected: guestStats.phishing,
           scamMessages: guestStats.scam,
           safeDetections: guestStats.safe,
-          recentScans: guestScans.slice(0, 5),
-          weeklyData: [], // No weekly data for guests
+          recentScans: guestRecentScans,
+          weeklyData: generateWeeklyDataFromScans(guestScans),
         });
       }
     } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
       if (isAuthenticated) {
-        toast.error("Failed to load dashboard statistics");
+        toast.error("Failed to load dashboard data");
       }
-      // For guests, just use what we have
+      // Set empty stats
+      setStats({
+        totalScans: 0,
+        phishingDetected: 0,
+        scamMessages: 0,
+        safeDetections: 0,
+        recentScans: [],
+        weeklyData: generateEmptyWeeklyData(),
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  // Process weekly data
-  const processWeeklyData = () => {
-    if (stats.weeklyData && stats.weeklyData.length > 0) {
-      return stats.weeklyData;
+  const getRiskScoreFromPrediction = (prediction) => {
+    switch (prediction?.toUpperCase()) {
+      case "PHISHING":
+      case "DANGEROUS":
+      case "MALICIOUS":
+        return 85;
+      case "SCAM":
+      case "SUSPICIOUS":
+      case "WARNING":
+        return 55;
+      case "SAFE":
+      case "LEGITIMATE":
+        return 15;
+      default:
+        return 50;
     }
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return days.map(day => ({
+  };
+
+  const getResultFromPrediction = (prediction) => {
+    switch (prediction?.toUpperCase()) {
+      case "PHISHING":
+      case "DANGEROUS":
+      case "MALICIOUS":
+        return "phishing";
+      case "SCAM":
+      case "SUSPICIOUS":
+      case "WARNING":
+        return "suspicious";
+      case "SAFE":
+      case "LEGITIMATE":
+        return "safe";
+      default:
+        return "unknown";
+    }
+  };
+
+  const generateWeeklyDataFromScans = (scans) => {
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const today = new Date();
+    const dayMap = {};
+
+    // Initialize days with zeros
+    days.forEach((day, index) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() - (6 - index));
+      const dateStr = d.toISOString().split("T")[0];
+      dayMap[dateStr] = { day, phishing: 0, scam: 0, safe: 0, date: dateStr };
+    });
+
+    // Count scans per day
+    scans.forEach((scan) => {
+      if (!scan.scannedAt) return;
+      const scanDate = new Date(scan.scannedAt);
+      const dateStr = scanDate.toISOString().split("T")[0];
+
+      if (dayMap[dateStr]) {
+        const prediction = scan.prediction?.toUpperCase() || "";
+        if (
+          prediction === "PHISHING" ||
+          prediction === "DANGEROUS" ||
+          prediction === "MALICIOUS"
+        ) {
+          dayMap[dateStr].phishing += 1;
+        } else if (
+          prediction === "SCAM" ||
+          prediction === "SUSPICIOUS" ||
+          prediction === "WARNING"
+        ) {
+          dayMap[dateStr].scam += 1;
+        } else if (prediction === "SAFE" || prediction === "LEGITIMATE") {
+          dayMap[dateStr].safe += 1;
+        }
+      }
+    });
+
+    // Convert to array and sort
+    const result = Object.values(dayMap);
+    // Sort by date
+    result.sort((a, b) => a.date.localeCompare(b.date));
+    return result;
+  };
+
+  const generateEmptyWeeklyData = () => {
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    return days.map((day) => ({
       day,
       phishing: 0,
       scam: 0,
@@ -103,13 +262,38 @@ const Dashboard = () => {
     }));
   };
 
-  const weeklyData = processWeeklyData();
-  const hasData = stats.totalScans > 0;
-  const hasWeeklyData = weeklyData.some(d => d.phishing > 0 || d.scam > 0 || d.safe > 0);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboardStats();
+    setRefreshing(false);
+    toast.success("Dashboard refreshed!");
+  };
 
-  const StatCard = ({ title, value, icon: Icon, gradient, trend, subtitle, locked }) => (
-    <div className="stat-card-premium" style={{ position: "relative" }}>
-      {locked && (
+  const weeklyData =
+    stats.weeklyData.length > 0 ? stats.weeklyData : generateEmptyWeeklyData();
+  const hasData = stats.totalScans > 0;
+  const hasWeeklyData = weeklyData.some(
+    (d) => d.phishing > 0 || d.scam > 0 || d.safe > 0,
+  );
+
+  const StatCard = ({
+    title,
+    value,
+    icon: Icon,
+    gradient,
+    trend,
+    subtitle,
+    locked,
+  }) => (
+    <div
+      className="stat-card-premium"
+      style={{
+        position: "relative",
+        cursor: "default",
+        transition: "all 0.3s ease",
+      }}
+    >
+      {locked && !isAuthenticated && (
         <div
           style={{
             position: "absolute",
@@ -140,7 +324,7 @@ const Dashboard = () => {
           {subtitle}
         </div>
       )}
-      {trend && (
+      {trend !== undefined && trend !== null && (
         <div
           className="stat-trend"
           style={{ color: trend >= 0 ? "#10b981" : "#ef4444" }}
@@ -152,45 +336,61 @@ const Dashboard = () => {
     </div>
   );
 
-  // Calculate total threats and percentages for pie chart
-  const totalThreats = stats.phishingDetected + stats.scamMessages + stats.safeDetections;
-  
+  const totalThreats =
+    stats.phishingDetected + stats.scamMessages + stats.safeDetections;
+
   const pieData = [
-    { 
-      name: "Phishing URLs", 
-      value: stats.phishingDetected, 
+    {
+      name: "Phishing URLs",
+      value: stats.phishingDetected,
       color: "#ef4444",
-      percentage: totalThreats > 0 ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1) : 0
+      percentage:
+        totalThreats > 0
+          ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1)
+          : 0,
     },
-    { 
-      name: "Scam Messages", 
-      value: stats.scamMessages, 
+    {
+      name: "Scam Messages",
+      value: stats.scamMessages,
       color: "#f59e0b",
-      percentage: totalThreats > 0 ? ((stats.scamMessages / totalThreats) * 100).toFixed(1) : 0
+      percentage:
+        totalThreats > 0
+          ? ((stats.scamMessages / totalThreats) * 100).toFixed(1)
+          : 0,
     },
-    { 
-      name: "Safe", 
-      value: stats.safeDetections, 
+    {
+      name: "Safe",
+      value: stats.safeDetections,
       color: "#10b981",
-      percentage: totalThreats > 0 ? ((stats.safeDetections / totalThreats) * 100).toFixed(1) : 0
+      percentage:
+        totalThreats > 0
+          ? ((stats.safeDetections / totalThreats) * 100).toFixed(1)
+          : 0,
     },
   ];
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div style={{
-          background: "white",
-          padding: "12px 16px",
-          borderRadius: "12px",
-          boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
-          border: "1px solid #e2e8f0",
-        }}>
-          <p style={{ fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}>
+        <div
+          style={{
+            background: "white",
+            padding: "12px 16px",
+            borderRadius: "12px",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
+            border: "1px solid #e2e8f0",
+          }}
+        >
+          <p
+            style={{ fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}
+          >
             {label}
           </p>
           {payload.map((entry, index) => (
-            <p key={index} style={{ color: entry.color, fontSize: "14px", margin: "4px 0" }}>
+            <p
+              key={index}
+              style={{ color: entry.color, fontSize: "14px", margin: "4px 0" }}
+            >
               {entry.name}: {entry.value}
             </p>
           ))}
@@ -200,7 +400,13 @@ const Dashboard = () => {
     return null;
   };
 
-  const EmptyChartState = ({ icon: Icon, title, description, actionText, onAction }) => (
+  const EmptyChartState = ({
+    icon: Icon,
+    title,
+    description,
+    actionText,
+    onAction,
+  }) => (
     <div
       style={{
         display: "flex",
@@ -226,10 +432,24 @@ const Dashboard = () => {
       >
         <Icon style={{ fontSize: "36px", color: "#94a3b8" }} />
       </div>
-      <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}>
+      <h3
+        style={{
+          fontSize: "18px",
+          fontWeight: "600",
+          color: "#1e293b",
+          marginBottom: "8px",
+        }}
+      >
         {title}
       </h3>
-      <p style={{ fontSize: "14px", color: "#94a3b8", maxWidth: "300px", marginBottom: "16px" }}>
+      <p
+        style={{
+          fontSize: "14px",
+          color: "#94a3b8",
+          maxWidth: "300px",
+          marginBottom: "16px",
+        }}
+      >
         {description}
       </p>
       {onAction && (
@@ -248,7 +468,8 @@ const Dashboard = () => {
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
-            e.currentTarget.style.boxShadow = "0 8px 25px rgba(102,126,234,0.4)";
+            e.currentTarget.style.boxShadow =
+              "0 8px 25px rgba(102,126,234,0.4)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "translateY(0) scale(1)";
@@ -306,30 +527,78 @@ const Dashboard = () => {
 
       {/* Welcome Section */}
       <div className="welcome-section">
-        <h1 className="welcome-title">
-          {isAuthenticated ? `Welcome back, ${stats.user?.name || "User"}!` : "Welcome to SecureShield"}
-        </h1>
-        <p className="welcome-subtitle">
-          {isAuthenticated 
-            ? "Your AI-Powered Security Guardian • Real-time Protection Against Cyber Threats"
-            : "Start scanning URLs and messages instantly • No account required"}
-        </p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "16px",
+          }}
+        >
+          <div>
+            <h1 className="welcome-title">
+              {isAuthenticated
+                ? `Welcome back, ${user?.firstName || "User"}!`
+                : "Welcome to SecureShield"}
+            </h1>
+            <p className="welcome-subtitle">
+              {isAuthenticated
+                ? "Your AI-Powered Security Guardian • Real-time Protection Against Cyber Threats"
+                : "Start scanning URLs and messages instantly • No account required"}
+            </p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{
+              padding: "10px 20px",
+              background: "transparent",
+              border: "1px solid #e2e8f0",
+              borderRadius: "12px",
+              cursor: refreshing ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              color: "#64748b",
+              transition: "all 0.3s ease",
+              opacity: refreshing ? 0.6 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!refreshing) {
+                e.currentTarget.style.background = "#f8fafc";
+                e.currentTarget.style.borderColor = "#667eea";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!refreshing) {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.borderColor = "#e2e8f0";
+              }
+            }}
+          >
+            <FaSync className={refreshing ? "spinning" : ""} size={14} />
+            <span>{refreshing ? "Refreshing..." : "Refresh"}</span>
+          </button>
+        </div>
         {!isAuthenticated && (
-          <p style={{ 
-            fontSize: "14px", 
-            color: "#94a3b8", 
-            marginTop: "8px",
-            background: "#f1f5f9",
-            padding: "8px 20px",
-            borderRadius: "100px",
-            display: "inline-block",
-          }}>
+          <p
+            style={{
+              fontSize: "14px",
+              color: "#94a3b8",
+              marginTop: "8px",
+              background: "#f1f5f9",
+              padding: "8px 20px",
+              borderRadius: "100px",
+              display: "inline-block",
+            }}
+          >
             👋 Guest mode • Sign up to save your scan history
           </p>
         )}
       </div>
 
-      {/* Hero CTA Section - Start Scan */}
+      {/* Hero CTA Section */}
       <div
         style={{
           background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -547,163 +816,167 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* Charts Row - Only show for authenticated users with data */}
-      {isAuthenticated && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))",
-            gap: "24px",
-            marginBottom: "48px",
-          }}
-        >
-          {/* Area Chart */}
-          <div className="chart-container" style={{ position: "relative" }}>
-            <div className="chart-title">
-              <FaChartLine style={{ color: "#667eea" }} />
-              <span>Detection Trends</span>
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: "400",
-                  color: "#94a3b8",
-                  marginLeft: "8px",
-                }}
-              >
-                (Last 7 days)
-              </span>
-            </div>
-            {hasWeeklyData ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <AreaChart data={weeklyData}>
-                  <defs>
-                    <linearGradient id="colorPhishing" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorScam" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorSafe" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="day" stroke="#64748b" fontSize={12} />
-                  <YAxis stroke="#64748b" fontSize={12} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="phishing"
-                    stroke="#ef4444"
-                    fill="url(#colorPhishing)"
-                    name="Phishing URLs"
-                    strokeWidth={2}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="scam"
-                    stroke="#f59e0b"
-                    fill="url(#colorScam)"
-                    name="Scam Messages"
-                    strokeWidth={2}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="safe"
-                    stroke="#10b981"
-                    fill="url(#colorSafe)"
-                    name="Safe"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyChartState
-                icon={FaInbox}
-                title="No Scan Data Available"
-                description="Start scanning URLs and messages to see detection trends over time."
-                actionText="Start Scanning"
-                onAction={() => navigate("/url-scan")}
-              />
-            )}
+      {/* Charts Row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))",
+          gap: "24px",
+          marginBottom: "48px",
+        }}
+      >
+        {/* Area Chart */}
+        <div className="chart-container" style={{ position: "relative" }}>
+          <div className="chart-title">
+            <FaChartLine style={{ color: "#667eea" }} />
+            <span>Detection Trends</span>
+            <span
+              style={{
+                fontSize: "12px",
+                fontWeight: "400",
+                color: "#94a3b8",
+                marginLeft: "8px",
+              }}
+            >
+              (Last 7 days)
+            </span>
           </div>
-
-          {/* Pie Chart */}
-          <div className="chart-container" style={{ position: "relative" }}>
-            <div className="chart-title">
-              <FaChartPie style={{ color: "#667eea" }} />
-              <span>Threat Distribution</span>
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: "400",
-                  color: "#94a3b8",
-                  marginLeft: "8px",
-                }}
-              >
-                ({totalThreats} total)
-              </span>
-            </div>
-            {totalThreats > 0 ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={true}
-                    label={({ name, percent, value }) => 
-                      value > 0 ? `${name}: ${(percent * 100).toFixed(1)}%` : ''
-                    }
-                    outerRadius={100}
-                    innerRadius={50}
-                    fill="#8884d8"
-                    dataKey="value"
-                    paddingAngle={2}
+          {hasWeeklyData ? (
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={weeklyData}>
+                <defs>
+                  <linearGradient
+                    id="colorPhishing"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
                   >
-                    {pieData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.color}
-                        stroke="white"
-                        strokeWidth={2}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{
-                      background: "white",
-                      border: "none",
-                      borderRadius: "12px",
-                      boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
-                      padding: "12px",
-                    }}
-                  />
-                  <Legend 
-                    verticalAlign="bottom" 
-                    height={36}
-                    formatter={(value, entry) => {
-                      const item = pieData.find(d => d.name === value);
-                      return `${value}: ${item?.percentage || 0}%`;
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyChartState
-                icon={FaChartPie}
-                title="No Data to Display"
-                description="No scans have been performed yet. Start scanning to see threat distribution."
-                actionText="Start Scanning"
-                onAction={() => navigate("/message-scan")}
-              />
-            )}
-          </div>
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorScam" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorSafe" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="day" stroke="#64748b" fontSize={12} />
+                <YAxis stroke="#64748b" fontSize={12} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="phishing"
+                  stroke="#ef4444"
+                  fill="url(#colorPhishing)"
+                  name="Phishing URLs"
+                  strokeWidth={2}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="scam"
+                  stroke="#f59e0b"
+                  fill="url(#colorScam)"
+                  name="Scam Messages"
+                  strokeWidth={2}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="safe"
+                  stroke="#10b981"
+                  fill="url(#colorSafe)"
+                  name="Safe"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChartState
+              icon={FaInbox}
+              title="No Scan Data Available"
+              description="Start scanning URLs and messages to see detection trends over time."
+              actionText="Start Scanning"
+              onAction={() => navigate("/url-scan")}
+            />
+          )}
         </div>
-      )}
+
+        {/* Pie Chart */}
+        <div className="chart-container" style={{ position: "relative" }}>
+          <div className="chart-title">
+            <FaChartPie style={{ color: "#667eea" }} />
+            <span>Threat Distribution</span>
+            <span
+              style={{
+                fontSize: "12px",
+                fontWeight: "400",
+                color: "#94a3b8",
+                marginLeft: "8px",
+              }}
+            >
+              ({totalThreats} total)
+            </span>
+          </div>
+          {totalThreats > 0 ? (
+            <ResponsiveContainer width="100%" height={320}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={true}
+                  label={({ name, percent, value }) =>
+                    value > 0 ? `${name}: ${(percent * 100).toFixed(1)}%` : ""
+                  }
+                  outerRadius={100}
+                  innerRadius={50}
+                  fill="#8884d8"
+                  dataKey="value"
+                  paddingAngle={2}
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.color}
+                      stroke="white"
+                      strokeWidth={2}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: "white",
+                    border: "none",
+                    borderRadius: "12px",
+                    boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
+                    padding: "12px",
+                  }}
+                />
+                <Legend
+                  verticalAlign="bottom"
+                  height={36}
+                  formatter={(value, entry) => {
+                    const item = pieData.find((d) => d.name === value);
+                    return `${value}: ${item?.percentage || 0}%`;
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChartState
+              icon={FaChartPie}
+              title="No Data to Display"
+              description="No scans have been performed yet. Start scanning to see threat distribution."
+              actionText="Start Scanning"
+              onAction={() => navigate("/message-scan")}
+            />
+          )}
+        </div>
+      </div>
 
       {/* Guest Mode Call to Action */}
       {!isAuthenticated && hasData && (
@@ -722,7 +995,8 @@ const Dashboard = () => {
               width: "64px",
               height: "64px",
               borderRadius: "50%",
-              background: "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)",
+              background:
+                "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -731,12 +1005,26 @@ const Dashboard = () => {
           >
             <FaUserPlus style={{ fontSize: "28px", color: "#667eea" }} />
           </div>
-          <h3 style={{ fontSize: "20px", fontWeight: "700", color: "#1e293b", marginBottom: "8px" }}>
+          <h3
+            style={{
+              fontSize: "20px",
+              fontWeight: "700",
+              color: "#1e293b",
+              marginBottom: "8px",
+            }}
+          >
             Want to save your scan history?
           </h3>
-          <p style={{ color: "#64748b", maxWidth: "480px", margin: "0 auto 20px" }}>
-            Create a free account to permanently save your scans, access them from any device,
-            and unlock premium features like PDF reports and advanced analytics.
+          <p
+            style={{
+              color: "#64748b",
+              maxWidth: "480px",
+              margin: "0 auto 20px",
+            }}
+          >
+            Create a free account to permanently save your scans, access them
+            from any device, and unlock premium features like PDF reports and
+            advanced analytics.
           </p>
           <button
             onClick={() => setShowAuthModal(true)}
@@ -754,11 +1042,13 @@ const Dashboard = () => {
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 8px 25px rgba(102,126,234,0.5)";
+              e.currentTarget.style.boxShadow =
+                "0 8px 25px rgba(102,126,234,0.5)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 15px rgba(102,126,234,0.4)";
+              e.currentTarget.style.boxShadow =
+                "0 4px 15px rgba(102,126,234,0.4)";
             }}
           >
             Sign Up Free
@@ -766,7 +1056,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Recent Scans Table with View All Button */}
+      {/* Recent Scans Table */}
       <div className="chart-container">
         <div
           style={{
@@ -810,7 +1100,8 @@ const Dashboard = () => {
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
-              e.currentTarget.style.boxShadow = "0 8px 25px rgba(102,126,234,0.4)";
+              e.currentTarget.style.boxShadow =
+                "0 8px 25px rgba(102,126,234,0.4)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "translateY(0) scale(1)";
@@ -828,81 +1119,95 @@ const Dashboard = () => {
             <table className="table-premium">
               <thead>
                 <tr>
-                  <th>Type</th>
+                  <th>Reference</th>
                   <th>Content</th>
-                  <th>Risk Score</th>
-                  <th>Status</th>
+                  <th>Prediction</th>
+
                   <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {stats.recentScans?.slice(0, 5).map((scan, index) => (
-                  <tr key={index}>
-                    <td>
-                      <span
-                        className={`badge-premium ${scan.type === "url" ? "badge-url" : "badge-message"}`}
-                      >
-                        {scan.type === "url" ? "🔗 URL" : "💬 Message"}
-                      </span>
-                    </td>
-                    <td
-                      style={{
-                        maxWidth: "300px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {scan.content || scan.message || "N/A"}
-                    </td>
-                    <td>
-                      <div className="risk-indicator">
-                        <div className="risk-bar-premium">
-                          <div
-                            className="risk-fill"
-                            style={{
-                              width: `${scan.riskScore || 0}%`,
-                              background:
-                                (scan.riskScore || 0) > 70
-                                  ? "#ef4444"
-                                  : (scan.riskScore || 0) > 30
-                                    ? "#f59e0b"
-                                    : "#10b981",
-                            }}
-                          />
-                        </div>
-                        <span style={{ fontWeight: "600", minWidth: "45px" }}>
-                          {scan.riskScore || 0}%
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <span
+                {stats.recentScans?.slice(0, 5).map((scan, index) => {
+                  const getPredictionColor = (prediction) => {
+                    switch (prediction?.toUpperCase()) {
+                      case "PHISHING":
+                        return { bg: "#fee2e2", color: "#dc2626" };
+                      case "SCAM":
+                        return { bg: "#fef3c7", color: "#d97706" };
+                      case "SUSPICIOUS":
+                        return { bg: "#fef3c7", color: "#d97706" };
+                      case "SAFE":
+                        return { bg: "#d1fae5", color: "#065f46" };
+                      default:
+                        return { bg: "#f1f5f9", color: "#64748b" };
+                    }
+                  };
+                  const predColor = getPredictionColor(scan.prediction);
+
+                  return (
+                    <tr key={index}>
+                      <td
                         style={{
-                          padding: "4px 12px",
-                          borderRadius: "20px",
+                          fontFamily: "monospace",
                           fontSize: "12px",
-                          fontWeight: "600",
-                          background:
-                            scan.result === "safe" ? "#10b98120" : "#ef444420",
-                          color: scan.result === "safe" ? "#10b981" : "#ef4444",
+                          color: "#667eea",
                         }}
                       >
-                        {scan.result === "safe"
-                          ? "✅ Safe"
-                          : scan.result === "phishing"
-                            ? "⚠️ Phishing"
-                            : "⚠️ Scam"}
-                      </span>
-                    </td>
-                    <td style={{ color: "#64748b", fontSize: "14px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <FaCalendarAlt size={12} />
-                        {new Date(scan.date || scan.timestamp || Date.now()).toLocaleDateString()}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        <span
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          <FaHashtag size={10} style={{ opacity: 0.5 }} />
+                          {scan.reference
+                            ? truncateText(scan.reference, 20)
+                            : "N/A"}
+                        </span>
+                      </td>
+                      <td
+                        style={{
+                          maxWidth: "250px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {scan.content || "N/A"}
+                      </td>
+                      <td>
+                        <span
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: "20px",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            background: predColor.bg,
+                            color: predColor.color,
+                          }}
+                        >
+                          {scan.prediction || "UNKNOWN"}
+                        </span>
+                      </td>
+
+                      <td style={{ color: "#64748b", fontSize: "14px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          <FaCalendarAlt size={12} />
+                          {formatDate(
+                            scan.date || scan.scannedAt || Date.now(),
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -922,7 +1227,8 @@ const Dashboard = () => {
                 width: "80px",
                 height: "80px",
                 borderRadius: "50%",
-                background: "linear-gradient(135deg, #667eea15 0%, #764ba215 100%)",
+                background:
+                  "linear-gradient(135deg, #667eea15 0%, #764ba215 100%)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -931,11 +1237,26 @@ const Dashboard = () => {
             >
               <FaShieldAlt style={{ fontSize: "36px", color: "#94a3b8" }} />
             </div>
-            <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}>
+            <h3
+              style={{
+                fontSize: "18px",
+                fontWeight: "600",
+                color: "#1e293b",
+                marginBottom: "8px",
+              }}
+            >
               No Scans Yet
             </h3>
-            <p style={{ fontSize: "14px", color: "#94a3b8", maxWidth: "400px", marginBottom: "16px" }}>
-              Start scanning URLs or messages to see results here. Your scan history will appear in this table.
+            <p
+              style={{
+                fontSize: "14px",
+                color: "#94a3b8",
+                maxWidth: "400px",
+                marginBottom: "16px",
+              }}
+            >
+              Start scanning URLs or messages to see results here. Your scan
+              history will appear in this table.
             </p>
             <button
               onClick={() => navigate("/url-scan")}
@@ -951,8 +1272,10 @@ const Dashboard = () => {
                 transition: "all 0.3s ease",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
-                e.currentTarget.style.boxShadow = "0 8px 25px rgba(102,126,234,0.4)";
+                e.currentTarget.style.transform =
+                  "translateY(-2px) scale(1.02)";
+                e.currentTarget.style.boxShadow =
+                  "0 8px 25px rgba(102,126,234,0.4)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0) scale(1)";
@@ -981,9 +1304,36 @@ const Dashboard = () => {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
         }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .spinning {
+          animation: spin 1s linear infinite;
+        }
       `}</style>
     </div>
   );
+};
+
+// Helper function for formatting date
+const formatDate = (date) => {
+  if (!date) return "N/A";
+  return new Date(date).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+// Helper function for truncating text
+const truncateText = (text, maxLength = 100) => {
+  if (!text) return "N/A";
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + "...";
 };
 
 export default Dashboard;

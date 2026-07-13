@@ -62,11 +62,9 @@ const Navbar = () => {
 
   const handleAuthSuccess = () => {
     setShowAuthModal(false);
-    // Refresh the current page to show authenticated content
     window.location.reload();
   };
 
-  // Theme-based colors
   const themeColors = {
     background: isDark ? "#0f172a" : "rgba(255, 255, 255, 0.98)",
     backgroundScrolled: isDark ? "rgba(15, 23, 42, 0.98)" : "rgba(255, 255, 255, 0.98)",
@@ -150,7 +148,7 @@ const Navbar = () => {
                   letterSpacing: "0.5px",
                 }}
               >
-                {isAuthenticated ? `Welcome, ${user?.name || "User"}` : "AI Security"}
+                {isAuthenticated ? `Welcome, ${user?.firstName || "User"}` : "AI Security"}
               </span>
             </div>
           </Link>
@@ -193,10 +191,8 @@ const Navbar = () => {
               </Link>
             ))}
 
-            {/* Theme Toggle */}
             <ThemeToggle />
 
-            {/* Auth Section */}
             {isAuthenticated ? (
               <div style={{ position: "relative" }}>
                 <button
@@ -230,14 +226,13 @@ const Navbar = () => {
                       fontSize: "14px",
                     }}
                   >
-                    {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+                    {user?.firstName ? user.firstName.charAt(0).toUpperCase() : "U"}
                   </div>
                   <span style={{ fontSize: "14px", fontWeight: "500" }}>
-                    {user?.name || "User"}
+                    {user?.firstName || "User"}
                   </span>
                 </button>
 
-                {/* User Dropdown Menu */}
                 {showUserMenu && (
                   <div
                     style={{
@@ -402,7 +397,6 @@ const Navbar = () => {
               </Link>
             ))}
 
-            {/* Mobile Auth Section */}
             <div
               style={{
                 marginTop: "12px",
@@ -437,11 +431,11 @@ const Navbar = () => {
                         fontSize: "16px",
                       }}
                     >
-                      {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+                      {user?.firstName ? user.firstName.charAt(0).toUpperCase() : "U"}
                     </div>
                     <div>
                       <div style={{ fontWeight: "600", color: themeColors.text }}>
-                        {user?.name || "User"}
+                        {user?.firstName} {user?.lastName || ""}
                       </div>
                       <div style={{ fontSize: "12px", color: themeColors.textInactive }}>
                         {user?.email || ""}
@@ -553,7 +547,6 @@ const Navbar = () => {
         `}</style>
       </nav>
 
-      {/* Auth Modal */}
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}

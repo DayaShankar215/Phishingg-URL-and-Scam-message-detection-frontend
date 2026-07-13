@@ -21,7 +21,7 @@ if (Platform.OS !== 'web') {
 // ============================================
 
 // CHANGE THIS TO YOUR COMPUTER'S IP ADDRESS
-const API_BASE_URL = 'http://192.168.1.78:8080/api';
+const API_BASE_URL = 'http://10.165.67.57:8080/api';
 
 console.log('🚀 API Base URL:', API_BASE_URL);
 console.log('📱 Platform:', Platform.OS);

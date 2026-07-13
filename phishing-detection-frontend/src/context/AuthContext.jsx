@@ -1,6 +1,12 @@
 // context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { getCurrentUser, login as apiLogin, register as apiRegister, logout as apiLogout } from "../services/api";
+import { 
+  register as apiRegister, 
+  login as apiLogin, 
+  logout as apiLogout,
+  getCurrentUser,
+  isAuthenticated
+} from "../services/api";
 import toast from "react-hot-toast";
 
 const AuthContext = createContext();
@@ -16,28 +22,18 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticatedState, setIsAuthenticatedState] = useState(false);
 
-  // Check if user is already logged in on mount
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem("authToken");
-      if (token) {
-        try {
-          const response = await getCurrentUser();
-          if (response && response.user) {
-            setUser(response.user);
-            setIsAuthenticated(true);
-          } else {
-            // Token invalid
-            localStorage.removeItem("authToken");
-            setIsAuthenticated(false);
-          }
-        } catch (error) {
-          console.error("Auth check failed:", error);
-          localStorage.removeItem("authToken");
-          setIsAuthenticated(false);
-        }
+    const checkAuth = () => {
+      const authenticated = isAuthenticated();
+      if (authenticated) {
+        const userData = getCurrentUser();
+        setUser(userData);
+        setIsAuthenticatedState(true);
+      } else {
+        setUser(null);
+        setIsAuthenticatedState(false);
       }
       setLoading(false);
     };
@@ -45,36 +41,28 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  const login = async (credentials) => {
+  const register = async (userData) => {
     try {
-      const response = await apiLogin(credentials);
-      if (response.token) {
-        localStorage.setItem("authToken", response.token);
-        setUser(response.user);
-        setIsAuthenticated(true);
-        toast.success("Welcome back! 🎉");
-        return response;
-      }
-      throw new Error("No token received");
+      const response = await apiRegister(userData);
+      setUser(response.user);
+      setIsAuthenticatedState(true);
+      toast.success("Account created successfully! 🎉");
+      return response;
     } catch (error) {
-      toast.error(error.message || "Login failed");
+      toast.error(error.message || "Registration failed");
       throw error;
     }
   };
 
-  const register = async (userData) => {
+  const login = async (credentials) => {
     try {
-      const response = await apiRegister(userData);
-      if (response.token) {
-        localStorage.setItem("authToken", response.token);
-        setUser(response.user);
-        setIsAuthenticated(true);
-        toast.success("Account created successfully! 🎉");
-        return response;
-      }
-      throw new Error("No token received");
+      const response = await apiLogin(credentials);
+      setUser(response.user);
+      setIsAuthenticatedState(true);
+      toast.success("Welcome back! 🎉");
+      return response;
     } catch (error) {
-      toast.error(error.message || "Registration failed");
+      toast.error(error.message || "Login failed");
       throw error;
     }
   };
@@ -85,9 +73,8 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Logout API error:", error);
     } finally {
-      localStorage.removeItem("authToken");
       setUser(null);
-      setIsAuthenticated(false);
+      setIsAuthenticatedState(false);
       toast.success("Logged out successfully");
     }
   };
@@ -95,12 +82,11 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     loading,
-    isAuthenticated,
-    login,
+    isAuthenticated: isAuthenticatedState,
     register,
+    login,
     logout,
     setUser,
-    setIsAuthenticated,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

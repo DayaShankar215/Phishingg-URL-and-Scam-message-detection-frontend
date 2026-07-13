@@ -7,19 +7,21 @@ import toast from "react-hot-toast";
 const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
   const [mode, setMode] = useState(initialMode);
   const [loading, setLoading] = useState(false);
-  const { login, register } = useAuth();
+  const { register, login } = useAuth();
 
   // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
 
   const resetForm = () => {
     setEmail("");
     setPassword("");
-    setName("");
+    setFirstName("");
+    setLastName("");
     setConfirmPassword("");
     setAcceptTerms(false);
     setMode(initialMode);
@@ -46,8 +48,8 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
         toast.error("Please accept the terms and conditions");
         return;
       }
-      if (!name.trim()) {
-        toast.error("Please enter your name");
+      if (!firstName.trim()) {
+        toast.error("Please enter your first name");
         return;
       }
     }
@@ -58,7 +60,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
       if (mode === "login") {
         response = await login({ email, password });
       } else {
-        response = await register({ email, password, name });
+        response = await register({ firstName, lastName, email, password });
       }
 
       toast.success(mode === "login" ? "Welcome back! 🎉" : "Account created successfully! 🎉");
@@ -79,7 +81,8 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
     setMode(mode === "login" ? "register" : "login");
     setEmail("");
     setPassword("");
-    setName("");
+    setFirstName("");
+    setLastName("");
     setConfirmPassword("");
   };
 
@@ -179,48 +182,93 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
         {/* Form */}
         <form onSubmit={handleSubmit}>
           {mode === "register" && (
-            <div style={{ marginBottom: "16px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  color: "#1e293b",
-                  marginBottom: "6px",
-                }}
-              >
-                Full Name
-              </label>
-              <div style={{ position: "relative" }}>
-                <FaUser
+            <>
+              <div style={{ marginBottom: "16px" }}>
+                <label
                   style={{
-                    position: "absolute",
-                    left: "14px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "#94a3b8",
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    color: "#1e293b",
+                    marginBottom: "6px",
                   }}
-                />
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="John Doe"
-                  style={{
-                    width: "100%",
-                    padding: "12px 16px 12px 44px",
-                    border: "2px solid #e2e8f0",
-                    borderRadius: "12px",
-                    fontSize: "15px",
-                    outline: "none",
-                    transition: "border-color 0.3s ease",
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = "#667eea")}
-                  onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
-                  required
-                />
+                >
+                  First Name
+                </label>
+                <div style={{ position: "relative" }}>
+                  <FaUser
+                    style={{
+                      position: "absolute",
+                      left: "14px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#94a3b8",
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="John"
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px 12px 44px",
+                      border: "2px solid #e2e8f0",
+                      borderRadius: "12px",
+                      fontSize: "15px",
+                      outline: "none",
+                      transition: "border-color 0.3s ease",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = "#667eea")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
+                    required
+                  />
+                </div>
               </div>
-            </div>
+
+              <div style={{ marginBottom: "16px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    color: "#1e293b",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Last Name
+                </label>
+                <div style={{ position: "relative" }}>
+                  <FaUser
+                    style={{
+                      position: "absolute",
+                      left: "14px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#94a3b8",
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Doe"
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px 12px 44px",
+                      border: "2px solid #e2e8f0",
+                      borderRadius: "12px",
+                      fontSize: "15px",
+                      outline: "none",
+                      transition: "border-color 0.3s ease",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = "#667eea")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
+                    required
+                  />
+                </div>
+              </div>
+            </>
           )}
 
           <div style={{ marginBottom: "16px" }}>
@@ -445,7 +493,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
 
         {/* Social Buttons */}
         <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
-          <button
+          {/* <button
             type="button"
             style={{
               flex: 1,
@@ -467,8 +515,8 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
             <span style={{ fontSize: "14px", fontWeight: "500", color: "#1e293b" }}>
               Google
             </span>
-          </button>
-          <button
+          </button> */}
+          {/* <button
             type="button"
             style={{
               flex: 1,
@@ -490,7 +538,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
             <span style={{ fontSize: "14px", fontWeight: "500", color: "#1e293b" }}>
               GitHub
             </span>
-          </button>
+          </button> */}
         </div>
 
         {/* Switch Mode */}
