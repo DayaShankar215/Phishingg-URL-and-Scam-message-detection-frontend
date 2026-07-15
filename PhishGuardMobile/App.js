@@ -4,12 +4,15 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { AuthProvider } from './src/context/AuthContext';
+import { GuestProvider } from './src/context/GuestContext';
 import { getColors } from './src/constants/colors';
 import DashboardScreen from './src/screens/DashboardScreen';
 import URLScannerScreen from './src/screens/URLScannerScreen';
 import MessageScannerScreen from './src/screens/MessageScannerScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import Navbar from './src/components/Navbar';
+import { Toaster } from './src/components/Toaster';
 
 const Tab = createBottomTabNavigator();
 
@@ -67,6 +70,7 @@ const AppContent = () => {
             <Tab.Screen name="Message Scanner" component={MessageScannerScreen} />
             <Tab.Screen name="History" component={HistoryScreen} />
           </Tab.Navigator>
+          <Toaster />
         </NavigationContainer>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -76,7 +80,11 @@ const AppContent = () => {
 export default function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <AuthProvider>
+        <GuestProvider>
+          <AppContent />
+        </GuestProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

@@ -1,30 +1,34 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Animated, 
-  StatusBar,
-  Dimensions,
-  Platform 
+  View, Text, StyleSheet, TouchableOpacity, Animated, 
+  StatusBar, Dimensions, Platform, Modal, TextInput, Alert 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useNavigationState } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { getColors } from '../constants/colors';
 import ThemeToggle from './ThemeToggle';
+import { showToast } from './Toaster';
 
 const { width } = Dimensions.get('window');
 
 const Navbar = () => {
   const navigation = useNavigation();
   const { isDark } = useTheme();
+  const { isAuthenticated, user, login, register, logout } = useAuth();
   const colors = getColors(isDark);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [loading, setLoading] = useState(false);
+  
   const slideAnim = useRef(new Animated.Value(-300)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   const currentRoute = useNavigationState(state => {
     if (!state) return 'Dashboard';
@@ -46,22 +50,15 @@ const Navbar = () => {
       Animated.parallel([
         Animated.timing(slideAnim, { toValue: -300, duration: 300, useNativeDriver: true }),
         Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        Animated.timing(rotateAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
       ]).start(() => setMenuOpen(false));
     } else {
       setMenuOpen(true);
       Animated.parallel([
         Animated.timing(slideAnim, { toValue: 0, duration: 350, useNativeDriver: true }),
         Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
-        Animated.timing(rotateAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
       ]).start();
     }
   };
-
-  const spin = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '90deg'],
-  });
 
   const navigateTo = (routeName) => {
     navigation.navigate(routeName);
@@ -69,6 +66,31 @@ const Navbar = () => {
   };
 
   const getIconName = (item) => isActive(item.route) ? item.activeIcon : item.icon;
+
+  const handleAuth = async () => {
+    setLoading(true);
+    try {
+      if (authMode === 'login') {
+        await login({ email, password });
+      } else {
+        await register({ firstName, lastName, email, password });
+      }
+      setShowAuthModal(false);
+      setEmail('');
+      setPassword('');
+      setFirstName('');
+      setLastName('');
+      showToast(authMode === 'login' ? 'Welcome back!' : 'Account created!', 'success');
+    } catch (error) {
+      showToast(error.message || 'Authentication failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   return (
     <>
@@ -84,22 +106,45 @@ const Navbar = () => {
             onPress={() => navigation.navigate('Dashboard')}
             activeOpacity={0.8}
           >
-            <View style={styles.logoIconContainer}>
-              <View style={[styles.logoGradient, { backgroundColor: colors.primary[600] }]}>
-                <Ionicons name="shield" size={22} color="white" />
-              </View>
-              <View style={[styles.logoPulse, { borderColor: colors.primary[600] }]} />
+            <View style={[styles.logoGradient, { backgroundColor: colors.primary[600] }]}>
+              <Ionicons name="shield" size={22} color="white" />
             </View>
             <View>
-              <Text style={[styles.logoText, { color: colors.text }]}>PhishGuard</Text>
-              <View style={styles.logoBadge}>
-                <View style={[styles.logoDot, { backgroundColor: colors.success }]} />
-                <Text style={[styles.logoBadgeText, { color: colors.textMuted }]}>AI Security</Text>
-              </View>
+              <Text style={[styles.logoText, { color: colors.text }]}>SecureShield</Text>
+              <Text style={[styles.logoBadgeText, { color: colors.textMuted }]}>
+                {isAuthenticated ? `Welcome, ${user?.firstName || 'User'}` : 'AI Security'}
+              </Text>
             </View>
           </TouchableOpacity>
 
           <View style={styles.rightContainer}>
+            {!isAuthenticated ? (
+              <>
+                <TouchableOpacity 
+                  style={[styles.authButton, { backgroundColor: 'transparent', borderColor: colors.border, borderWidth: 1 }]}
+                  onPress={() => { setAuthMode('login'); setShowAuthModal(true); }}
+                >
+                  <Text style={[styles.authButtonText, { color: colors.text }]}>Login</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.authButton, { backgroundColor: colors.primary[600] }]}
+                  onPress={() => { setAuthMode('register'); setShowAuthModal(true); }}
+                >
+                  <Text style={[styles.authButtonText, { color: 'white' }]}>Register</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.userContainer}>
+                <View style={[styles.userAvatar, { backgroundColor: colors.primary[600] }]}>
+                  <Text style={styles.userAvatarText}>
+                    {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U'}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={handleLogout}>
+                  <Ionicons name="log-out-outline" size={22} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+            )}
             <ThemeToggle />
             <TouchableOpacity 
               style={[styles.menuButton, { 
@@ -109,25 +154,13 @@ const Navbar = () => {
               onPress={toggleMenu}
               activeOpacity={0.7}
             >
-              <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                <Ionicons 
-                  name={menuOpen ? 'close' : 'menu'} 
-                  size={28} 
-                  color={colors.text} 
-                />
-              </Animated.View>
+              <Ionicons 
+                name={menuOpen ? 'close' : 'menu'} 
+                size={28} 
+                color={colors.text} 
+              />
             </TouchableOpacity>
           </View>
-        </View>
-
-        <View style={[styles.indicatorLine, { backgroundColor: colors.borderLight }]}>
-          <View style={[
-            styles.indicatorFill,
-            { 
-              width: `${(navItems.findIndex(item => isActive(item.route)) + 1) * (100 / navItems.length)}%`,
-              backgroundColor: colors.primary[600],
-            }
-          ]} />
         </View>
       </View>
 
@@ -153,8 +186,12 @@ const Navbar = () => {
           <View style={[styles.menuHeaderIcon, { backgroundColor: colors.primary[600] + '20' }]}>
             <Ionicons name="shield-checkmark" size={32} color={colors.primary[600]} />
           </View>
-          <Text style={[styles.menuHeaderTitle, { color: colors.text }]}>PhishGuard</Text>
-          <Text style={[styles.menuHeaderSub, { color: colors.textMuted }]}>Premium Security</Text>
+          <Text style={[styles.menuHeaderTitle, { color: colors.text }]}>SecureShield</Text>
+          {isAuthenticated && user && (
+            <Text style={[styles.menuHeaderSub, { color: colors.textMuted }]}>
+              {user.firstName} {user.lastName || ''}
+            </Text>
+          )}
         </View>
 
         <View style={styles.menuItems}>
@@ -170,7 +207,6 @@ const Navbar = () => {
             >
               <View style={[
                 styles.menuItemIcon,
-                isActive(item.route) && [styles.menuItemIconActive, { backgroundColor: colors.primary[600] }],
                 { backgroundColor: isActive(item.route) ? colors.primary[600] : colors.backgroundInput }
               ]}>
                 <Ionicons 
@@ -191,15 +227,114 @@ const Navbar = () => {
             </TouchableOpacity>
           ))}
         </View>
-
-        <View style={[styles.menuFooter, { borderTopColor: colors.border }]}>
-          <View style={[styles.menuFooterBadge, { backgroundColor: colors.backgroundInput }]}>
-            <View style={[styles.menuFooterDot, { backgroundColor: colors.success }]} />
-            <Text style={[styles.menuFooterText, { color: colors.textMuted }]}>Protected by AI</Text>
-          </View>
-          <Text style={[styles.menuFooterVersion, { color: colors.textMuted }]}>v1.0.0</Text>
-        </View>
       </Animated.View>
+
+      {/* Auth Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showAuthModal}
+        onRequestClose={() => setShowAuthModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.backgroundCard }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowAuthModal(false)}>
+                <Ionicons name="close" size={24} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalBody}>
+              {authMode === 'register' && (
+                <>
+                  <TextInput
+                    style={[styles.modalInput, { 
+                      backgroundColor: colors.backgroundInput,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    }]}
+                    placeholder="First Name"
+                    placeholderTextColor={colors.textMuted}
+                    value={firstName}
+                    onChangeText={setFirstName}
+                  />
+                  <TextInput
+                    style={[styles.modalInput, { 
+                      backgroundColor: colors.backgroundInput,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    }]}
+                    placeholder="Last Name"
+                    placeholderTextColor={colors.textMuted}
+                    value={lastName}
+                    onChangeText={setLastName}
+                  />
+                </>
+              )}
+              <TextInput
+                style={[styles.modalInput, { 
+                  backgroundColor: colors.backgroundInput,
+                  color: colors.text,
+                  borderColor: colors.border,
+                }]}
+                placeholder="Email Address"
+                placeholderTextColor={colors.textMuted}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <TextInput
+                style={[styles.modalInput, { 
+                  backgroundColor: colors.backgroundInput,
+                  color: colors.text,
+                  borderColor: colors.border,
+                }]}
+                placeholder="Password"
+                placeholderTextColor={colors.textMuted}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+              {authMode === 'register' && (
+                <TextInput
+                  style={[styles.modalInput, { 
+                    backgroundColor: colors.backgroundInput,
+                    color: colors.text,
+                    borderColor: colors.border,
+                  }]}
+                  placeholder="Confirm Password"
+                  placeholderTextColor={colors.textMuted}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                />
+              )}
+              
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.primary[600] }]}
+                onPress={handleAuth}
+                disabled={loading}
+              >
+                <Text style={styles.modalButtonText}>
+                  {loading ? 'Loading...' : (authMode === 'login' ? 'Sign In' : 'Create Account')}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+              >
+                <Text style={[styles.modalSwitchText, { color: colors.primary[600] }]}>
+                  {authMode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -220,17 +355,12 @@ const styles = StyleSheet.create({
   rightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  logoIconContainer: {
-    position: 'relative',
-    width: 44,
-    height: 44,
   },
   logoGradient: {
     width: 44,
@@ -239,37 +369,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoPulse: {
-    position: 'absolute',
-    width: 50,
-    height: 50,
-    borderRadius: 18,
-    borderWidth: 2,
-    opacity: 0.2,
-    top: -3,
-    left: -3,
-  },
   logoText: {
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.5,
-  },
-  logoBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: -2,
-  },
-  logoDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
   },
   logoBadgeText: {
     fontSize: 9,
     fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+  },
+  userContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  userAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userAvatarText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  authButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  authButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   menuButton: {
     width: 44,
@@ -278,17 +413,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-  },
-  indicatorLine: {
-    height: 3,
-    marginTop: 8,
-    marginHorizontal: 0,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  indicatorFill: {
-    height: '100%',
-    borderRadius: 2,
   },
   overlay: {
     position: 'absolute',
@@ -364,32 +488,59 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
-  menuFooter: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    borderTopWidth: 1,
-  },
-  menuFooterBadge: {
-    flexDirection: 'row',
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  modalContent: {
+    width: '90%',
+    maxWidth: 400,
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  modalBody: {
+    gap: 14,
+  },
+  modalInput: {
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 100,
-    alignSelf: 'flex-start',
+    borderRadius: 12,
+    borderWidth: 1,
+    fontSize: 15,
   },
-  menuFooterDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  menuFooterText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  menuFooterVersion: {
-    fontSize: 11,
+  modalButton: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
     marginTop: 8,
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalSwitchText: {
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 12,
   },
 });
 

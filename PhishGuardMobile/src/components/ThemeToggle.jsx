@@ -30,9 +30,6 @@ const ThemeToggle = () => {
         onPress={() => setModalVisible(true)}
       >
         <Ionicons name={getCurrentIcon()} size={20} color={colors.text} />
-        <Text style={[styles.buttonText, { color: colors.text }]}>
-          {theme.charAt(0).toUpperCase() + theme.slice(1)}
-        </Text>
       </TouchableOpacity>
 
       <Modal
@@ -90,17 +87,12 @@ const ThemeToggle = () => {
 
 const styles = StyleSheet.create({
   button: {
-    flexDirection: 'row',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+    justifyContent: 'center',
     borderWidth: 1,
-  },
-  buttonText: {
-    fontSize: 12,
-    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,

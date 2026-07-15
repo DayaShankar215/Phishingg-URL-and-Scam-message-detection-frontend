@@ -1,26 +1,26 @@
-// screens/MessageScannerScreen.jsx - Professional Mobile Design (Fixed Icons)
 import React, { useState } from 'react';
 import { 
   View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  ScrollView, Alert, ActivityIndicator, Dimensions, Platform 
+  ScrollView, ActivityIndicator, Dimensions, Platform 
 } from 'react-native';
-import { 
-  scanMessage, 
-  submitFeedback, 
-  downloadAndSharePDF, 
-  generatePDFReport 
-} from '../services/api';
+import { scanMessage, submitFeedback } from '../services/api';
+import { downloadPDF } from '../services/pdfGenerator';
 import { validateMessage } from '../utils/validators';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { useGuest } from '../context/GuestContext';
 import { getColors } from '../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Sharing from 'expo-sharing';
+import RiskBadge from '../components/RiskBadge';
+import { showToast } from '../components/Toaster';
 
 const { width } = Dimensions.get('window');
 
 export default function MessageScannerScreen() {
   const { isDark } = useTheme();
+  const { isAuthenticated } = useAuth();
+  const { addScan } = useGuest();
   const colors = getColors(isDark);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,7 +34,6 @@ export default function MessageScannerScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState('');
 
   const handleMessageChange = (text) => {
     setMessage(text);
@@ -44,7 +43,7 @@ export default function MessageScannerScreen() {
   const handleScan = async () => {
     const validation = validateMessage(message);
     if (!validation.isValid) {
-      Alert.alert('Invalid Message', validation.error);
+      showToast(validation.error, 'error');
       setError(validation.error);
       return;
     }
@@ -56,140 +55,134 @@ export default function MessageScannerScreen() {
 
     try {
       const response = await scanMessage(message);
-      setResult(response);
+      
+      const prediction = response.prediction?.toUpperCase() || 'UNKNOWN';
+      let riskScore = 50;
+      let resultType = 'unknown';
+      
+      switch (prediction) {
+        case 'PHISHING':
+        case 'DANGEROUS':
+        case 'MALICIOUS':
+        case 'SCAM':
+          riskScore = 85;
+          resultType = 'scam';
+          break;
+        case 'SUSPICIOUS':
+        case 'WARNING':
+          riskScore = 55;
+          resultType = 'suspicious';
+          break;
+        case 'SAFE':
+        case 'LEGITIMATE':
+          riskScore = 15;
+          resultType = 'safe';
+          break;
+        default:
+          riskScore = 50;
+          resultType = 'unknown';
+      }
+      
+      const scanResult = {
+        reference: response.reference,
+        message: message,
+        content: message,
+        prediction: response.prediction,
+        classification: response.prediction || 'UNKNOWN',
+        riskScore: riskScore,
+        confidence: 0.85,
+        explanation: response.conclusion || 'Analysis completed',
+        result: resultType,
+        scannedAt: response.scannedAt || new Date().toISOString(),
+        type: 'message',
+        conclusion: response.conclusion,
+        phishingReasons: response.phishingReasons || [],
+        legitimateReasons: response.legitimateReasons || [],
+        features: extractMessageFeatures(message),
+        extractedUrls: extractUrlsFromMessage(message),
+      };
+      
+      setResult(scanResult);
+      
+      if (!isAuthenticated) {
+        addScan(scanResult);
+      }
+      
       setShowFeedback(true);
+      showToast('Message analysis completed!', 'success');
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to scan message');
+      console.error('Scan Error:', err);
+      showToast(err.message || 'Failed to scan message', 'error');
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const extractMessageFeatures = (text) => {
+    const hasURL = /https?:\/\/[^\s]+/.test(text);
+    const hasPhone = /\+\d{1,3}[\s\-]?\(?\d{1,4}\)?[\s\-]?\d{1,4}[\s\-]?\d{1,9}/.test(text);
+    const suspiciousKeywords = [
+      "urgent", "immediate", "verify", "confirm", "account", "password",
+      "bank", "paypal", "credit card", "ssn", "social security",
+      "win", "prize", "free", "offer", "limited time",
+      "click here", "verify now", "update your", "security alert"
+    ];
+    const matches = suspiciousKeywords.filter((keyword) =>
+      text.toLowerCase().includes(keyword.toLowerCase())
+    );
+    const specialCharCount = (text.match(/[^a-zA-Z0-9\s]/g) || []).length;
+    const uppercaseRatio =
+      text.length > 0 ? (text.match(/[A-Z]/g) || []).length / text.length : 0;
+
+    return {
+      length: text.length,
+      hasURL,
+      hasPhone,
+      suspiciousKeywordCount: matches.length,
+      specialCharCount,
+      uppercaseRatio,
+      suspiciousKeywords: matches,
+    };
+  };
+
+  const extractUrlsFromMessage = (text) => {
+    const urlRegex = /https?:\/\/[^\s]+/g;
+    return text.match(urlRegex) || [];
+  };
+
   const handleDownloadPDF = async () => {
     if (!result) {
-      Alert.alert('Error', 'No scan result available');
+      showToast('No scan result available', 'error');
       return;
     }
 
     setDownloading(true);
-    setDownloadProgress('Starting download...');
-
     try {
-      console.log('📄 Starting PDF download for scan:', result.id);
-      
-      try {
-        setDownloadProgress('Downloading from server...');
-        const { fileUri, saved } = await downloadAndSharePDF(result.id, 'message');
-        setDownloadProgress('✅ Download complete!');
-        
-        Alert.alert(
-          '✅ PDF Downloaded Successfully',
-          `Report saved to:\n${fileUri}\n\n${saved ? '📁 Also saved to device storage' : '📁 Saved in app directory'}`,
-          [
-            { text: 'OK', style: 'cancel' },
-            { 
-              text: '📤 Share', 
-              onPress: async () => {
-                try {
-                  await Sharing.shareAsync(fileUri, {
-                    mimeType: 'application/pdf',
-                    dialogTitle: 'Security Report',
-                  });
-                } catch (shareError) {
-                  Alert.alert('Error', 'Failed to share PDF');
-                }
-              }
-            }
-          ]
-        );
-        setDownloading(false);
-        return;
-      } catch (apiError) {
-        console.log('⚠️ Backend PDF failed, trying local:', apiError.message);
-        setDownloadProgress('Backend failed, generating local...');
-      }
-      
-      try {
-        setDownloadProgress('Generating local report...');
-        const fileUri = await generatePDFReport(result, 'message');
-        setDownloadProgress('✅ Local report generated!');
-        
-        Alert.alert(
-          '✅ Local Report Generated',
-          `Report saved to:\n${fileUri}`,
-          [
-            { text: 'OK', style: 'cancel' },
-            { 
-              text: '📤 Share', 
-              onPress: async () => {
-                try {
-                  await Sharing.shareAsync(fileUri, {
-                    mimeType: 'text/html',
-                    dialogTitle: 'Security Report',
-                  });
-                } catch (shareError) {
-                  Alert.alert('Error', 'Failed to share report');
-                }
-              }
-            }
-          ]
-        );
-        setDownloading(false);
-        return;
-      } catch (localError) {
-        console.log('⚠️ Local PDF failed:', localError.message);
-      }
-      
-      const reportText = generateSimpleReport(result);
-      Alert.alert('Security Report', reportText, [{ text: 'OK', style: 'cancel' }]);
-      
+      await downloadPDF(result, 'message');
+      showToast('Report downloaded successfully!', 'success');
     } catch (error) {
-      console.error('❌ PDF error:', error);
-      Alert.alert('Error', 'Failed to generate report. Please try again.');
+      console.error('Download error:', error);
+      showToast('Failed to generate report', 'error');
     } finally {
       setDownloading(false);
-      setDownloadProgress('');
     }
-  };
-
-  const generateSimpleReport = (scan) => {
-    const safeScan = scan || {};
-    return `
-===========================================
-        PHISHING DETECTION REPORT
-===========================================
-
-Scan ID: ${safeScan.id || 'N/A'}
-Type: Message Scan
-Date: ${safeScan.date ? new Date(safeScan.date).toLocaleString() : 'N/A'}
-Content: ${safeScan.message || safeScan.content || 'N/A'}
-
-Risk Score: ${safeScan.riskScore || 0}%
-Classification: ${safeScan.classification || safeScan.result || 'Unknown'}
-Confidence: ${safeScan.confidence ? (safeScan.confidence * 100).toFixed(1) + '%' : 'N/A'}
-
-Explanation:
-${safeScan.explanation || 'No explanation available'}
-
-===========================================
-    `.trim();
   };
 
   const handleSubmitFeedback = async () => {
     if (rating === 0) {
-      Alert.alert('Error', 'Please rate the detection accuracy');
+      showToast('Please rate the detection accuracy', 'warning');
       return;
     }
 
     setSubmitting(true);
     try {
-      await submitFeedback(result.id, 'message', isAccurate, feedbackText, rating);
+      await submitFeedback(result.reference, 'message', isAccurate, feedbackText, rating);
       setFeedbackSubmitted(true);
-      Alert.alert('Thank You!', 'Your feedback has been submitted.');
+      showToast('Thank you for your feedback!', 'success');
       setTimeout(() => { setShowFeedback(false); setFeedbackSubmitted(false); }, 3000);
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to submit feedback');
+      showToast(err.message || 'Failed to submit feedback', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -210,355 +203,12 @@ ${safeScan.explanation || 'No explanation available'}
   );
 
   const getRiskLevel = (score) => {
-    if (score > 70) return { 
-      label: 'High Risk', 
-      color: '#ef4444', 
-      bg: '#fee2e2', 
-      icon: '🚨',
-      badge: 'Dangerous',
-      gradient: ['#ef4444', '#dc2626']
-    };
-    if (score > 30) return { 
-      label: 'Medium Risk', 
-      color: '#f59e0b', 
-      bg: '#fef3c7', 
-      icon: '⚠️',
-      badge: 'Suspicious',
-      gradient: ['#f59e0b', '#d97706']
-    };
-    return { 
-      label: 'Low Risk', 
-      color: '#10b981', 
-      bg: '#d1fae5', 
-      icon: '✅',
-      badge: 'Safe',
-      gradient: ['#10b981', '#059669']
-    };
+    if (score > 70) return { label: 'High Risk', color: '#ef4444', bg: '#fee2e2', icon: '🚨', badge: 'Scam' };
+    if (score > 30) return { label: 'Medium Risk', color: '#f59e0b', bg: '#fef3c7', icon: '⚠️', badge: 'Suspicious' };
+    return { label: 'Low Risk', color: '#10b981', bg: '#d1fae5', icon: '✅', badge: 'Safe' };
   };
 
   const riskLevel = result ? getRiskLevel(result.riskScore) : null;
-
-  // Render Risk Score Card
-  const renderRiskScoreCard = () => {
-    if (!result || !riskLevel) return null;
-    
-    return (
-      <View style={[styles.riskCard, { 
-        backgroundColor: 'white',
-        borderColor: riskLevel.color + '40',
-      }]}>
-        <LinearGradient
-          colors={[riskLevel.color + '10', 'transparent']}
-          style={styles.riskGradient}
-        />
-        
-        <View style={styles.riskHeader}>
-          <View style={styles.riskHeaderLeft}>
-            <Text style={styles.riskEmoji}>{riskLevel.icon}</Text>
-            <View style={[styles.riskBadge, { backgroundColor: riskLevel.bg }]}>
-              <Text style={[styles.riskBadgeText, { color: riskLevel.color }]}>
-                {riskLevel.badge}
-              </Text>
-            </View>
-            <Text style={styles.riskLabel}>Scam Assessment</Text>
-          </View>
-        </View>
-
-        <View style={styles.riskScoreRow}>
-          <Text style={[styles.riskScoreValue, { color: riskLevel.color }]}>
-            {Math.round(result.riskScore)}%
-          </Text>
-          <Text style={[styles.riskScoreLabel, { color: riskLevel.color }]}>
-            {riskLevel.label}
-          </Text>
-        </View>
-
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { 
-              width: `${Math.min(result.riskScore, 100)}%`,
-              backgroundColor: riskLevel.color,
-            }]} />
-          </View>
-          <View style={styles.progressLabels}>
-            <Text style={styles.progressLabel}>Safe</Text>
-            <Text style={styles.progressLabel}>Suspicious</Text>
-            <Text style={styles.progressLabel}>Dangerous</Text>
-          </View>
-        </View>
-
-        <Text style={[styles.riskMessage, { color: riskLevel.color }]}>
-          {result.riskScore > 70
-            ? '🚨 HIGH RISK: This is likely a scam! Do not respond or click any links.'
-            : result.riskScore > 30
-            ? '⚠️ MEDIUM RISK: This message shows scam indicators. Exercise caution.'
-            : '✅ LOW RISK: This message appears legitimate.'}
-        </Text>
-
-        <TouchableOpacity 
-          style={[styles.downloadButton, { backgroundColor: riskLevel.color }]}
-          onPress={handleDownloadPDF}
-          disabled={downloading}
-        >
-          {downloading ? (
-            <ActivityIndicator color="white" size="small" />
-          ) : (
-            <>
-              <Ionicons name="download-outline" size={20} color="white" />
-              <Text style={styles.downloadButtonText}>Download Report</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  // Render Message Content
-  const renderMessageContent = () => {
-    if (!result) return null;
-
-    return (
-      <View style={[styles.messageCard, { 
-        backgroundColor: 'white',
-        borderColor: colors.border,
-      }]}>
-        <View style={styles.messageHeader}>
-          <View style={[styles.messageIcon, { backgroundColor: '#f093fb20' }]}>
-            <Ionicons name="chatbubble-outline" size={22} color="#f5576c" />
-          </View>
-          <View>
-            <Text style={[styles.messageTitle, { color: colors.text }]}>Analyzed Message</Text>
-            <Text style={[styles.messageSubtitle, { color: colors.textMuted }]}>Content that was scanned</Text>
-          </View>
-        </View>
-        <View style={[styles.messageContent, { 
-          backgroundColor: colors.backgroundInput,
-          borderLeftColor: riskLevel.color,
-        }]}>
-          <Text style={[styles.messageText, { color: colors.text }]}>
-            "{result.message || result.content}"
-          </Text>
-        </View>
-      </View>
-    );
-  };
-
-  // Render Analysis Cards
-  const renderAnalysisCards = () => {
-    if (!result) return null;
-
-    return (
-      <View style={styles.analysisGrid}>
-        {/* Classification Card */}
-        <View style={[styles.analysisCard, { 
-          backgroundColor: 'white',
-          borderColor: colors.border,
-        }]}>
-          <View style={styles.analysisCardHeader}>
-            <View style={[styles.analysisIcon, { backgroundColor: '#f093fb20' }]}>
-              <Ionicons name="chatbubble-ellipses-outline" size={22} color="#f5576c" />
-            </View>
-            <View>
-              <Text style={[styles.analysisTitle, { color: colors.text }]}>AI Classification</Text>
-              <Text style={[styles.analysisSubtitle, { color: colors.textMuted }]}>AI-Powered Prediction</Text>
-            </View>
-          </View>
-          <View style={[styles.analysisContent, { backgroundColor: colors.backgroundInput }]}>
-            <Text style={[styles.analysisText, { color: colors.text }]}>
-              {result.classification}
-            </Text>
-          </View>
-          <View style={styles.confidenceBadge}>
-            <Ionicons name="checkmark-circle" size={16} color={riskLevel.color} />
-            <Text style={[styles.confidenceText, { color: riskLevel.color }]}>
-              Confidence: {((result.confidence || 0.5) * 100).toFixed(1)}%
-            </Text>
-          </View>
-        </View>
-
-        {/* Red Flags Card */}
-        <View style={[styles.analysisCard, { 
-          backgroundColor: 'white',
-          borderColor: colors.border,
-        }]}>
-          <View style={styles.analysisCardHeader}>
-            <View style={[styles.analysisIcon, { backgroundColor: '#fa709a20' }]}>
-              <Ionicons name="flag-outline" size={22} color="#fa709a" />
-            </View>
-            <View>
-              <Text style={[styles.analysisTitle, { color: colors.text }]}>Red Flags Detected</Text>
-              <Text style={[styles.analysisSubtitle, { color: colors.textMuted }]}>Key Scam Indicators</Text>
-            </View>
-          </View>
-          <View style={[styles.analysisContent, { backgroundColor: colors.backgroundInput }]}>
-            <Text style={[styles.analysisText, { color: colors.text }]}>
-              {result.explanation}
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  // Render Message Features
-  const renderMessageFeatures = () => {
-    if (!result || !result.features) return null;
-
-    const features = [
-      { 
-        label: 'Message Length', 
-        value: `${result.features.length || 0} chars`,
-        icon: 'text-outline',
-        color: '#0ea5e9'
-      },
-      { 
-        label: 'Uppercase Ratio', 
-        value: `${((result.features.uppercaseRatio || 0) * 100).toFixed(1)}%`,
-        icon: 'trending-up-outline',
-        color: '#f59e0b'
-      },
-      { 
-        label: 'Contains URL', 
-        value: result.features.hasURL ? 'Yes' : 'No',
-        icon: 'link-outline',
-        color: result.features.hasURL ? '#ef4444' : '#10b981',
-        isSecure: !result.features.hasURL
-      },
-      { 
-        label: 'Contains Phone', 
-        value: result.features.hasPhone ? 'Yes' : 'No',
-        icon: 'call-outline',
-        color: result.features.hasPhone ? '#ef4444' : '#10b981',
-        isSecure: !result.features.hasPhone
-      },
-      { 
-        label: 'Suspicious Keywords', 
-        value: `${result.features.suspiciousKeywordCount || 0} found`,
-        icon: 'warning-outline',
-        color: (result.features.suspiciousKeywordCount || 0) > 0 ? '#ef4444' : '#10b981',
-        isSecure: (result.features.suspiciousKeywordCount || 0) === 0
-      },
-      { 
-        label: 'Special Symbols', 
-        value: `${result.features.specialCharCount || 0}`,
-        icon: 'at-outline',
-        color: '#8b5cf6'
-      },
-    ];
-
-    return (
-      <View style={[styles.featuresCard, { 
-        backgroundColor: 'white',
-        borderColor: colors.border,
-      }]}>
-        <View style={styles.featuresHeader}>
-          <View style={[styles.featuresIcon, { backgroundColor: '#06b6d420' }]}>
-            <Ionicons name="stats-chart-outline" size={22} color="#06b6d4" />
-          </View>
-          <View>
-            <Text style={[styles.featuresTitle, { color: colors.text }]}>Message Analysis Details</Text>
-            <Text style={[styles.featuresSubtitle, { color: colors.textMuted }]}>Technical Message Features</Text>
-          </View>
-        </View>
-
-        <View style={styles.featuresGrid}>
-          {features.map((item, index) => (
-            <View key={index} style={[styles.featureItem, { 
-              backgroundColor: colors.backgroundInput,
-              borderColor: item.isSecure !== undefined ? (item.isSecure ? '#6ee7b7' : '#fca5a5') : colors.border,
-            }]}>
-              <View style={[styles.featureItemIcon, { 
-                backgroundColor: item.color + '20',
-              }]}>
-                <Ionicons name={item.icon} size={18} color={item.color} />
-              </View>
-              <View style={styles.featureItemContent}>
-                <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>
-                  {item.label}
-                </Text>
-                <Text style={[styles.featureItemValue, { 
-                  color: item.isSecure !== undefined ? (item.isSecure ? '#10b981' : '#ef4444') : colors.text 
-                }]}>
-                  {item.value}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
-    );
-  };
-
-  // Render Extracted URLs
-  const renderExtractedUrls = () => {
-    if (!result || !result.extractedUrls || result.extractedUrls.length === 0) return null;
-
-    return (
-      <View style={[styles.urlsCard, { 
-        backgroundColor: 'white',
-        borderColor: '#fcd34d',
-      }]}>
-        <View style={styles.urlsHeader}>
-          <View style={[styles.urlsIcon, { backgroundColor: '#fef3c7' }]}>
-            <Ionicons name="link-outline" size={22} color="#ed6c02" />
-          </View>
-          <View>
-            <Text style={[styles.urlsTitle, { color: '#ed6c02' }]}>Suspicious URLs Detected</Text>
-            <Text style={[styles.urlsSubtitle, { color: colors.textMuted }]}>
-              {result.extractedUrls.length} suspicious link{result.extractedUrls.length > 1 ? 's' : ''} found
-            </Text>
-          </View>
-        </View>
-        {result.extractedUrls.map((url, idx) => (
-          <View key={idx} style={[styles.urlItem, { 
-            backgroundColor: colors.backgroundInput,
-            borderColor: colors.border,
-          }]}>
-            <Ionicons name="warning" size={16} color="#ef4444" />
-            <Text style={[styles.urlText, { color: colors.text }]} numberOfLines={1}>
-              {url}
-            </Text>
-          </View>
-        ))}
-        <Text style={[styles.urlNote, { color: '#ed6c02' }]}>
-          These URLs have been automatically analyzed and contributed to the risk score.
-        </Text>
-      </View>
-    );
-  };
-
-  // Render Recommendation
-  const renderRecommendation = () => {
-    if (!result || !riskLevel) return null;
-
-    return (
-      <View style={[styles.recommendationCard, { 
-        backgroundColor: riskLevel.bg,
-        borderColor: riskLevel.color,
-      }]}>
-        <View style={styles.recommendationHeader}>
-          <View style={[styles.recommendationIcon, { backgroundColor: riskLevel.color + '20' }]}>
-            <Ionicons name="shield-checkmark-outline" size={22} color={riskLevel.color} />
-          </View>
-          <View>
-            <Text style={[styles.recommendationTitle, { color: riskLevel.color }]}>
-              Security Recommendation
-            </Text>
-            <Text style={[styles.recommendationSubtitle, { color: colors.textMuted }]}>
-              What you should do next
-            </Text>
-          </View>
-        </View>
-        <Text style={[styles.recommendationText, { color: colors.text }]}>
-          {result.riskScore > 70
-            ? '🚫 DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier.'
-            : result.riskScore > 30
-            ? '⚠️ Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels.'
-            : '✓ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.'}
-        </Text>
-      </View>
-    );
-  };
 
   return (
     <ScrollView 
@@ -643,10 +293,11 @@ ${safeScan.explanation || 'No explanation available'}
         </TouchableOpacity>
       </View>
 
+      {/* Error Display */}
       {error && (
         <View style={[styles.errorCard, { 
-          backgroundColor: colors.danger + '15', 
-          borderColor: colors.danger + '30',
+          backgroundColor: colors.danger + '20', 
+          borderColor: colors.danger,
         }]}>
           <Ionicons name="alert-circle" size={20} color={colors.danger} />
           <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
@@ -656,12 +307,327 @@ ${safeScan.explanation || 'No explanation available'}
       {/* Results */}
       {result && (
         <View style={styles.resultsContainer}>
-          {renderRiskScoreCard()}
-          {renderMessageContent()}
-          {renderAnalysisCards()}
-          {renderMessageFeatures()}
-          {renderExtractedUrls()}
-          {renderRecommendation()}
+          {/* Risk Score Card */}
+          <View style={[styles.riskCard, { 
+            backgroundColor: 'white',
+            borderColor: riskLevel.color + '40',
+          }]}>
+            <View style={styles.riskHeader}>
+              <View style={styles.riskHeaderLeft}>
+                <Text style={styles.riskEmoji}>{riskLevel.icon}</Text>
+                <View style={[styles.riskBadge, { backgroundColor: riskLevel.bg }]}>
+                  <Text style={[styles.riskBadgeText, { color: riskLevel.color }]}>
+                    {riskLevel.badge}
+                  </Text>
+                </View>
+                <Text style={styles.riskLabel}>Scam Assessment</Text>
+                {result.reference && (
+                  <Text style={[styles.riskRef, { color: colors.textMuted }]}>
+                    Ref: {result.reference}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.riskScoreRow}>
+              <Text style={[styles.riskScoreValue, { color: riskLevel.color }]}>
+                {Math.round(result.riskScore)}%
+              </Text>
+              <Text style={[styles.riskScoreLabel, { color: riskLevel.color }]}>
+                {riskLevel.label}
+              </Text>
+            </View>
+
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { 
+                  width: `${Math.min(result.riskScore, 100)}%`,
+                  backgroundColor: riskLevel.color,
+                }]} />
+              </View>
+              <View style={styles.progressLabels}>
+                <Text style={styles.progressLabel}>Safe</Text>
+                <Text style={styles.progressLabel}>Suspicious</Text>
+                <Text style={styles.progressLabel}>Dangerous</Text>
+              </View>
+            </View>
+
+            <Text style={[styles.riskMessage, { color: riskLevel.color }]}>
+              {result.riskScore > 70
+                ? '🚨 HIGH RISK: This is likely a scam! Do not respond or click any links.'
+                : result.riskScore > 30
+                ? '⚠️ MEDIUM RISK: This message shows scam indicators. Exercise caution.'
+                : '✅ LOW RISK: This message appears legitimate.'}
+            </Text>
+
+            <TouchableOpacity 
+              style={[styles.downloadButton, { backgroundColor: riskLevel.color }]}
+              onPress={handleDownloadPDF}
+              disabled={downloading}
+            >
+              {downloading ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="download-outline" size={20} color="white" />
+                  <Text style={styles.downloadButtonText}>
+                    {isAuthenticated ? 'Download Report' : 'Sign in to Download'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Message Content */}
+          <View style={[styles.messageCard, { 
+            backgroundColor: 'white',
+            borderColor: colors.border,
+          }]}>
+            <View style={styles.messageHeader}>
+              <View style={[styles.messageIcon, { backgroundColor: '#f093fb20' }]}>
+                <Ionicons name="chatbubble-outline" size={22} color="#f5576c" />
+              </View>
+              <View>
+                <Text style={[styles.messageTitle, { color: colors.text }]}>Analyzed Message</Text>
+                <Text style={[styles.messageSubtitle, { color: colors.textMuted }]}>Content that was scanned</Text>
+              </View>
+            </View>
+            <View style={[styles.messageContent, { 
+              backgroundColor: colors.backgroundInput,
+              borderLeftColor: riskLevel.color,
+            }]}>
+              <Text style={[styles.messageText, { color: colors.text }]}>
+                "{result.message || result.content}"
+              </Text>
+            </View>
+          </View>
+
+          {/* Classification Card */}
+          <View style={[styles.infoCard, { 
+            backgroundColor: 'white',
+            borderColor: colors.border,
+          }]}>
+            <View style={styles.infoHeader}>
+              <View style={[styles.infoIcon, { backgroundColor: '#f093fb20' }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={22} color="#f5576c" />
+              </View>
+              <View>
+                <Text style={[styles.infoTitle, { color: colors.text }]}>AI Classification</Text>
+                <Text style={[styles.infoSubtitle, { color: colors.textMuted }]}>AI-Powered Prediction</Text>
+              </View>
+            </View>
+            <View style={[styles.infoContent, { backgroundColor: colors.backgroundInput }]}>
+              <Text style={[styles.infoText, { color: colors.text }]}>
+                {result.prediction || result.classification}
+              </Text>
+            </View>
+            <View style={styles.confidenceBadge}>
+              <Ionicons name="checkmark-circle" size={16} color={riskLevel.color} />
+              <Text style={[styles.confidenceText, { color: riskLevel.color }]}>
+                Confidence: {((result.confidence || 0.5) * 100).toFixed(1)}%
+              </Text>
+            </View>
+          </View>
+
+          {/* Red Flags Card */}
+          <View style={[styles.infoCard, { 
+            backgroundColor: 'white',
+            borderColor: colors.border,
+          }]}>
+            <View style={styles.infoHeader}>
+              <View style={[styles.infoIcon, { backgroundColor: '#fa709a20' }]}>
+                <Ionicons name="flag-outline" size={22} color="#fa709a" />
+              </View>
+              <View>
+                <Text style={[styles.infoTitle, { color: colors.text }]}>Red Flags Detected</Text>
+                <Text style={[styles.infoSubtitle, { color: colors.textMuted }]}>Key Scam Indicators</Text>
+              </View>
+            </View>
+            <View style={[styles.infoContent, { backgroundColor: colors.backgroundInput }]}>
+              <Text style={[styles.infoText, { color: colors.text }]}>
+                {result.explanation}
+              </Text>
+            </View>
+          </View>
+
+          {/* Message Features */}
+          {result.features && (
+            <View style={[styles.featuresCard, { 
+              backgroundColor: 'white',
+              borderColor: colors.border,
+            }]}>
+              <View style={styles.featuresHeader}>
+                <View style={[styles.featuresIcon, { backgroundColor: '#06b6d420' }]}>
+                  <Ionicons name="stats-chart-outline" size={22} color="#06b6d4" />
+                </View>
+                <View>
+                  <Text style={[styles.featuresTitle, { color: colors.text }]}>Message Analysis Details</Text>
+                  <Text style={[styles.featuresSubtitle, { color: colors.textMuted }]}>Technical Message Features</Text>
+                </View>
+              </View>
+
+              <View style={styles.featuresGrid}>
+                <View style={[styles.featureItem, { 
+                  backgroundColor: colors.backgroundInput,
+                  borderColor: colors.border,
+                }]}>
+                  <View style={[styles.featureItemIcon, { backgroundColor: '#0ea5e920' }]}>
+                    <Ionicons name="text-outline" size={18} color="#0ea5e9" />
+                  </View>
+                  <View style={styles.featureItemContent}>
+                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Message Length</Text>
+                    <Text style={[styles.featureItemValue, { color: colors.text }]}>{result.features.length || 0} chars</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.featureItem, { 
+                  backgroundColor: colors.backgroundInput,
+                  borderColor: colors.border,
+                }]}>
+                  <View style={[styles.featureItemIcon, { backgroundColor: '#f59e0b20' }]}>
+                    <Ionicons name="trending-up-outline" size={18} color="#f59e0b" />
+                  </View>
+                  <View style={styles.featureItemContent}>
+                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Uppercase Ratio</Text>
+                    <Text style={[styles.featureItemValue, { color: colors.text }]}>
+                      {((result.features.uppercaseRatio || 0) * 100).toFixed(1)}%
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.featureItem, { 
+                  backgroundColor: colors.backgroundInput,
+                  borderColor: result.features.hasURL ? '#fca5a5' : '#6ee7b7',
+                }]}>
+                  <View style={[styles.featureItemIcon, { 
+                    backgroundColor: result.features.hasURL ? '#ef444420' : '#10b98120' 
+                  }]}>
+                    <Ionicons name="link-outline" size={18} color={result.features.hasURL ? '#ef4444' : '#10b981'} />
+                  </View>
+                  <View style={styles.featureItemContent}>
+                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Contains URL</Text>
+                    <Text style={[styles.featureItemValue, { 
+                      color: result.features.hasURL ? '#ef4444' : '#10b981' 
+                    }]}>
+                      {result.features.hasURL ? '⚠️ Yes' : '✓ No'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.featureItem, { 
+                  backgroundColor: colors.backgroundInput,
+                  borderColor: result.features.hasPhone ? '#fca5a5' : '#6ee7b7',
+                }]}>
+                  <View style={[styles.featureItemIcon, { 
+                    backgroundColor: result.features.hasPhone ? '#ef444420' : '#10b98120' 
+                  }]}>
+                    <Ionicons name="call-outline" size={18} color={result.features.hasPhone ? '#ef4444' : '#10b981'} />
+                  </View>
+                  <View style={styles.featureItemContent}>
+                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Contains Phone</Text>
+                    <Text style={[styles.featureItemValue, { 
+                      color: result.features.hasPhone ? '#ef4444' : '#10b981' 
+                    }]}>
+                      {result.features.hasPhone ? '⚠️ Yes' : '✓ No'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.featureItem, { 
+                  backgroundColor: colors.backgroundInput,
+                  borderColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#fca5a5' : '#6ee7b7',
+                }]}>
+                  <View style={[styles.featureItemIcon, { 
+                    backgroundColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#ef444420' : '#10b98120' 
+                  }]}>
+                    <Ionicons name="warning-outline" size={18} color={(result.features.suspiciousKeywordCount || 0) > 0 ? '#ef4444' : '#10b981'} />
+                  </View>
+                  <View style={styles.featureItemContent}>
+                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Suspicious Keywords</Text>
+                    <Text style={[styles.featureItemValue, { color: colors.text }]}>
+                      {result.features.suspiciousKeywordCount || 0} found
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.featureItem, { 
+                  backgroundColor: colors.backgroundInput,
+                  borderColor: colors.border,
+                }]}>
+                  <View style={[styles.featureItemIcon, { backgroundColor: '#8b5cf620' }]}>
+                    <Ionicons name="at-outline" size={18} color="#8b5cf6" />
+                  </View>
+                  <View style={styles.featureItemContent}>
+                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Special Symbols</Text>
+                    <Text style={[styles.featureItemValue, { color: colors.text }]}>
+                      {result.features.specialCharCount || 0}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Extracted URLs */}
+          {result.extractedUrls && result.extractedUrls.length > 0 && (
+            <View style={[styles.urlsCard, { 
+              backgroundColor: 'white',
+              borderColor: '#fcd34d',
+            }]}>
+              <View style={styles.urlsHeader}>
+                <View style={[styles.urlsIcon, { backgroundColor: '#fef3c7' }]}>
+                  <Ionicons name="link-outline" size={22} color="#ed6c02" />
+                </View>
+                <View>
+                  <Text style={[styles.urlsTitle, { color: '#ed6c02' }]}>Suspicious URLs Detected</Text>
+                  <Text style={[styles.urlsSubtitle, { color: colors.textMuted }]}>
+                    {result.extractedUrls.length} suspicious link{result.extractedUrls.length > 1 ? 's' : ''} found
+                  </Text>
+                </View>
+              </View>
+              {result.extractedUrls.map((url, idx) => (
+                <View key={idx} style={[styles.urlItem, { 
+                  backgroundColor: colors.backgroundInput,
+                  borderColor: colors.border,
+                }]}>
+                  <Ionicons name="warning" size={16} color="#ef4444" />
+                  <Text style={[styles.urlText, { color: colors.text }]} numberOfLines={1}>
+                    {url}
+                  </Text>
+                </View>
+              ))}
+              <Text style={[styles.urlNote, { color: '#ed6c02' }]}>
+                These URLs have been automatically analyzed and contributed to the risk score.
+              </Text>
+            </View>
+          )}
+
+          {/* Recommendation */}
+          <View style={[styles.recommendationCard, { 
+            backgroundColor: riskLevel.bg,
+            borderColor: riskLevel.color,
+          }]}>
+            <View style={styles.recommendationHeader}>
+              <View style={[styles.recommendationIcon, { backgroundColor: riskLevel.color + '20' }]}>
+                <Ionicons name="shield-checkmark-outline" size={22} color={riskLevel.color} />
+              </View>
+              <View>
+                <Text style={[styles.recommendationTitle, { color: riskLevel.color }]}>
+                  Security Recommendation
+                </Text>
+                <Text style={[styles.recommendationSubtitle, { color: colors.textMuted }]}>
+                  What you should do next
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.recommendationText, { color: colors.text }]}>
+              {result.riskScore > 70
+                ? '🚫 DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier.'
+                : result.riskScore > 30
+                ? '⚠️ Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels.'
+                : '✓ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.'}
+            </Text>
+          </View>
 
           {/* Feedback Section */}
           {showFeedback && !feedbackSubmitted && (
@@ -749,8 +715,6 @@ ${safeScan.explanation || 'No explanation available'}
 const styles = StyleSheet.create({
   container: { flex: 1 },
   contentContainer: { paddingBottom: 30 },
-
-  // Header
   headerGradient: {
     paddingHorizontal: 24,
     paddingTop: 20,
@@ -807,8 +771,6 @@ const styles = StyleSheet.create({
     color: 'white',
     letterSpacing: 0.5,
   },
-
-  // Input
   inputCard: {
     marginHorizontal: 16,
     marginTop: -8,
@@ -863,8 +825,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-
-  // Error
   errorCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -879,14 +839,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     flex: 1,
   },
-
-  // Results
   resultsContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
   },
-
-  // Risk Score Card
   riskCard: {
     borderRadius: 24,
     padding: 24,
@@ -894,15 +850,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     position: 'relative',
     overflow: 'hidden',
-  },
-  riskGradient: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    opacity: 0.5,
   },
   riskHeader: {
     flexDirection: 'row',
@@ -914,6 +861,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexWrap: 'wrap',
   },
   riskEmoji: {
     fontSize: 28,
@@ -931,6 +879,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#94a3b8',
+  },
+  riskRef: {
+    fontSize: 11,
+    fontWeight: '400',
+    fontFamily: 'monospace',
   },
   riskScoreRow: {
     flexDirection: 'row',
@@ -987,8 +940,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-
-  // Message Content
   messageCard: {
     borderRadius: 16,
     padding: 16,
@@ -1025,43 +976,38 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     lineHeight: 22,
   },
-
-  // Analysis Cards
-  analysisGrid: {
-    gap: 16,
-    marginBottom: 16,
-  },
-  analysisCard: {
+  infoCard: {
     borderRadius: 16,
     padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
   },
-  analysisCardHeader: {
+  infoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 12,
   },
-  analysisIcon: {
+  infoIcon: {
     width: 40,
     height: 40,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  analysisTitle: {
+  infoTitle: {
     fontSize: 16,
     fontWeight: '700',
   },
-  analysisSubtitle: {
+  infoSubtitle: {
     fontSize: 12,
   },
-  analysisContent: {
+  infoContent: {
     padding: 12,
     borderRadius: 12,
     marginBottom: 12,
   },
-  analysisText: {
+  infoText: {
     fontSize: 14,
     lineHeight: 20,
   },
@@ -1075,8 +1021,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-
-  // Features
   featuresCard: {
     borderRadius: 16,
     padding: 16,
@@ -1134,8 +1078,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-
-  // URLs
   urlsCard: {
     borderRadius: 16,
     padding: 16,
@@ -1180,8 +1122,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
   },
-
-  // Recommendation
   recommendationCard: {
     borderRadius: 16,
     padding: 16,
@@ -1212,8 +1152,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
-
-  // Feedback
   feedbackCard: {
     borderRadius: 20,
     padding: 20,
@@ -1288,8 +1226,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-
-  // Thank You
   thankYouCard: {
     marginBottom: 16,
     padding: 24,

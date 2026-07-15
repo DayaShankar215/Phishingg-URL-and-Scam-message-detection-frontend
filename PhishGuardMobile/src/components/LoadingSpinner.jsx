@@ -1,12 +1,16 @@
 import React from 'react';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
-import Colors from '../constants/colors';
+import { useTheme } from '../context/ThemeContext';
+import { getColors } from '../constants/colors';
 
 const LoadingSpinner = ({ text = 'Loading...' }) => {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+
   return (
-    <View style={styles.container}>
-      <ActivityIndicator size="large" color={Colors.primary[600]} />
-      <Text style={styles.text}>{text}</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ActivityIndicator size="large" color={colors.primary[600]} />
+      {text && <Text style={[styles.text, { color: colors.textMuted }]}>{text}</Text>}
     </View>
   );
 };
@@ -20,7 +24,6 @@ const styles = StyleSheet.create({
   },
   text: {
     marginTop: 20,
-    color: Colors.gray,
     fontSize: 14,
   },
 });

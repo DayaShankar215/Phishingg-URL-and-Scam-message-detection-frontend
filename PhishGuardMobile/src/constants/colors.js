@@ -2,7 +2,7 @@ export const lightColors = {
   background: '#f8fafc',
   backgroundSecondary: '#ffffff',
   backgroundCard: '#ffffff',
-  backgroundInput: '#ffffff',
+  backgroundInput: '#f1f5f9',
   backgroundHover: '#f1f5f9',
   text: '#0f172a',
   textSecondary: '#475569',
@@ -13,8 +13,11 @@ export const lightColors = {
   shadow: 'rgba(0, 0, 0, 0.1)',
   shadowHover: 'rgba(0, 0, 0, 0.15)',
   success: '#10b981',
+  successBg: '#dcfce7',
   danger: '#ef4444',
+  dangerBg: '#fee2e2',
   warning: '#f59e0b',
+  warningBg: '#fef3c7',
   info: '#3b82f6',
   gray: '#64748b',
   lightGray: '#e2e8f0',
@@ -27,8 +30,8 @@ export const lightColors = {
     300: '#93c5fd',
     400: '#60a5fa',
     500: '#3b82f6',
-    600: '#2563eb',
-    700: '#1d4ed8',
+    600: '#667eea',
+    700: '#764ba2',
     800: '#1e40af',
     900: '#1e3a8a',
   },
@@ -49,8 +52,11 @@ export const darkColors = {
   shadow: 'rgba(0, 0, 0, 0.3)',
   shadowHover: 'rgba(0, 0, 0, 0.4)',
   success: '#34d399',
+  successBg: '#065f46',
   danger: '#f87171',
+  dangerBg: '#7f1d1d',
   warning: '#fbbf24',
+  warningBg: '#78350f',
   info: '#60a5fa',
   gray: '#94a3b8',
   lightGray: '#334155',
@@ -74,16 +80,4 @@ export const getColors = (isDark) => {
   return isDark ? darkColors : lightColors;
 };
 
-// Default export for backward compatibility
-const Colors = {
-  primary: lightColors.primary,
-  danger: lightColors.danger,
-  warning: lightColors.warning,
-  success: lightColors.success,
-  gray: lightColors.gray,
-  lightGray: lightColors.lightGray,
-  dark: lightColors.dark,
-  light: lightColors.light,
-};
-
-export default Colors;
+export default lightColors;

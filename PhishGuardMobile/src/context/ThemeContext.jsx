@@ -7,7 +7,6 @@ const ThemeContext = createContext();
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
-    // Return default values instead of throwing error
     return { 
       isDark: false, 
       currentTheme: 'light', 

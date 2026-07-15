@@ -1,479 +1,1245 @@
-// screens/DashboardScreen.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  View, Text, StyleSheet, ScrollView, RefreshControl, 
-  TouchableOpacity, Dimensions, Alert 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
-import { getDashboardStats } from '../services/api';
-import { useTheme } from '../context/ThemeContext';
-import { getColors } from '../constants/colors';
-import LoadingSpinner from '../components/LoadingSpinner';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { useGuest } from '../context/GuestContext';
+import { getColors } from '../constants/colors';
+import { getScanHistory } from '../services/api';
+import LoadingSpinner from '../components/LoadingSpinner';
+import RiskBadge from '../components/RiskBadge';
+import AuthModal from '../components/AuthModal';
+import { showToast } from '../components/Toaster';
+import { formatDate, truncateText } from '../utils/formatters';
 
 const { width } = Dimensions.get('window');
 
-const StatCard = ({ title, value, icon, color, trend, colors, subtitle }) => (
-  <View style={[styles.statCard, { 
-    backgroundColor: colors.backgroundCard,
-    borderColor: colors.borderLight,
-  }]}>
-    <View style={[styles.statIcon, { backgroundColor: color + '15' }]}>
-      <Ionicons name={icon} size={24} color={color} />
-    </View>
-    <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
-    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{title}</Text>
-    {subtitle && (
-      <Text style={[styles.statSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
-    )}
-  </View>
-);
-
-export default function DashboardScreen() {
+const DashboardScreen = () => {
   const { isDark } = useTheme();
   const colors = getColors(isDark);
-  const [stats, setStats] = useState({ 
-    totalScans: 0, 
-    phishingDetected: 0, 
-    scamMessages: 0, 
-    safeDetections: 0, 
-    recentScans: [] 
+  const navigation = useNavigation();
+  const { isAuthenticated, user } = useAuth();
+  const { getStats: getGuestStats, scans: guestScans } = useGuest();
+
+  const [stats, setStats] = useState({
+    totalScans: 0,
+    phishingDetected: 0,
+    scamMessages: 0,
+    safeDetections: 0,
+    recentScans: [],
+    weeklyData: [],
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const navigation = useNavigation();
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const fetchStats = useCallback(async () => {
+  useEffect(() => {
+    fetchDashboardStats();
+  }, [isAuthenticated]);
+
+  const getResultFromPrediction = (prediction) => {
+    switch (prediction?.toUpperCase()) {
+      case 'PHISHING':
+      case 'DANGEROUS':
+      case 'MALICIOUS':
+        return 'phishing';
+      case 'SCAM':
+      case 'SUSPICIOUS':
+      case 'WARNING':
+        return 'suspicious';
+      case 'SAFE':
+      case 'LEGITIMATE':
+        return 'safe';
+      default:
+        return 'unknown';
+    }
+  };
+
+  const generateWeeklyDataFromScans = (scans) => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const today = new Date();
+    const dayMap = {};
+
+    days.forEach((day, index) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() - (6 - index));
+      const dateStr = d.toISOString().split('T')[0];
+      dayMap[dateStr] = { day, phishing: 0, scam: 0, safe: 0, date: dateStr };
+    });
+
+    scans.forEach((scan) => {
+      if (!scan.scannedAt) return;
+      const scanDate = new Date(scan.scannedAt);
+      const dateStr = scanDate.toISOString().split('T')[0];
+
+      if (dayMap[dateStr]) {
+        const prediction = scan.prediction?.toUpperCase() || '';
+        if (
+          prediction === 'PHISHING' ||
+          prediction === 'DANGEROUS' ||
+          prediction === 'MALICIOUS'
+        ) {
+          dayMap[dateStr].phishing += 1;
+        } else if (
+          prediction === 'SCAM' ||
+          prediction === 'SUSPICIOUS' ||
+          prediction === 'WARNING'
+        ) {
+          dayMap[dateStr].scam += 1;
+        } else if (prediction === 'SAFE' || prediction === 'LEGITIMATE') {
+          dayMap[dateStr].safe += 1;
+        }
+      }
+    });
+
+    const result = Object.values(dayMap);
+    result.sort((a, b) => a.date.localeCompare(b.date));
+    return result;
+  };
+
+  const generateEmptyWeeklyData = () => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days.map((day) => ({
+      day,
+      phishing: 0,
+      scam: 0,
+      safe: 0,
+    }));
+  };
+
+  const fetchDashboardStats = async () => {
     try {
-      const data = await getDashboardStats();
-      setStats(data);
+      setLoading(true);
+
+      if (isAuthenticated) {
+        const historyResponse = await getScanHistory();
+
+        let allScans = [];
+        if (
+          historyResponse &&
+          historyResponse.scans &&
+          Array.isArray(historyResponse.scans)
+        ) {
+          allScans = historyResponse.scans;
+        } else if (Array.isArray(historyResponse)) {
+          allScans = historyResponse;
+        } else if (
+          historyResponse &&
+          historyResponse.response &&
+          Array.isArray(historyResponse.response)
+        ) {
+          allScans = historyResponse.response;
+        }
+
+        const totalScans = allScans.length;
+        const phishingDetected = allScans.filter(
+          (s) =>
+            s.prediction?.toUpperCase() === 'PHISHING' ||
+            s.prediction?.toUpperCase() === 'DANGEROUS' ||
+            s.prediction?.toUpperCase() === 'MALICIOUS'
+        ).length;
+
+        const scamMessages = allScans.filter(
+          (s) =>
+            s.prediction?.toUpperCase() === 'SCAM' ||
+            s.prediction?.toUpperCase() === 'SUSPICIOUS'
+        ).length;
+
+        const safeDetections = allScans.filter(
+          (s) =>
+            s.prediction?.toUpperCase() === 'SAFE' ||
+            s.prediction?.toUpperCase() === 'LEGITIMATE'
+        ).length;
+
+        const recentScans = allScans.slice(0, 5).map((scan) => ({
+          reference: scan.reference,
+          content: scan.url,
+          type: 'url',
+          result: getResultFromPrediction(scan.prediction),
+          date: scan.scannedAt,
+          prediction: scan.prediction || 'UNKNOWN',
+        }));
+
+        const weeklyData = generateWeeklyDataFromScans(allScans);
+
+        setStats({
+          totalScans,
+          phishingDetected,
+          scamMessages,
+          safeDetections,
+          recentScans,
+          weeklyData,
+        });
+      } else {
+        const guestStats = getGuestStats();
+        const guestRecentScans = guestScans.slice(0, 5).map((scan) => ({
+          reference: scan.id || scan.reference || `guest_${Date.now()}`,
+          content: scan.content || scan.url || scan.message,
+          type: scan.type || 'url',
+          result: scan.result || 'unknown',
+          date: scan.date || new Date().toISOString(),
+          prediction: scan.prediction || 'UNKNOWN',
+        }));
+
+        setStats({
+          totalScans: guestStats.total,
+          phishingDetected: guestStats.phishing,
+          scamMessages: guestStats.scam,
+          safeDetections: guestStats.safe,
+          recentScans: guestRecentScans,
+          weeklyData: generateWeeklyDataFromScans(guestScans),
+        });
+      }
     } catch (error) {
-      console.error('Dashboard Error:', error);
-      Alert.alert('Connection Error', error.message || 'Failed to load dashboard statistics');
-      // Set default values
-      setStats({ 
-        totalScans: 0, 
-        phishingDetected: 0, 
-        scamMessages: 0, 
-        safeDetections: 0, 
-        recentScans: [] 
+      console.error('Error fetching dashboard stats:', error);
+      if (isAuthenticated) {
+        showToast('Failed to load dashboard data', 'error');
+      }
+      setStats({
+        totalScans: 0,
+        phishingDetected: 0,
+        scamMessages: 0,
+        safeDetections: 0,
+        recentScans: [],
+        weeklyData: generateEmptyWeeklyData(),
       });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  };
 
-  useEffect(() => { fetchStats(); }, []);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboardStats();
+    showToast('Dashboard refreshed!', 'success');
+  };
 
-  const onRefresh = () => { setRefreshing(true); fetchStats(); };
+  const weeklyData =
+    stats.weeklyData.length > 0 ? stats.weeklyData : generateEmptyWeeklyData();
+  const hasData = stats.totalScans > 0;
+  const hasWeeklyData = weeklyData.some(
+    (d) => d.phishing > 0 || d.scam > 0 || d.safe > 0
+  );
 
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-    try {
-      const d = new Date(date);
-      if (isNaN(d.getTime())) return 'N/A';
-      return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
-    } catch {
-      return 'N/A';
+  const totalThreats =
+    stats.phishingDetected + stats.scamMessages + stats.safeDetections;
+
+  const pieData = [
+    {
+      name: 'Phishing URLs',
+      value: stats.phishingDetected,
+      color: '#ef4444',
+      percentage:
+        totalThreats > 0
+          ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1)
+          : 0,
+    },
+    {
+      name: 'Scam Messages',
+      value: stats.scamMessages,
+      color: '#f59e0b',
+      percentage:
+        totalThreats > 0
+          ? ((stats.scamMessages / totalThreats) * 100).toFixed(1)
+          : 0,
+    },
+    {
+      name: 'Safe',
+      value: stats.safeDetections,
+      color: '#10b981',
+      percentage:
+        totalThreats > 0
+          ? ((stats.safeDetections / totalThreats) * 100).toFixed(1)
+          : 0,
+    },
+  ];
+
+  const StatCard = ({ title, value, icon, gradient, trend, subtitle, locked }) => (
+    <View
+      style={[
+        styles.statCard,
+        {
+          backgroundColor: colors.backgroundCard,
+          borderColor: colors.borderLight,
+        },
+      ]}
+    >
+      {locked && !isAuthenticated && (
+        <View style={styles.lockedBadge}>
+          <Ionicons name="person-add-outline" size={10} color="#64748b" />
+          <Text style={styles.lockedBadgeText}>Sign in</Text>
+        </View>
+      )}
+      <View style={[styles.statIcon, { background: gradient }]}>
+        <Ionicons name={icon} size={28} color="white" />
+      </View>
+      <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+        {title}
+      </Text>
+      {subtitle && (
+        <Text style={[styles.statSubtitle, { color: colors.textMuted }]}>
+          {subtitle}
+        </Text>
+      )}
+      {trend !== undefined && trend !== null && (
+        <View style={[styles.statTrend, { color: trend >= 0 ? '#10b981' : '#ef4444' }]}>
+          <Ionicons
+            name={trend >= 0 ? 'arrow-up-outline' : 'arrow-down-outline'}
+            size={12}
+            color={trend >= 0 ? '#10b981' : '#ef4444'}
+          />
+          <Text style={{ color: trend >= 0 ? '#10b981' : '#ef4444', fontSize: 12 }}>
+            {Math.abs(trend)}% from last week
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const EmptyChartState = ({ icon, title, description, actionText, onAction }) => (
+    <View style={styles.emptyChartState}>
+      <View style={styles.emptyChartIcon}>
+        <Ionicons name={icon} size={36} color="#94a3b8" />
+      </View>
+      <Text style={[styles.emptyChartTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.emptyChartDescription, { color: colors.textMuted }]}>
+        {description}
+      </Text>
+      {onAction && (
+        <TouchableOpacity
+          style={[styles.emptyChartBtn, { backgroundColor: colors.primary[600] }]}
+          onPress={onAction}
+        >
+          <Text style={styles.emptyChartBtnText}>{actionText}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  const getPredictionColor = (prediction) => {
+    switch (prediction?.toUpperCase()) {
+      case 'PHISHING':
+        return { bg: '#fee2e2', color: '#dc2626' };
+      case 'SCAM':
+        return { bg: '#fef3c7', color: '#d97706' };
+      case 'SUSPICIOUS':
+        return { bg: '#fef3c7', color: '#d97706' };
+      case 'SAFE':
+        return { bg: '#d1fae5', color: '#065f46' };
+      default:
+        return { bg: '#f1f5f9', color: '#64748b' };
     }
   };
 
-  if (loading) return <LoadingSpinner text="Loading dashboard..." />;
+  if (loading) {
+    return <LoadingSpinner text="Loading dashboard..." />;
+  }
 
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: colors.background }]} 
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.contentContainer}
     >
-      {/* Header */}
+      {/* Animated Background */}
+      <View style={styles.animatedBg}>
+        <View style={[styles.circle, styles.circle1]} />
+        <View style={[styles.circle, styles.circle2]} />
+        <View style={[styles.circle, styles.circle3]} />
+      </View>
+
+      {/* Welcome Section */}
+      <View style={styles.welcomeSection}>
+        <View style={styles.welcomeHeader}>
+          <View>
+            <Text style={[styles.welcomeTitle, { color: colors.text }]}>
+              {isAuthenticated
+                ? `Welcome back, ${user?.firstName || 'User'}!`
+                : 'Welcome to SecureShield'}
+            </Text>
+            <Text style={[styles.welcomeSubtitle, { color: colors.textMuted }]}>
+              {isAuthenticated
+                ? 'Your AI-Powered Security Guardian • Real-time Protection Against Cyber Threats'
+                : 'Start scanning URLs and messages instantly • No account required'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.refreshBtn,
+              {
+                borderColor: colors.border,
+                opacity: refreshing ? 0.6 : 1,
+              },
+            ]}
+            onPress={handleRefresh}
+            disabled={refreshing}
+          >
+            <Ionicons
+              name="refresh-outline"
+              size={16}
+              color={colors.textMuted}
+              style={refreshing ? styles.spinning : null}
+            />
+            <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {!isAuthenticated && (
+          <View style={[styles.guestBadge, { backgroundColor: colors.backgroundInput }]}>
+            <Text style={[styles.guestBadgeText, { color: colors.textMuted }]}>
+              👋 Guest mode • Sign up to save your scan history
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Hero CTA Section */}
       <LinearGradient
-        colors={isDark ? ['#1e293b', '#0f172a'] : ['#667eea', '#764ba2']}
+        colors={['#667eea', '#764ba2']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.headerGradient}
+        style={styles.heroSection}
       >
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <View style={styles.headerIconContainer}>
-              <Ionicons name="shield-checkmark" size={24} color="white" />
+        <View style={styles.heroContent}>
+          <View style={styles.heroBadges}>
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>🛡️ AI-POWERED THREAT DETECTION</Text>
             </View>
-            <View>
-              <Text style={styles.headerTitle}>Dashboard</Text>
-              <Text style={styles.headerSubtitle}>Welcome back!</Text>
+            <View style={[styles.heroBadge, styles.heroBadgeLive]}>
+              <View style={styles.liveDot} />
+              <Text style={[styles.heroBadgeText, { color: '#10b981' }]}>
+                {isAuthenticated ? 'PROTECTED' : 'GUEST MODE'}
+              </Text>
             </View>
           </View>
-          <View style={styles.headerBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.headerBadgeText}>LIVE</Text>
-          </View>
+          <Text style={styles.heroTitle}>Check before you click or reply.</Text>
+          <Text style={styles.heroDescription}>
+            Scan suspicious URLs and messages in seconds with clear risk explanations.
+          </Text>
+        </View>
+        <View style={styles.heroButtons}>
+          <TouchableOpacity
+            style={[styles.heroBtnPrimary, { backgroundColor: 'white' }]}
+            onPress={() => navigation.navigate('URL Scanner')}
+          >
+            <Ionicons name="link-outline" size={18} color="#667eea" />
+            <Text style={[styles.heroBtnPrimaryText, { color: '#667eea' }]}>Scan URL</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.heroBtnSecondary, { borderColor: 'rgba(255,255,255,0.3)' }]}
+            onPress={() => navigation.navigate('Message Scanner')}
+          >
+            <Ionicons name="chatbubble-outline" size={18} color="white" />
+            <Text style={styles.heroBtnSecondaryText}>Scan Message</Text>
+          </TouchableOpacity>
         </View>
       </LinearGradient>
 
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
-        <StatCard 
-          title="Total Scans" 
-          value={stats.totalScans || 0} 
-          icon="scan-outline" 
-          color={colors.primary[600]} 
-          colors={colors}
-          subtitle="All time"
+        <StatCard
+          title="Total Scans"
+          value={stats.totalScans}
+          icon="shield-outline"
+          gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+          trend={hasData ? 12 : 0}
+          subtitle={isAuthenticated ? 'All time scans' : 'Session scans'}
+          locked={!isAuthenticated}
         />
-        <StatCard 
-          title="Phishing URLs" 
-          value={stats.phishingDetected || 0} 
-          icon="warning-outline" 
-          color={colors.danger} 
-          colors={colors}
-          subtitle="Detected"
+        <StatCard
+          title="Phishing URLs"
+          value={stats.phishingDetected}
+          icon="warning-outline"
+          gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
+          trend={hasData ? -5 : 0}
+          subtitle={`${totalThreats > 0 ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1) : 0}% of total`}
+          locked={!isAuthenticated}
         />
-        <StatCard 
-          title="Scam Messages" 
-          value={stats.scamMessages || 0} 
-          icon="chatbubble-outline" 
-          color={colors.warning} 
-          colors={colors}
-          subtitle="Blocked"
+        <StatCard
+          title="Scam Messages"
+          value={stats.scamMessages}
+          icon="chatbubble-outline"
+          gradient="linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
+          trend={hasData ? 8 : 0}
+          subtitle={`${totalThreats > 0 ? ((stats.scamMessages / totalThreats) * 100).toFixed(1) : 0}% of total`}
+          locked={!isAuthenticated}
         />
-        <StatCard 
-          title="Safe Detections" 
-          value={stats.safeDetections || 0} 
-          icon="checkmark-circle-outline" 
-          color={colors.success} 
-          colors={colors}
-          subtitle="Verified"
+        <StatCard
+          title="Safe Detections"
+          value={stats.safeDetections}
+          icon="checkmark-circle-outline"
+          gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+          trend={hasData ? 15 : 0}
+          subtitle={`${totalThreats > 0 ? ((stats.safeDetections / totalThreats) * 100).toFixed(1) : 0}% of total`}
+          locked={!isAuthenticated}
         />
       </View>
 
-      {/* Quick Actions */}
-      <View style={styles.quickActions}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
-        <View style={styles.actionRow}>
-          <TouchableOpacity 
-            style={[styles.actionCard, { 
-              backgroundColor: colors.backgroundCard,
-              borderColor: colors.borderLight,
-            }]}
-            onPress={() => navigation.navigate('URL Scanner')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: colors.primary[600] + '20' }]}>
-              <Ionicons name="link-outline" size={28} color={colors.primary[600]} />
+      {/* Charts Section */}
+      <View style={styles.chartsContainer}>
+        {/* Weekly Trends Chart - Simplified for Mobile */}
+        <View style={[styles.chartCard, { backgroundColor: colors.backgroundCard }]}>
+          <View style={styles.chartHeader}>
+            <Ionicons name="stats-chart-outline" size={20} color="#667eea" />
+            <Text style={[styles.chartTitle, { color: colors.text }]}>Detection Trends</Text>
+            <Text style={[styles.chartSubtitle, { color: colors.textMuted }]}>(Last 7 days)</Text>
+          </View>
+          {hasWeeklyData ? (
+            <View style={styles.weeklyChart}>
+              {weeklyData.map((day, index) => (
+                <View key={index} style={styles.weekDayContainer}>
+                  <View style={styles.weekDayBars}>
+                    {day.phishing > 0 && (
+                      <View style={[styles.weekBar, { height: Math.min(day.phishing * 20, 80), backgroundColor: '#ef4444' }]} />
+                    )}
+                    {day.scam > 0 && (
+                      <View style={[styles.weekBar, { height: Math.min(day.scam * 20, 80), backgroundColor: '#f59e0b' }]} />
+                    )}
+                    {day.safe > 0 && (
+                      <View style={[styles.weekBar, { height: Math.min(day.safe * 20, 80), backgroundColor: '#10b981' }]} />
+                    )}
+                  </View>
+                  <Text style={[styles.weekDayLabel, { color: colors.textMuted }]}>{day.day}</Text>
+                </View>
+              ))}
             </View>
-            <Text style={[styles.actionTitle, { color: colors.text }]}>Scan URL</Text>
-            <Text style={[styles.actionSubtitle, { color: colors.textMuted }]}>Check suspicious links</Text>
-          </TouchableOpacity>
+          ) : (
+            <EmptyChartState
+              icon="archive-outline"
+              title="No Scan Data Available"
+              description="Start scanning URLs and messages to see detection trends over time."
+              actionText="Start Scanning"
+              onAction={() => navigation.navigate('URL Scanner')}
+            />
+          )}
+        </View>
 
-          <TouchableOpacity 
-            style={[styles.actionCard, { 
-              backgroundColor: colors.backgroundCard,
-              borderColor: colors.borderLight,
-            }]}
-            onPress={() => navigation.navigate('Message Scanner')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: '#f5576c20' }]}>
-              <Ionicons name="chatbubble-outline" size={28} color="#f5576c" />
+        {/* Threat Distribution - Pie Chart Simplified for Mobile */}
+        <View style={[styles.chartCard, { backgroundColor: colors.backgroundCard }]}>
+          <View style={styles.chartHeader}>
+            <Ionicons name="pie-chart-outline" size={20} color="#667eea" />
+            <Text style={[styles.chartTitle, { color: colors.text }]}>Threat Distribution</Text>
+            <Text style={[styles.chartSubtitle, { color: colors.textMuted }]}>
+              ({totalThreats} total)
+            </Text>
+          </View>
+          {totalThreats > 0 ? (
+            <View style={styles.pieChartContainer}>
+              {pieData.map((item, index) => (
+                <View key={index} style={styles.pieItem}>
+                  <View style={[styles.pieColorDot, { backgroundColor: item.color }]} />
+                  <View style={styles.pieItemContent}>
+                    <Text style={[styles.pieItemName, { color: colors.text }]}>{item.name}</Text>
+                    <Text style={[styles.pieItemValue, { color: colors.textMuted }]}>
+                      {item.value} ({item.percentage}%)
+                    </Text>
+                  </View>
+                  <View style={[styles.pieBar, { backgroundColor: colors.backgroundInput }]}>
+                    <View
+                      style={[
+                        styles.pieBarFill,
+                        { width: `${item.percentage}%`, backgroundColor: item.color },
+                      ]}
+                    />
+                  </View>
+                </View>
+              ))}
             </View>
-            <Text style={[styles.actionTitle, { color: colors.text }]}>Scan Message</Text>
-            <Text style={[styles.actionSubtitle, { color: colors.textMuted }]}>Detect scam texts</Text>
-          </TouchableOpacity>
+          ) : (
+            <EmptyChartState
+              icon="pie-chart-outline"
+              title="No Data to Display"
+              description="No scans have been performed yet. Start scanning to see threat distribution."
+              actionText="Start Scanning"
+              onAction={() => navigation.navigate('Message Scanner')}
+            />
+          )}
         </View>
       </View>
 
-      {/* Recent Scans Section */}
-      <View style={styles.recentSection}>
-        <View style={styles.recentHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Activity</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('History')}>
-            <Text style={[styles.viewAllText, { color: colors.primary[600] }]}>View All</Text>
+      {/* Guest Mode Call to Action */}
+      {!isAuthenticated && hasData && (
+        <View style={[styles.guestCTA, { backgroundColor: colors.backgroundInput }]}>
+          <View style={styles.guestCTAIcon}>
+            <Ionicons name="person-add-outline" size={28} color="#667eea" />
+          </View>
+          <Text style={[styles.guestCTATitle, { color: colors.text }]}>
+            Want to save your scan history?
+          </Text>
+          <Text style={[styles.guestCTADescription, { color: colors.textMuted }]}>
+            Create a free account to permanently save your scans, access them
+            from any device, and unlock premium features like PDF reports and
+            advanced analytics.
+          </Text>
+          <TouchableOpacity
+            style={[styles.guestCTABtn, { backgroundColor: colors.primary[600] }]}
+            onPress={() => setShowAuthModal(true)}
+          >
+            <Text style={styles.guestCTABtnText}>Sign Up Free</Text>
           </TouchableOpacity>
         </View>
-        
-        {!stats.recentScans || stats.recentScans.length === 0 ? (
-          <View style={[styles.emptyState, { 
-            backgroundColor: colors.backgroundCard,
-            borderColor: colors.borderLight,
-          }]}>
-            <View style={styles.emptyIconContainer}>
-              <Ionicons name="shield-outline" size={48} color={colors.textMuted} />
-            </View>
-            <Text style={[styles.emptyText, { color: colors.textMuted }]}>No scans yet</Text>
-            <Text style={[styles.emptySubText, { color: colors.textMuted }]}>Start scanning URLs or messages</Text>
+      )}
+
+      {/* Recent Scans Table */}
+      <View style={[styles.recentScansCard, { backgroundColor: colors.backgroundCard }]}>
+        <View style={styles.recentScansHeader}>
+          <View style={styles.recentScansTitle}>
+            <Ionicons name="time-outline" size={20} color="#667eea" />
+            <Text style={[styles.recentScansTitleText, { color: colors.text }]}>
+              Recent Security Scans
+            </Text>
+            <Text style={[styles.recentScansCount, { color: colors.textMuted }]}>
+              ({stats.recentScans?.length || 0} total)
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.viewAllBtn, { backgroundColor: colors.primary[600] }]}
+            onPress={() => navigation.navigate('History')}
+          >
+            <Ionicons name="eye-outline" size={16} color="white" />
+            <Text style={styles.viewAllBtnText}>View All</Text>
+            <Ionicons name="chevron-forward-outline" size={12} color="white" />
+          </TouchableOpacity>
+        </View>
+
+        {stats.recentScans?.length > 0 ? (
+          <View>
+            {stats.recentScans.slice(0, 5).map((scan, index) => {
+              const predColor = getPredictionColor(scan.prediction);
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.recentScanItem,
+                    {
+                      backgroundColor: colors.backgroundSecondary,
+                      borderColor: colors.borderLight,
+                    },
+                  ]}
+                  onPress={() => navigation.navigate('History')}
+                >
+                  <View style={styles.recentScanLeft}>
+                    <View style={styles.recentScanRef}>
+                      <Ionicons name="pricetag-outline" size={10} color={colors.textMuted} />
+                      <Text style={[styles.recentScanRefText, { color: colors.primary[600] }]}>
+                        {scan.reference ? truncateText(scan.reference, 20) : 'N/A'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.recentScanContent, { color: colors.text }]} numberOfLines={1}>
+                      {scan.content || 'N/A'}
+                    </Text>
+                    <View style={styles.recentScanFooter}>
+                      <View style={[styles.recentScanPred, { backgroundColor: predColor.bg }]}>
+                        <Text style={[styles.recentScanPredText, { color: predColor.color }]}>
+                          {scan.prediction || 'UNKNOWN'}
+                        </Text>
+                      </View>
+                      <View style={styles.recentScanDate}>
+                        <Ionicons name="calendar-outline" size={10} color={colors.textMuted} />
+                        <Text style={[styles.recentScanDateText, { color: colors.textMuted }]}>
+                          {formatDate(scan.date || scan.scannedAt || Date.now())}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward-outline" size={16} color={colors.textMuted} />
+                </TouchableOpacity>
+              );
+            })}
           </View>
         ) : (
-          stats.recentScans.slice(0, 5).map((scan, index) => (
-            <TouchableOpacity 
-              key={index} 
-              style={[styles.scanItem, { 
-                backgroundColor: colors.backgroundCard,
-                borderColor: colors.borderLight,
-              }]}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('History')}
+          <View style={styles.emptyScans}>
+            <View style={styles.emptyScansIcon}>
+              <Ionicons name="shield-outline" size={36} color="#94a3b8" />
+            </View>
+            <Text style={[styles.emptyScansTitle, { color: colors.text }]}>No Scans Yet</Text>
+            <Text style={[styles.emptyScansDescription, { color: colors.textMuted }]}>
+              Start scanning URLs or messages to see results here.
+            </Text>
+            <TouchableOpacity
+              style={[styles.emptyScansBtn, { backgroundColor: colors.primary[600] }]}
+              onPress={() => navigation.navigate('URL Scanner')}
             >
-              <View style={styles.scanLeft}>
-                <View style={[styles.scanTypeIcon, { 
-                  backgroundColor: scan.type === 'url' ? colors.primary[600] + '20' : '#f5576c20' 
-                }]}>
-                  <Ionicons 
-                    name={scan.type === 'url' ? 'link-outline' : 'chatbubble-outline'} 
-                    size={16} 
-                    color={scan.type === 'url' ? colors.primary[600] : '#f5576c'} 
-                  />
-                </View>
-                <View style={styles.scanInfo}>
-                  <Text style={[styles.scanContent, { color: colors.text }]} numberOfLines={1}>
-                    {scan.content || 'N/A'}
-                  </Text>
-                  <Text style={[styles.scanDate, { color: colors.textMuted }]}>{formatDate(scan.date)}</Text>
-                </View>
-              </View>
-              <View style={styles.scanRight}>
-                <View style={[styles.scanRiskBadge, {
-                  backgroundColor: (scan.riskScore || 0) > 70 ? colors.danger + '20' : 
-                                  (scan.riskScore || 0) > 30 ? colors.warning + '20' : 
-                                  colors.success + '20',
-                }]}>
-                  <Text style={[styles.scanRiskText, {
-                    color: (scan.riskScore || 0) > 70 ? colors.danger : 
-                           (scan.riskScore || 0) > 30 ? colors.warning : 
-                           colors.success,
-                  }]}>
-                    {scan.riskScore || 0}%
-                  </Text>
-                </View>
-                <View style={[styles.scanStatusDot, {
-                  backgroundColor: scan.result === 'safe' ? colors.success : colors.danger,
-                }]} />
-              </View>
+              <Text style={styles.emptyScansBtnText}>Start Scanning</Text>
             </TouchableOpacity>
-          ))
+          </View>
         )}
       </View>
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        initialMode="register"
+        onSuccess={() => {
+          setShowAuthModal(false);
+          fetchDashboardStats();
+        }}
+      />
 
       <View style={{ height: 30 }} />
     </ScrollView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   contentContainer: { paddingBottom: 20 },
-  headerGradient: {
+
+  // Animated Background
+  animatedBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: -1,
+  },
+  circle: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(102,126,234,0.05)',
+  },
+  circle1: {
+    width: 300,
+    height: 300,
+    top: -150,
+    left: -150,
+  },
+  circle2: {
+    width: 200,
+    height: 200,
+    bottom: -100,
+    right: -100,
+  },
+  circle3: {
+    width: 150,
+    height: 150,
+    top: '50%',
+    left: '50%',
+  },
+
+  // Welcome Section
+  welcomeSection: {
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 30,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingBottom: 16,
   },
-  headerContent: {
+  welcomeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 12,
   },
-  headerIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  welcomeTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 4,
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: 'white',
+  welcomeSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
   },
-  headerSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
-  },
-  headerBadge: {
+  refreshBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  spinning: {
+    transform: [{ rotate: '360deg' }],
+  },
+  guestBadge: {
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 100,
+    alignSelf: 'flex-start',
+  },
+  guestBadgeText: {
+    fontSize: 13,
+  },
+
+  // Hero Section
+  heroSection: {
+    marginHorizontal: 16,
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  heroContent: {
+    position: 'relative',
+    zIndex: 1,
+  },
+  heroBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  heroBadge: {
     backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderRadius: 100,
+  },
+  heroBadgeLive: {
+    backgroundColor: 'rgba(16,185,129,0.25)',
+  },
+  heroBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'white',
+    letterSpacing: 0.5,
   },
   liveDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#10b981',
+    marginRight: 4,
   },
-  headerBadgeText: {
-    fontSize: 10,
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 8,
+    lineHeight: 30,
+  },
+  heroDescription: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.9)',
+    maxWidth: 400,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  heroButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 4,
+  },
+  heroBtnPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  heroBtnPrimaryText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  heroBtnSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  heroBtnSecondaryText: {
+    fontSize: 15,
     fontWeight: '600',
     color: 'white',
-    letterSpacing: 0.5,
   },
+
+  // Stats Grid
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 16,
-    marginTop: -10,
     gap: 12,
+    marginBottom: 24,
   },
   statCard: {
     flex: 1,
-    minWidth: (width - 48) / 2,
-    borderRadius: 20,
+    minWidth: (width - 56) / 2,
     padding: 16,
+    borderRadius: 20,
     borderWidth: 1,
+    position: 'relative',
+  },
+  lockedBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  lockedBadgeText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#64748b',
   },
   statIcon: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
   statValue: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     marginBottom: 2,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
   statSubtitle: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  quickActions: {
-    paddingHorizontal: 16,
-    marginTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    marginBottom: 14,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  actionIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  actionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  actionSubtitle: {
     fontSize: 11,
     marginTop: 2,
   },
-  recentSection: {
-    paddingHorizontal: 16,
-    marginTop: 24,
-  },
-  recentHeader: {
+  statTrend: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    gap: 4,
+    marginTop: 8,
   },
-  viewAllText: {
+
+  // Charts
+  chartsContainer: {
+    paddingHorizontal: 16,
+    gap: 16,
+    marginBottom: 24,
+  },
+  chartCard: {
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    flexWrap: 'wrap',
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  chartSubtitle: {
+    fontSize: 12,
+    fontWeight: '400',
+  },
+
+  // Weekly Chart
+  weeklyChart: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-end',
+    height: 120,
+    paddingBottom: 4,
+  },
+  weekDayContainer: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  weekDayBars: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 2,
+    height: 90,
+  },
+  weekBar: {
+    width: 6,
+    borderRadius: 3,
+    minHeight: 2,
+  },
+  weekDayLabel: {
+    fontSize: 10,
+    marginTop: 4,
+  },
+
+  // Empty Chart
+  emptyChartState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyChartIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(102,126,234,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyChartTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  emptyChartDescription: {
+    fontSize: 13,
+    textAlign: 'center',
+    maxWidth: 280,
+    marginBottom: 16,
+  },
+  emptyChartBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  emptyChartBtnText: {
+    color: 'white',
     fontSize: 14,
     fontWeight: '600',
   },
-  emptyState: {
+
+  // Pie Chart
+  pieChartContainer: {
+    gap: 12,
+    paddingVertical: 8,
+  },
+  pieItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 40,
-    borderRadius: 16,
-    borderWidth: 1,
+    gap: 12,
   },
-  emptyIconContainer: {
-    marginBottom: 12,
+  pieColorDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
-  emptyText: {
-    fontSize: 16,
+  pieItemContent: {
+    flex: 1,
+  },
+  pieItemName: {
+    fontSize: 14,
     fontWeight: '500',
   },
-  emptySubText: {
-    fontSize: 13,
-    marginTop: 4,
+  pieItemValue: {
+    fontSize: 12,
   },
-  scanItem: {
+  pieBar: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginLeft: 4,
+  },
+  pieBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+
+  // Guest CTA
+  guestCTA: {
+    marginHorizontal: 16,
+    padding: 24,
+    borderRadius: 20,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  guestCTAIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(102,126,234,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  guestCTATitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  guestCTADescription: {
+    fontSize: 14,
+    textAlign: 'center',
+    maxWidth: 400,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  guestCTABtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  guestCTABtnText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  // Recent Scans
+  recentScansCard: {
+    marginHorizontal: 16,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 16,
+  },
+  recentScansHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 16,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  recentScansTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  recentScansTitleText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  recentScansCount: {
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  viewAllBtnText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // Recent Scan Item
+  recentScanItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
     marginBottom: 10,
   },
-  scanLeft: {
+  recentScanLeft: {
+    flex: 1,
+    gap: 6,
+  },
+  recentScanRef: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    gap: 12,
+    gap: 4,
   },
-  scanTypeIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  recentScanRefText: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'monospace',
   },
-  scanInfo: {
-    flex: 1,
-  },
-  scanContent: {
+  recentScanContent: {
     fontSize: 14,
     fontWeight: '500',
   },
-  scanDate: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  scanRight: {
+  recentScanFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    flexWrap: 'wrap',
   },
-  scanRiskBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  recentScanPred: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 12,
   },
-  scanRiskText: {
-    fontSize: 12,
-    fontWeight: '700',
+  recentScanPredText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
-  scanStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  recentScanDate: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  recentScanDateText: {
+    fontSize: 10,
+  },
+
+  // Empty Scans
+  emptyScans: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyScansIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(102,126,234,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyScansTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  emptyScansDescription: {
+    fontSize: 13,
+    textAlign: 'center',
+    maxWidth: 320,
+    marginBottom: 16,
+  },
+  emptyScansBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  emptyScansBtnText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
+
+export default DashboardScreen;
