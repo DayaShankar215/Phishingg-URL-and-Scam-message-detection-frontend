@@ -20,7 +20,6 @@ import { useAuth } from '../context/AuthContext';
 import { useGuest } from '../context/GuestContext';
 import { getColors } from '../constants/colors';
 import LoadingSpinner from '../components/LoadingSpinner';
-import RiskBadge from '../components/RiskBadge';
 import AuthModal from '../components/AuthModal';
 import { showToast } from '../components/Toaster';
 import {
@@ -30,12 +29,14 @@ import {
 } from '../services/api';
 import { downloadPDF } from '../services/pdfGenerator';
 import { formatDate, truncateText } from '../utils/formatters';
+import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
 const HistoryScreen = () => {
   const { isDark } = useTheme();
   const colors = getColors(isDark);
+  const navigation = useNavigation();
   const { isAuthenticated, logout } = useAuth();
   const { scans: guestScans } = useGuest();
 
@@ -362,10 +363,13 @@ const HistoryScreen = () => {
     return <LoadingSpinner text="Loading security history..." />;
   }
 
+  // ============================================================
+  // EMPTY STATE - Without Sign Up to Save button
+  // ============================================================
   if (!isAuthenticated && scans.length === 0) {
     return (
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.emptyContainer}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ScrollView>
           <LinearGradient
             colors={isDark ? ['#1e293b', '#0f172a'] : ['#667eea', '#764ba2']}
             start={{ x: 0, y: 0 }}
@@ -388,48 +392,37 @@ const HistoryScreen = () => {
           <View style={[styles.emptyCard, { 
             backgroundColor: colors.backgroundCard,
             borderColor: colors.borderLight,
+            marginHorizontal: 16,
+            marginTop: 20,
+            padding: 32,
+            borderRadius: 24,
+            borderWidth: 1,
+            alignItems: 'center',
           }]}>
             <View style={styles.emptyIconContainer}>
               <Ionicons name="shield-outline" size={56} color={colors.primary[600]} />
             </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Scans Yet</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              No Scans Yet
+            </Text>
             <Text style={[styles.emptyDescription, { color: colors.textMuted }]}>
               You haven't performed any scans yet. Start scanning URLs and messages to see results here.
             </Text>
-            <Text style={[styles.emptySubDescription, { color: colors.textMuted }]}>
-              Sign up to save your scan history permanently and access it from any device.
-            </Text>
-            <View style={styles.emptyButtons}>
-              <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: colors.primary[600] }]}
-                onPress={() => navigation.navigate('URL Scanner')}
-              >
-                <Text style={styles.primaryBtnText}>Start Scanning</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.secondaryBtn, { borderColor: colors.primary[600] }]}
-                onPress={() => setShowAuthModal(true)}
-              >
-                <Ionicons name="person-add-outline" size={18} color={colors.primary[600]} />
-                <Text style={[styles.secondaryBtnText, { color: colors.primary[600] }]}>Sign Up to Save</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: colors.primary[600] }]}
+              onPress={() => navigation.navigate('URL Scanner')}
+            >
+              <Text style={styles.primaryBtnText}>Start Scanning</Text>
+            </TouchableOpacity>
           </View>
-        </View>
-
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          initialMode="register"
-          onSuccess={() => {
-            setShowAuthModal(false);
-            fetchHistory();
-          }}
-        />
-      </ScrollView>
+        </ScrollView>
+      </View>
     );
   }
 
+  // ============================================================
+  // MAIN VIEW - With scans
+  // ============================================================
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -962,7 +955,9 @@ const HistoryScreen = () => {
       {/* Auth Modal */}
       <AuthModal
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        onClose={() => {
+          setShowAuthModal(false);
+        }}
         initialMode="register"
         onSuccess={() => {
           setShowAuthModal(false);
@@ -1384,17 +1379,6 @@ const styles = StyleSheet.create({
   },
 
   // Empty State
-  emptyContainer: {
-    flex: 1,
-  },
-  emptyCard: {
-    marginHorizontal: 16,
-    marginTop: 20,
-    padding: 32,
-    borderRadius: 24,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
   emptyIconContainer: {
     marginBottom: 16,
   },
@@ -1407,18 +1391,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 8,
-  },
-  emptySubDescription: {
-    fontSize: 13,
-    textAlign: 'center',
     marginBottom: 24,
   },
-  emptyButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+  emptyCard: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    padding: 32,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
   },
   primaryBtn: {
     paddingHorizontal: 28,
@@ -1427,19 +1408,6 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: {
     color: 'white',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  secondaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 2,
-  },
-  secondaryBtnText: {
     fontSize: 15,
     fontWeight: '600',
   },

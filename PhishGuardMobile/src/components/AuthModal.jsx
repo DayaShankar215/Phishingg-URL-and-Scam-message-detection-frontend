@@ -343,7 +343,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onSuccess }) => {
                 </View>
 
                 {/* Social Buttons */}
-                <View style={styles.socialContainer}>
+                {/* <View style={styles.socialContainer}>
                   <TouchableOpacity
                     style={[
                       styles.socialBtn,
@@ -370,7 +370,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onSuccess }) => {
                     <Ionicons name="logo-github" size={20} color={colors.text} />
                     <Text style={[styles.socialBtnText, { color: colors.text }]}>GitHub</Text>
                   </TouchableOpacity>
-                </View>
+                </View> */}
 
                 {/* Switch Mode */}
                 <View style={styles.switchContainer}>
