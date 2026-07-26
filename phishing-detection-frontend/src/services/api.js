@@ -1,4 +1,3 @@
-// services/api.js
 import axios from "axios";
 
 const API_BASE_URL = "https://mud-cable-passerby.ngrok-free.dev";
@@ -15,17 +14,11 @@ const api = axios.create({
 // --- Request Interceptor ---
 api.interceptors.request.use(
   (config) => {
-    // Add ngrok skip warning header
     config.headers["ngrok-skip-browser-warning"] = "true";
-    
-    // Get token from localStorage (saved after login)
     const token = localStorage.getItem("accessToken");
-    
-    // If token exists, add it to Authorization header for ALL requests
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
     return config;
   },
   (error) => {
@@ -44,7 +37,9 @@ api.interceptors.response.use(
       };
     }
     if (error.response) {
-      throw error.response.data || { message: "Server error occurred" };
+      const errorData = error.response.data || { message: "Server error occurred" };
+      errorData.status = error.response.status;
+      throw errorData;
     }
     throw { message: error.message || "An error occurred" };
   }
@@ -143,9 +138,10 @@ export const scanMessage = async (message) => {
 
 // ==================== HISTORY ENDPOINTS ====================
 
-export const getScanHistory = async () => {
+export const getScanHistory = async (type = null) => {
   try {
-    const response = await api.get("/scans");
+    const params = type ? { type } : {};
+    const response = await api.get("/scans", { params });
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: "Failed to fetch scan history" };
@@ -161,7 +157,6 @@ export const getScanByReference = async (reference) => {
   }
 };
 
-// DELETE SCAN 
 export const deleteScanByReference = async (reference) => {
   try {
     const response = await api.delete(`/scans/${reference}`, {
@@ -172,8 +167,6 @@ export const deleteScanByReference = async (reference) => {
     throw error.response?.data || { message: "Failed to delete scan" };
   }
 };
-
-// PDF REPORT DOWNLOAD 
 
 export const downloadScanReport = async (reference) => {
   try {
@@ -199,7 +192,7 @@ export const downloadScanReport = async (reference) => {
   }
 };
 
-// DASHBOARD ENDPOINTS 
+// ==================== DASHBOARD ENDPOINTS ====================
 
 export const getDashboardStats = async () => {
   try {

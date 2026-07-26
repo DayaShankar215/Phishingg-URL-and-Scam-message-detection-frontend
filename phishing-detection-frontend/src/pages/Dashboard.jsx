@@ -1,4 +1,3 @@
-// pages/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import { getScanHistory } from "../services/api";
 import { useNavigate } from "react-router-dom";
@@ -65,60 +64,46 @@ const Dashboard = () => {
       setLoading(true);
 
       if (isAuthenticated) {
-        // Fetch scan history
         const historyResponse = await getScanHistory();
-        console.log("History Response:", historyResponse);
 
         let allScans = [];
-        if (
-          historyResponse &&
-          historyResponse.scans &&
-          Array.isArray(historyResponse.scans)
-        ) {
+        if (historyResponse && historyResponse.scans && Array.isArray(historyResponse.scans)) {
           allScans = historyResponse.scans;
         } else if (Array.isArray(historyResponse)) {
           allScans = historyResponse;
-        } else if (
-          historyResponse &&
-          historyResponse.response &&
-          Array.isArray(historyResponse.response)
-        ) {
+        } else if (historyResponse && historyResponse.response && Array.isArray(historyResponse.response)) {
           allScans = historyResponse.response;
         }
 
-        // Calculate stats from scans
         const totalScans = allScans.length;
         const phishingDetected = allScans.filter(
           (s) =>
             s.prediction?.toUpperCase() === "PHISHING" ||
             s.prediction?.toUpperCase() === "DANGEROUS" ||
-            s.prediction?.toUpperCase() === "MALICIOUS",
+            s.prediction?.toUpperCase() === "MALICIOUS"
         ).length;
 
         const scamMessages = allScans.filter(
           (s) =>
             s.prediction?.toUpperCase() === "SCAM" ||
-            s.prediction?.toUpperCase() === "SUSPICIOUS",
+            s.prediction?.toUpperCase() === "SUSPICIOUS"
         ).length;
 
         const safeDetections = allScans.filter(
           (s) =>
             s.prediction?.toUpperCase() === "SAFE" ||
-            s.prediction?.toUpperCase() === "LEGITIMATE",
+            s.prediction?.toUpperCase() === "LEGITIMATE"
         ).length;
 
-        // Format recent scans
         const recentScans = allScans.slice(0, 5).map((scan) => ({
           reference: scan.reference,
           content: scan.url,
           type: "url",
-
           result: getResultFromPrediction(scan.prediction),
           date: scan.scannedAt,
           prediction: scan.prediction || "UNKNOWN",
         }));
 
-        // Generate weekly data from scans
         const weeklyData = generateWeeklyDataFromScans(allScans);
 
         setStats({
@@ -130,13 +115,11 @@ const Dashboard = () => {
           weeklyData,
         });
       } else {
-        // Use guest stats
         const guestStats = getGuestStats();
         const guestRecentScans = guestScans.slice(0, 5).map((scan) => ({
           reference: scan.id || scan.reference || `guest_${Date.now()}`,
           content: scan.content || scan.url || scan.message,
           type: scan.type || "url",
-
           result: scan.result || "unknown",
           date: scan.date || new Date().toISOString(),
           prediction: scan.prediction || "UNKNOWN",
@@ -156,7 +139,6 @@ const Dashboard = () => {
       if (isAuthenticated) {
         toast.error("Failed to load dashboard data");
       }
-      // Set empty stats
       setStats({
         totalScans: 0,
         phishingDetected: 0,
@@ -167,24 +149,6 @@ const Dashboard = () => {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getRiskScoreFromPrediction = (prediction) => {
-    switch (prediction?.toUpperCase()) {
-      case "PHISHING":
-      case "DANGEROUS":
-      case "MALICIOUS":
-        return 85;
-      case "SCAM":
-      case "SUSPICIOUS":
-      case "WARNING":
-        return 55;
-      case "SAFE":
-      case "LEGITIMATE":
-        return 15;
-      default:
-        return 50;
     }
   };
 
@@ -211,7 +175,6 @@ const Dashboard = () => {
     const today = new Date();
     const dayMap = {};
 
-    // Initialize days with zeros
     days.forEach((day, index) => {
       const d = new Date(today);
       d.setDate(d.getDate() - (6 - index));
@@ -219,7 +182,6 @@ const Dashboard = () => {
       dayMap[dateStr] = { day, phishing: 0, scam: 0, safe: 0, date: dateStr };
     });
 
-    // Count scans per day
     scans.forEach((scan) => {
       if (!scan.scannedAt) return;
       const scanDate = new Date(scan.scannedAt);
@@ -245,9 +207,7 @@ const Dashboard = () => {
       }
     });
 
-    // Convert to array and sort
     const result = Object.values(dayMap);
-    // Sort by date
     result.sort((a, b) => a.date.localeCompare(b.date));
     return result;
   };
@@ -269,22 +229,35 @@ const Dashboard = () => {
     toast.success("Dashboard refreshed!");
   };
 
-  const weeklyData =
-    stats.weeklyData.length > 0 ? stats.weeklyData : generateEmptyWeeklyData();
+  const weeklyData = stats.weeklyData.length > 0 ? stats.weeklyData : generateEmptyWeeklyData();
   const hasData = stats.totalScans > 0;
-  const hasWeeklyData = weeklyData.some(
-    (d) => d.phishing > 0 || d.scam > 0 || d.safe > 0,
-  );
+  const hasWeeklyData = weeklyData.some((d) => d.phishing > 0 || d.scam > 0 || d.safe > 0);
 
-  const StatCard = ({
-    title,
-    value,
-    icon: Icon,
-    gradient,
-    trend,
-    subtitle,
-    locked,
-  }) => (
+  // ✅ FIX: Total threats should NOT include safe detections
+  const totalThreats = stats.phishingDetected + stats.scamMessages;
+
+  const pieData = [
+    {
+      name: "Phishing URLs",
+      value: stats.phishingDetected,
+      color: "#ef4444",
+      percentage: totalThreats > 0 ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1) : 0,
+    },
+    {
+      name: "Scam Messages",
+      value: stats.scamMessages,
+      color: "#f59e0b",
+      percentage: totalThreats > 0 ? ((stats.scamMessages / totalThreats) * 100).toFixed(1) : 0,
+    },
+    {
+      name: "Safe",
+      value: stats.safeDetections,
+      color: "#10b981",
+      percentage: stats.totalScans > 0 ? ((stats.safeDetections / stats.totalScans) * 100).toFixed(1) : 0,
+    },
+  ];
+
+  const StatCard = ({ title, value, icon: Icon, gradient, trend, subtitle, locked }) => (
     <div
       className="stat-card-premium"
       style={{
@@ -325,49 +298,13 @@ const Dashboard = () => {
         </div>
       )}
       {trend !== undefined && trend !== null && (
-        <div
-          className="stat-trend"
-          style={{ color: trend >= 0 ? "#10b981" : "#ef4444" }}
-        >
+        <div className="stat-trend" style={{ color: trend >= 0 ? "#10b981" : "#ef4444" }}>
           {trend >= 0 ? <FaArrowUp size={12} /> : <FaArrowDown size={12} />}
           <span>{Math.abs(trend)}% from last week</span>
         </div>
       )}
     </div>
   );
-
-  const totalThreats =
-    stats.phishingDetected + stats.scamMessages + stats.safeDetections;
-
-  const pieData = [
-    {
-      name: "Phishing URLs",
-      value: stats.phishingDetected,
-      color: "#ef4444",
-      percentage:
-        totalThreats > 0
-          ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1)
-          : 0,
-    },
-    {
-      name: "Scam Messages",
-      value: stats.scamMessages,
-      color: "#f59e0b",
-      percentage:
-        totalThreats > 0
-          ? ((stats.scamMessages / totalThreats) * 100).toFixed(1)
-          : 0,
-    },
-    {
-      name: "Safe",
-      value: stats.safeDetections,
-      color: "#10b981",
-      percentage:
-        totalThreats > 0
-          ? ((stats.safeDetections / totalThreats) * 100).toFixed(1)
-          : 0,
-    },
-  ];
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -381,16 +318,11 @@ const Dashboard = () => {
             border: "1px solid #e2e8f0",
           }}
         >
-          <p
-            style={{ fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}
-          >
+          <p style={{ fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}>
             {label}
           </p>
           {payload.map((entry, index) => (
-            <p
-              key={index}
-              style={{ color: entry.color, fontSize: "14px", margin: "4px 0" }}
-            >
+            <p key={index} style={{ color: entry.color, fontSize: "14px", margin: "4px 0" }}>
               {entry.name}: {entry.value}
             </p>
           ))}
@@ -400,13 +332,7 @@ const Dashboard = () => {
     return null;
   };
 
-  const EmptyChartState = ({
-    icon: Icon,
-    title,
-    description,
-    actionText,
-    onAction,
-  }) => (
+  const EmptyChartState = ({ icon: Icon, title, description, actionText, onAction }) => (
     <div
       style={{
         display: "flex",
@@ -468,8 +394,7 @@ const Dashboard = () => {
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
-            e.currentTarget.style.boxShadow =
-              "0 8px 25px rgba(102,126,234,0.4)";
+            e.currentTarget.style.boxShadow = "0 8px 25px rgba(102,126,234,0.4)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "translateY(0) scale(1)";
@@ -492,55 +417,18 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-container">
-      {/* Animated Background */}
       <div className="animated-bg">
-        <div
-          className="circle"
-          style={{
-            width: "300px",
-            height: "300px",
-            top: "-150px",
-            left: "-150px",
-          }}
-        />
-        <div
-          className="circle"
-          style={{
-            width: "200px",
-            height: "200px",
-            bottom: "-100px",
-            right: "-100px",
-            animationDelay: "5s",
-          }}
-        />
-        <div
-          className="circle"
-          style={{
-            width: "150px",
-            height: "150px",
-            top: "50%",
-            left: "50%",
-            animationDelay: "10s",
-          }}
-        />
+        <div className="circle" style={{ width: "300px", height: "300px", top: "-150px", left: "-150px" }} />
+        <div className="circle" style={{ width: "200px", height: "200px", bottom: "-100px", right: "-100px", animationDelay: "5s" }} />
+        <div className="circle" style={{ width: "150px", height: "150px", top: "50%", left: "50%", animationDelay: "10s" }} />
       </div>
 
       {/* Welcome Section */}
       <div className="welcome-section">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "16px",
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
           <div>
             <h1 className="welcome-title">
-              {isAuthenticated
-                ? `Welcome back, ${user?.firstName || "User"}!`
-                : "Welcome to SecureShield"}
+              {isAuthenticated ? `Welcome back, ${user?.firstName || "User"}!` : "Welcome to SecureShield"}
             </h1>
             <p className="welcome-subtitle">
               {isAuthenticated
@@ -564,214 +452,41 @@ const Dashboard = () => {
               transition: "all 0.3s ease",
               opacity: refreshing ? 0.6 : 1,
             }}
-            onMouseEnter={(e) => {
-              if (!refreshing) {
-                e.currentTarget.style.background = "#f8fafc";
-                e.currentTarget.style.borderColor = "#667eea";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!refreshing) {
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.borderColor = "#e2e8f0";
-              }
-            }}
           >
             <FaSync className={refreshing ? "spinning" : ""} size={14} />
             <span>{refreshing ? "Refreshing..." : "Refresh"}</span>
           </button>
         </div>
         {!isAuthenticated && (
-          <p
-            style={{
-              fontSize: "14px",
-              color: "#94a3b8",
-              marginTop: "8px",
-              background: "#f1f5f9",
-              padding: "8px 20px",
-              borderRadius: "100px",
-              display: "inline-block",
-            }}
-          >
+          <p style={{ fontSize: "14px", color: "#94a3b8", marginTop: "8px", background: "#f1f5f9", padding: "8px 20px", borderRadius: "100px", display: "inline-block" }}>
             👋 Guest mode • Sign up to save your scan history
           </p>
         )}
       </div>
 
       {/* Hero CTA Section */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          borderRadius: "24px",
-          padding: "40px 48px",
-          marginBottom: "48px",
-          position: "relative",
-          overflow: "hidden",
-          color: "white",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "20px",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: "-80px",
-            right: "-80px",
-            width: "250px",
-            height: "250px",
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.05)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "-60px",
-            left: "-60px",
-            width: "180px",
-            height: "180px",
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.05)",
-          }}
-        />
+      <div style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", borderRadius: "24px", padding: "40px 48px", marginBottom: "48px", position: "relative", overflow: "hidden", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
+        <div style={{ position: "absolute", top: "-80px", right: "-80px", width: "250px", height: "250px", borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
+        <div style={{ position: "absolute", bottom: "-60px", left: "-60px", width: "180px", height: "180px", borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
         <div style={{ position: "relative", zIndex: 1, flex: 1 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              marginBottom: "12px",
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{
-                background: "rgba(255,255,255,0.15)",
-                padding: "4px 14px",
-                borderRadius: "100px",
-                fontSize: "12px",
-                fontWeight: "600",
-                letterSpacing: "0.5px",
-              }}
-            >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
+            <span style={{ background: "rgba(255,255,255,0.15)", padding: "4px 14px", borderRadius: "100px", fontSize: "12px", fontWeight: "600", letterSpacing: "0.5px" }}>
               🛡️ AI-POWERED THREAT DETECTION
             </span>
-            <span
-              style={{
-                background: "rgba(16, 185, 129, 0.25)",
-                padding: "4px 14px",
-                borderRadius: "100px",
-                fontSize: "12px",
-                fontWeight: "600",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "8px",
-                  height: "8px",
-                  background: "#10b981",
-                  borderRadius: "50%",
-                  animation: "pulse 2s infinite",
-                }}
-              />
+            <span style={{ background: "rgba(16, 185, 129, 0.25)", padding: "4px 14px", borderRadius: "100px", fontSize: "12px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ display: "inline-block", width: "8px", height: "8px", background: "#10b981", borderRadius: "50%", animation: "pulse 2s infinite" }} />
               {isAuthenticated ? "PROTECTED" : "GUEST MODE"}
             </span>
           </div>
-          <h2
-            style={{
-              fontSize: "28px",
-              fontWeight: "700",
-              marginBottom: "8px",
-              lineHeight: "1.2",
-            }}
-          >
-            Check before you click or reply.
-          </h2>
-          <p
-            style={{
-              fontSize: "16px",
-              opacity: 0.9,
-              maxWidth: "480px",
-              lineHeight: "1.6",
-            }}
-          >
-            Scan suspicious URLs and messages in seconds with clear risk
-            explanations.
-          </p>
+          <h2 style={{ fontSize: "28px", fontWeight: "700", marginBottom: "8px", lineHeight: "1.2" }}>Check before you click or reply.</h2>
+          <p style={{ fontSize: "16px", opacity: 0.9, maxWidth: "480px", lineHeight: "1.6" }}>Scan suspicious URLs and messages in seconds with clear risk explanations.</p>
         </div>
-        <div
-          style={{
-            position: "relative",
-            zIndex: 1,
-            display: "flex",
-            gap: "12px",
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            onClick={() => navigate("/url-scan")}
-            style={{
-              background: "white",
-              color: "#667eea",
-              padding: "14px 28px",
-              border: "none",
-              borderRadius: "12px",
-              fontSize: "16px",
-              fontWeight: "600",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "10px",
-              transition: "all 0.3s ease",
-              boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
-              e.currentTarget.style.boxShadow = "0 8px 25px rgba(0,0,0,0.3)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0) scale(1)";
-              e.currentTarget.style.boxShadow = "0 4px 15px rgba(0,0,0,0.2)";
-            }}
-          >
-            <FaLink />
-            Scan URL
+        <div style={{ position: "relative", zIndex: 1, display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <button onClick={() => navigate("/url-scan")} style={{ background: "white", color: "#667eea", padding: "14px 28px", border: "none", borderRadius: "12px", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "10px", transition: "all 0.3s ease", boxShadow: "0 4px 15px rgba(0,0,0,0.2)" }}>
+            <FaLink /> Scan URL
           </button>
-          <button
-            onClick={() => navigate("/message-scan")}
-            style={{
-              background: "rgba(255,255,255,0.2)",
-              color: "white",
-              padding: "14px 28px",
-              border: "1px solid rgba(255,255,255,0.3)",
-              borderRadius: "12px",
-              fontSize: "16px",
-              fontWeight: "600",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "10px",
-              transition: "all 0.3s ease",
-              backdropFilter: "blur(10px)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.3)";
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.2)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            <FaComment />
-            Scan Message
+          <button onClick={() => navigate("/message-scan")} style={{ background: "rgba(255,255,255,0.2)", color: "white", padding: "14px 28px", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "12px", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "10px", transition: "all 0.3s ease", backdropFilter: "blur(10px)" }}>
+            <FaComment /> Scan Message
           </button>
         </div>
       </div>
@@ -793,7 +508,7 @@ const Dashboard = () => {
           icon={FaExclamationTriangle}
           gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
           trend={hasData ? -5 : 0}
-          subtitle={`${totalThreats > 0 ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1) : 0}% of total`}
+          subtitle={`${totalThreats > 0 ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1) : 0}% of threats`}
           locked={!isAuthenticated}
         />
         <StatCard
@@ -802,7 +517,7 @@ const Dashboard = () => {
           icon={FaEnvelope}
           gradient="linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
           trend={hasData ? 8 : 0}
-          subtitle={`${totalThreats > 0 ? ((stats.scamMessages / totalThreats) * 100).toFixed(1) : 0}% of total`}
+          subtitle={`${totalThreats > 0 ? ((stats.scamMessages / totalThreats) * 100).toFixed(1) : 0}% of threats`}
           locked={!isAuthenticated}
         />
         <StatCard
@@ -811,47 +526,25 @@ const Dashboard = () => {
           icon={FaCheckCircle}
           gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
           trend={hasData ? 15 : 0}
-          subtitle={`${totalThreats > 0 ? ((stats.safeDetections / totalThreats) * 100).toFixed(1) : 0}% of total`}
+          subtitle={`${stats.totalScans > 0 ? ((stats.safeDetections / stats.totalScans) * 100).toFixed(1) : 0}% of total`}
           locked={!isAuthenticated}
         />
       </div>
 
       {/* Charts Row */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))",
-          gap: "24px",
-          marginBottom: "48px",
-        }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))", gap: "24px", marginBottom: "48px" }}>
         {/* Area Chart */}
         <div className="chart-container" style={{ position: "relative" }}>
           <div className="chart-title">
             <FaChartLine style={{ color: "#667eea" }} />
             <span>Detection Trends</span>
-            <span
-              style={{
-                fontSize: "12px",
-                fontWeight: "400",
-                color: "#94a3b8",
-                marginLeft: "8px",
-              }}
-            >
-              (Last 7 days)
-            </span>
+            <span style={{ fontSize: "12px", fontWeight: "400", color: "#94a3b8", marginLeft: "8px" }}>(Last 7 days)</span>
           </div>
           {hasWeeklyData ? (
             <ResponsiveContainer width="100%" height={320}>
               <AreaChart data={weeklyData}>
                 <defs>
-                  <linearGradient
-                    id="colorPhishing"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
+                  <linearGradient id="colorPhishing" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8} />
                     <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                   </linearGradient>
@@ -868,30 +561,9 @@ const Dashboard = () => {
                 <XAxis dataKey="day" stroke="#64748b" fontSize={12} />
                 <YAxis stroke="#64748b" fontSize={12} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="phishing"
-                  stroke="#ef4444"
-                  fill="url(#colorPhishing)"
-                  name="Phishing URLs"
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="scam"
-                  stroke="#f59e0b"
-                  fill="url(#colorScam)"
-                  name="Scam Messages"
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="safe"
-                  stroke="#10b981"
-                  fill="url(#colorSafe)"
-                  name="Safe"
-                  strokeWidth={2}
-                />
+                <Area type="monotone" dataKey="phishing" stroke="#ef4444" fill="url(#colorPhishing)" name="Phishing URLs" strokeWidth={2} />
+                <Area type="monotone" dataKey="scam" stroke="#f59e0b" fill="url(#colorScam)" name="Scam Messages" strokeWidth={2} />
+                <Area type="monotone" dataKey="safe" stroke="#10b981" fill="url(#colorSafe)" name="Safe" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
@@ -910,15 +582,8 @@ const Dashboard = () => {
           <div className="chart-title">
             <FaChartPie style={{ color: "#667eea" }} />
             <span>Threat Distribution</span>
-            <span
-              style={{
-                fontSize: "12px",
-                fontWeight: "400",
-                color: "#94a3b8",
-                marginLeft: "8px",
-              }}
-            >
-              ({totalThreats} total)
+            <span style={{ fontSize: "12px", fontWeight: "400", color: "#94a3b8", marginLeft: "8px" }}>
+              ({totalThreats} threats)
             </span>
           </div>
           {totalThreats > 0 ? (
@@ -929,9 +594,7 @@ const Dashboard = () => {
                   cx="50%"
                   cy="50%"
                   labelLine={true}
-                  label={({ name, percent, value }) =>
-                    value > 0 ? `${name}: ${(percent * 100).toFixed(1)}%` : ""
-                  }
+                  label={({ name, percent, value }) => value > 0 ? `${name}: ${(percent * 100).toFixed(1)}%` : ""}
                   outerRadius={100}
                   innerRadius={50}
                   fill="#8884d8"
@@ -939,31 +602,14 @@ const Dashboard = () => {
                   paddingAngle={2}
                 >
                   {pieData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.color}
-                      stroke="white"
-                      strokeWidth={2}
-                    />
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke="white" strokeWidth={2} />
                   ))}
                 </Pie>
-                <Tooltip
-                  contentStyle={{
-                    background: "white",
-                    border: "none",
-                    borderRadius: "12px",
-                    boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
-                    padding: "12px",
-                  }}
-                />
-                <Legend
-                  verticalAlign="bottom"
-                  height={36}
-                  formatter={(value, entry) => {
-                    const item = pieData.find((d) => d.name === value);
-                    return `${value}: ${item?.percentage || 0}%`;
-                  }}
-                />
+                <Tooltip contentStyle={{ background: "white", border: "none", borderRadius: "12px", boxShadow: "0 10px 40px rgba(0,0,0,0.1)", padding: "12px" }} />
+                <Legend verticalAlign="bottom" height={36} formatter={(value, entry) => {
+                  const item = pieData.find((d) => d.name === value);
+                  return `${value}: ${item?.percentage || 0}%`;
+                }} />
               </PieChart>
             </ResponsiveContainer>
           ) : (
@@ -980,77 +626,17 @@ const Dashboard = () => {
 
       {/* Guest Mode Call to Action */}
       {!isAuthenticated && hasData && (
-        <div
-          style={{
-            background: "linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)",
-            borderRadius: "24px",
-            padding: "32px 40px",
-            marginBottom: "48px",
-            textAlign: "center",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <div
-            style={{
-              width: "64px",
-              height: "64px",
-              borderRadius: "50%",
-              background:
-                "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 16px",
-            }}
-          >
+        <div style={{ background: "linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)", borderRadius: "24px", padding: "32px 40px", marginBottom: "48px", textAlign: "center", border: "1px solid #e2e8f0" }}>
+          <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
             <FaUserPlus style={{ fontSize: "28px", color: "#667eea" }} />
           </div>
-          <h3
-            style={{
-              fontSize: "20px",
-              fontWeight: "700",
-              color: "#1e293b",
-              marginBottom: "8px",
-            }}
-          >
+          <h3 style={{ fontSize: "20px", fontWeight: "700", color: "#1e293b", marginBottom: "8px" }}>
             Want to save your scan history?
           </h3>
-          <p
-            style={{
-              color: "#64748b",
-              maxWidth: "480px",
-              margin: "0 auto 20px",
-            }}
-          >
-            Create a free account to permanently save your scans, access them
-            from any device, and unlock premium features like PDF reports and
-            advanced analytics.
+          <p style={{ color: "#64748b", maxWidth: "480px", margin: "0 auto 20px" }}>
+            Create a free account to permanently save your scans, access them from any device, and unlock premium features.
           </p>
-          <button
-            onClick={() => setShowAuthModal(true)}
-            style={{
-              padding: "12px 32px",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              color: "white",
-              border: "none",
-              borderRadius: "12px",
-              fontSize: "16px",
-              fontWeight: "600",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-              boxShadow: "0 4px 15px rgba(102,126,234,0.4)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow =
-                "0 8px 25px rgba(102,126,234,0.5)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow =
-                "0 4px 15px rgba(102,126,234,0.4)";
-            }}
-          >
+          <button onClick={() => setShowAuthModal(true)} style={{ padding: "12px 32px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "white", border: "none", borderRadius: "12px", fontSize: "16px", fontWeight: "600", cursor: "pointer", transition: "all 0.3s ease", boxShadow: "0 4px 15px rgba(102,126,234,0.4)" }}>
             Sign Up Free
           </button>
         </div>
@@ -1058,59 +644,16 @@ const Dashboard = () => {
 
       {/* Recent Scans Table */}
       <div className="chart-container">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "20px",
-            flexWrap: "wrap",
-            gap: "12px",
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
           <div className="chart-title" style={{ marginBottom: 0 }}>
             <FaClock style={{ color: "#667eea" }} />
             <span>Recent Security Scans</span>
-            <span
-              style={{
-                fontSize: "14px",
-                fontWeight: "400",
-                color: "#94a3b8",
-                marginLeft: "8px",
-              }}
-            >
+            <span style={{ fontSize: "14px", fontWeight: "400", color: "#94a3b8", marginLeft: "8px" }}>
               ({stats.recentScans?.length || 0} total)
             </span>
           </div>
-          <button
-            onClick={() => navigate("/history")}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "10px 20px",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              color: "white",
-              border: "none",
-              borderRadius: "12px",
-              fontSize: "14px",
-              fontWeight: "600",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
-              e.currentTarget.style.boxShadow =
-                "0 8px 25px rgba(102,126,234,0.4)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0) scale(1)";
-              e.currentTarget.style.boxShadow = "none";
-            }}
-          >
-            <FaEye />
-            View All
-            <FaChevronRight size={12} />
+          <button onClick={() => navigate("/history")} style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 20px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "white", border: "none", borderRadius: "12px", fontSize: "14px", fontWeight: "600", cursor: "pointer", transition: "all 0.3s ease" }}>
+            <FaEye /> View All <FaChevronRight size={12} />
           </button>
         </div>
 
@@ -1122,7 +665,6 @@ const Dashboard = () => {
                   <th>Reference</th>
                   <th>Content</th>
                   <th>Prediction</th>
-
                   <th>Date</th>
                 </tr>
               </thead>
@@ -1130,79 +672,34 @@ const Dashboard = () => {
                 {stats.recentScans?.slice(0, 5).map((scan, index) => {
                   const getPredictionColor = (prediction) => {
                     switch (prediction?.toUpperCase()) {
-                      case "PHISHING":
-                        return { bg: "#fee2e2", color: "#dc2626" };
-                      case "SCAM":
-                        return { bg: "#fef3c7", color: "#d97706" };
-                      case "SUSPICIOUS":
-                        return { bg: "#fef3c7", color: "#d97706" };
-                      case "SAFE":
-                        return { bg: "#d1fae5", color: "#065f46" };
-                      default:
-                        return { bg: "#f1f5f9", color: "#64748b" };
+                      case "PHISHING": return { bg: "#fee2e2", color: "#dc2626" };
+                      case "SCAM": return { bg: "#fef3c7", color: "#d97706" };
+                      case "SUSPICIOUS": return { bg: "#fef3c7", color: "#d97706" };
+                      case "SAFE": return { bg: "#d1fae5", color: "#065f46" };
+                      default: return { bg: "#f1f5f9", color: "#64748b" };
                     }
                   };
                   const predColor = getPredictionColor(scan.prediction);
-
                   return (
                     <tr key={index}>
-                      <td
-                        style={{
-                          fontFamily: "monospace",
-                          fontSize: "12px",
-                          color: "#667eea",
-                        }}
-                      >
-                        <span
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px",
-                          }}
-                        >
+                      <td style={{ fontFamily: "monospace", fontSize: "12px", color: "#667eea" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                           <FaHashtag size={10} style={{ opacity: 0.5 }} />
-                          {scan.reference
-                            ? truncateText(scan.reference, 20)
-                            : "N/A"}
+                          {scan.reference ? truncateText(scan.reference, 20) : "N/A"}
                         </span>
                       </td>
-                      <td
-                        style={{
-                          maxWidth: "250px",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
+                      <td style={{ maxWidth: "250px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {scan.content || "N/A"}
                       </td>
                       <td>
-                        <span
-                          style={{
-                            padding: "4px 12px",
-                            borderRadius: "20px",
-                            fontSize: "12px",
-                            fontWeight: "600",
-                            background: predColor.bg,
-                            color: predColor.color,
-                          }}
-                        >
+                        <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", background: predColor.bg, color: predColor.color }}>
                           {scan.prediction || "UNKNOWN"}
                         </span>
                       </td>
-
                       <td style={{ color: "#64748b", fontSize: "14px" }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px",
-                          }}
-                        >
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                           <FaCalendarAlt size={12} />
-                          {formatDate(
-                            scan.date || scan.scannedAt || Date.now(),
-                          )}
+                          {formatDate(scan.date || scan.scannedAt || Date.now())}
                         </div>
                       </td>
                     </tr>
@@ -1212,111 +709,30 @@ const Dashboard = () => {
             </table>
           </div>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "60px 20px",
-              textAlign: "center",
-            }}
-          >
-            <div
-              style={{
-                width: "80px",
-                height: "80px",
-                borderRadius: "50%",
-                background:
-                  "linear-gradient(135deg, #667eea15 0%, #764ba215 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: "20px",
-              }}
-            >
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 20px", textAlign: "center" }}>
+            <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "linear-gradient(135deg, #667eea15 0%, #764ba215 100%)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "20px" }}>
               <FaShieldAlt style={{ fontSize: "36px", color: "#94a3b8" }} />
             </div>
-            <h3
-              style={{
-                fontSize: "18px",
-                fontWeight: "600",
-                color: "#1e293b",
-                marginBottom: "8px",
-              }}
-            >
-              No Scans Yet
-            </h3>
-            <p
-              style={{
-                fontSize: "14px",
-                color: "#94a3b8",
-                maxWidth: "400px",
-                marginBottom: "16px",
-              }}
-            >
-              Start scanning URLs or messages to see results here. Your scan
-              history will appear in this table.
-            </p>
-            <button
-              onClick={() => navigate("/url-scan")}
-              style={{
-                padding: "10px 24px",
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                color: "white",
-                border: "none",
-                borderRadius: "12px",
-                fontSize: "14px",
-                fontWeight: "600",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform =
-                  "translateY(-2px) scale(1.02)";
-                e.currentTarget.style.boxShadow =
-                  "0 8px 25px rgba(102,126,234,0.4)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0) scale(1)";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            >
+            <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}>No Scans Yet</h3>
+            <p style={{ fontSize: "14px", color: "#94a3b8", maxWidth: "400px", marginBottom: "16px" }}>Start scanning URLs or messages to see results here.</p>
+            <button onClick={() => navigate("/url-scan")} style={{ padding: "10px 24px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "white", border: "none", borderRadius: "12px", fontSize: "14px", fontWeight: "600", cursor: "pointer", transition: "all 0.3s ease" }}>
               Start Scanning
             </button>
           </div>
         )}
       </div>
 
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        initialMode="register"
-        onSuccess={() => {
-          setShowAuthModal(false);
-          fetchDashboardStats();
-        }}
-      />
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} initialMode="register" onSuccess={() => { setShowAuthModal(false); fetchDashboardStats(); }} />
 
       <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .spinning {
-          animation: spin 1s linear infinite;
-        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .spinning { animation: spin 1s linear infinite; }
       `}</style>
     </div>
   );
 };
 
-// Helper function for formatting date
 const formatDate = (date) => {
   if (!date) return "N/A";
   return new Date(date).toLocaleString("en-US", {
@@ -1329,7 +745,6 @@ const formatDate = (date) => {
   });
 };
 
-// Helper function for truncating text
 const truncateText = (text, maxLength = 100) => {
   if (!text) return "N/A";
   if (text.length <= maxLength) return text;

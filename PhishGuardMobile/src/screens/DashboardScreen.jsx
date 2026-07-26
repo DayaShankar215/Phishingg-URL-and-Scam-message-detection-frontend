@@ -172,7 +172,6 @@ const DashboardScreen = () => {
           weeklyData,
         });
       } else {
-        // ⚠️ GUEST - Empty stats (matches web behavior)
         console.log('👤 Guest mode - showing empty stats');
         setStats({
           totalScans: 0,
@@ -211,7 +210,9 @@ const DashboardScreen = () => {
   const weeklyData = stats.weeklyData.length > 0 ? stats.weeklyData : generateEmptyWeeklyData();
   const hasData = stats.totalScans > 0;
   const hasWeeklyData = weeklyData.some((d) => d.phishing > 0 || d.scam > 0 || d.safe > 0);
-  const totalThreats = stats.phishingDetected + stats.scamMessages + stats.safeDetections;
+  
+  // ✅ FIX: Total threats should NOT include safe detections
+  const totalThreats = stats.phishingDetected + stats.scamMessages;
 
   const pieData = [
     {
@@ -230,10 +231,11 @@ const DashboardScreen = () => {
       name: 'Safe',
       value: stats.safeDetections,
       color: '#10b981',
-      percentage: totalThreats > 0 ? ((stats.safeDetections / totalThreats) * 100).toFixed(1) : 0,
+      percentage: stats.totalScans > 0 ? ((stats.safeDetections / stats.totalScans) * 100).toFixed(1) : 0,
     },
   ];
 
+  // ✅ FIX: Use LinearGradient for stat icons
   const StatCard = ({ title, value, icon, gradient, trend, subtitle, locked }) => (
     <View
       style={[
@@ -250,9 +252,14 @@ const DashboardScreen = () => {
           <Text style={styles.lockedBadgeText}>Sign in</Text>
         </View>
       )}
-      <View style={[styles.statIcon, { background: gradient }]}>
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.statIcon, { borderRadius: 14 }]}
+      >
         <Ionicons name={icon} size={28} color="white" />
-      </View>
+      </LinearGradient>
       <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
       <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{title}</Text>
       {subtitle && <Text style={[styles.statSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>}
@@ -389,7 +396,7 @@ const DashboardScreen = () => {
           icon="warning-outline"
           gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
           trend={hasData ? -5 : 0}
-          subtitle={`${totalThreats > 0 ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1) : 0}% of total`}
+          subtitle={`${totalThreats > 0 ? ((stats.phishingDetected / totalThreats) * 100).toFixed(1) : 0}% of threats`}
           locked={!isAuthenticated}
         />
         <StatCard
@@ -398,7 +405,7 @@ const DashboardScreen = () => {
           icon="chatbubble-outline"
           gradient="linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
           trend={hasData ? 8 : 0}
-          subtitle={`${totalThreats > 0 ? ((stats.scamMessages / totalThreats) * 100).toFixed(1) : 0}% of total`}
+          subtitle={`${totalThreats > 0 ? ((stats.scamMessages / totalThreats) * 100).toFixed(1) : 0}% of threats`}
           locked={!isAuthenticated}
         />
         <StatCard
@@ -407,7 +414,7 @@ const DashboardScreen = () => {
           icon="checkmark-circle-outline"
           gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
           trend={hasData ? 15 : 0}
-          subtitle={`${totalThreats > 0 ? ((stats.safeDetections / totalThreats) * 100).toFixed(1) : 0}% of total`}
+          subtitle={`${stats.totalScans > 0 ? ((stats.safeDetections / stats.totalScans) * 100).toFixed(1) : 0}% of total`}
           locked={!isAuthenticated}
         />
       </View>
@@ -451,7 +458,7 @@ const DashboardScreen = () => {
             <Ionicons name="pie-chart-outline" size={20} color="#667eea" />
             <Text style={[styles.chartTitle, { color: colors.text }]}>Threat Distribution</Text>
             <Text style={[styles.chartSubtitle, { color: colors.textMuted }]}>
-              ({totalThreats} total)
+              ({totalThreats} threats)
             </Text>
           </View>
           {totalThreats > 0 ? (

@@ -1,4 +1,3 @@
-// pages/History.jsx
 import React, { useState, useEffect } from "react";
 import {
   getScanHistory,
@@ -84,12 +83,12 @@ const History = () => {
 
         const formattedScans = scansData.map((scan) => ({
           reference: scan.reference,
-          url: scan.url,
+          url: scan.url || scan.content,
           prediction: scan.prediction,
           conclusion: scan.conclusion,
           scannedAt: scan.scannedAt,
-          type: "url",
-          content: scan.url,
+          type: scan.type || scan.scanType || (scan.message ? 'message' : 'url'),
+          content: scan.url || scan.message || scan.content,
           _raw: scan,
         }));
 
@@ -272,9 +271,6 @@ const History = () => {
     }
   };
 
-  
-
-  // ========== DELETE SCAN - SIMPLIFIED ==========
   const handleDeleteScan = async (reference) => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
@@ -291,7 +287,6 @@ const History = () => {
     const toastId = toast.loading("Deleting scan...");
 
     try {
-      // This will now send the token properly
       const response = await deleteScanByReference(reference);
       
       toast.success(response?.message || "Scan deleted successfully!", { id: toastId });
@@ -301,8 +296,8 @@ const History = () => {
     } catch (error) {
       console.error("Delete Error:", error);
       
-      if (error.status === 401) {
-        toast.error("Please login again to delete scans", { id: toastId });
+      if (error?.status === 401 || error?.response?.status === 401) {
+        toast.error("Session expired. Please login again.", { id: toastId });
         setTimeout(() => logout(), 1500);
       } else {
         toast.error(error.message || "Failed to delete scan", { id: toastId });
@@ -346,128 +341,34 @@ const History = () => {
     return (
       <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "40px 24px" }}>
         <div style={{ textAlign: "center", marginBottom: "48px" }}>
-          <h1
-            style={{
-              fontSize: "48px",
-              fontWeight: "800",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              WebkitBackgroundClip: "text",
-              backgroundClip: "text",
-              color: "transparent",
-              marginBottom: "12px",
-            }}
-          >
+          <h1 style={{ fontSize: "48px", fontWeight: "800", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", marginBottom: "12px" }}>
             Security History
           </h1>
-          <p style={{ fontSize: "18px", color: "#64748b" }}>
-            Track and analyze all your security scans
-          </p>
+          <p style={{ fontSize: "18px", color: "#64748b" }}>Track and analyze all your security scans</p>
         </div>
 
-        <div
-          style={{
-            background: "white",
-            borderRadius: "24px",
-            padding: "60px 40px",
-            textAlign: "center",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
-          }}
-        >
-          <div
-            style={{
-              width: "100px",
-              height: "100px",
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 24px",
-            }}
-          >
+        <div style={{ background: "white", borderRadius: "24px", padding: "60px 40px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.1)" }}>
+          <div style={{ width: "100px", height: "100px", borderRadius: "50%", background: "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
             <FaShieldAlt style={{ fontSize: "48px", color: "#667eea" }} />
           </div>
-          <h2
-            style={{
-              fontSize: "28px",
-              fontWeight: "700",
-              color: "#1e293b",
-              marginBottom: "12px",
-            }}
-          >
-            No Scans Yet
-          </h2>
-          <p
-            style={{
-              fontSize: "16px",
-              color: "#64748b",
-              maxWidth: "480px",
-              margin: "0 auto 8px",
-            }}
-          >
-            You haven't performed any scans yet. Start scanning URLs and messages
-            to see results here.
+          <h2 style={{ fontSize: "28px", fontWeight: "700", color: "#1e293b", marginBottom: "12px" }}>No Scans Yet</h2>
+          <p style={{ fontSize: "16px", color: "#64748b", maxWidth: "480px", margin: "0 auto 8px" }}>
+            You haven't performed any scans yet. Start scanning URLs and messages to see results here.
           </p>
-          <p
-            style={{ fontSize: "14px", color: "#94a3b8", marginBottom: "24px" }}
-          >
-            Sign up to save your scan history permanently and access it from any
-            device.
+          <p style={{ fontSize: "14px", color: "#94a3b8", marginBottom: "24px" }}>
+            Sign up to save your scan history permanently and access it from any device.
           </p>
-          <div
-            style={{
-              display: "flex",
-              gap: "12px",
-              justifyContent: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              onClick={() => (window.location.href = "/url-scan")}
-              style={{
-                padding: "12px 28px",
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                color: "white",
-                border: "none",
-                borderRadius: "12px",
-                fontSize: "16px",
-                fontWeight: "600",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-                boxShadow: "0 4px 15px rgba(102,126,234,0.4)",
-              }}
-            >
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+            <button onClick={() => (window.location.href = "/url-scan")} style={{ padding: "12px 28px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "white", border: "none", borderRadius: "12px", fontSize: "16px", fontWeight: "600", cursor: "pointer", transition: "all 0.3s ease", boxShadow: "0 4px 15px rgba(102,126,234,0.4)" }}>
               Start Scanning
             </button>
-            <button
-              onClick={() => setShowAuthModal(true)}
-              style={{
-                padding: "12px 28px",
-                background: "white",
-                color: "#667eea",
-                border: "2px solid #667eea",
-                borderRadius: "12px",
-                fontSize: "16px",
-                fontWeight: "600",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-              }}
-            >
-              <FaUserPlus style={{ marginRight: "8px" }} />
-              Sign Up to Save
+            <button onClick={() => setShowAuthModal(true)} style={{ padding: "12px 28px", background: "white", color: "#667eea", border: "2px solid #667eea", borderRadius: "12px", fontSize: "16px", fontWeight: "600", cursor: "pointer", transition: "all 0.3s ease" }}>
+              <FaUserPlus style={{ marginRight: "8px" }} /> Sign Up to Save
             </button>
           </div>
         </div>
 
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          initialMode="register"
-          onSuccess={() => {
-            setShowAuthModal(false);
-            fetchHistory();
-          }}
-        />
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} initialMode="register" onSuccess={() => { setShowAuthModal(false); fetchHistory(); }} />
       </div>
     );
   }
@@ -477,54 +378,16 @@ const History = () => {
       {/* Header Stats */}
       <div style={{ marginBottom: "48px" }}>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <h1
-            style={{
-              fontSize: "48px",
-              fontWeight: "800",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              WebkitBackgroundClip: "text",
-              backgroundClip: "text",
-              color: "transparent",
-              marginBottom: "12px",
-            }}
-          >
+          <h1 style={{ fontSize: "48px", fontWeight: "800", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", marginBottom: "12px" }}>
             Security History
           </h1>
-          <p style={{ fontSize: "18px", color: "#64748b" }}>
-            Track and analyze all your security scans
-          </p>
+          <p style={{ fontSize: "18px", color: "#64748b" }}>Track and analyze all your security scans</p>
 
           {!isAuthenticated && scans.length > 0 && (
-            <div
-              style={{
-                marginTop: "12px",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "8px 20px",
-                background: "#fef3c7",
-                borderRadius: "100px",
-                border: "1px solid #fcd34d",
-              }}
-            >
+            <div style={{ marginTop: "12px", display: "inline-flex", alignItems: "center", gap: "8px", padding: "8px 20px", background: "#fef3c7", borderRadius: "100px", border: "1px solid #fcd34d" }}>
               <FaInfoCircle style={{ color: "#d97706" }} />
-              <span style={{ fontSize: "14px", color: "#92400e" }}>
-                Guest Mode • History is temporary
-              </span>
-              <button
-                onClick={() => setShowAuthModal(true)}
-                style={{
-                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                  color: "white",
-                  border: "none",
-                  padding: "4px 16px",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                }}
-              >
+              <span style={{ fontSize: "14px", color: "#92400e" }}>Guest Mode • History is temporary</span>
+              <button onClick={() => setShowAuthModal(true)} style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "white", border: "none", padding: "4px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: "600", cursor: "pointer", transition: "all 0.3s ease" }}>
                 Sign Up to Save
               </button>
             </div>
@@ -532,77 +395,27 @@ const History = () => {
         </div>
 
         {/* Stats Cards */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "20px",
-          }}
-        >
-          <div
-            style={{
-              background: "white",
-              borderRadius: "20px",
-              padding: "20px",
-              textAlign: "center",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-            }}
-          >
-            <FaChartLine
-              style={{ fontSize: "32px", color: "#667eea", marginBottom: "12px" }}
-            />
-            <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
-              {stats.total}
-            </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
+          <div style={{ background: "white", borderRadius: "20px", padding: "20px", textAlign: "center", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
+            <FaChartLine style={{ fontSize: "32px", color: "#667eea", marginBottom: "12px" }} />
+            <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>{stats.total}</div>
             <div style={{ fontSize: "14px", color: "#64748b" }}>Total Scans</div>
           </div>
-          <div
-            style={{
-              background: "white",
-              borderRadius: "20px",
-              padding: "20px",
-              textAlign: "center",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-            }}
-          >
-            <FaLink
-              style={{ fontSize: "32px", color: "#3b82f6", marginBottom: "12px" }}
-            />
-            <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
-              {stats.url}
-            </div>
+          <div style={{ background: "white", borderRadius: "20px", padding: "20px", textAlign: "center", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
+            <FaLink style={{ fontSize: "32px", color: "#3b82f6", marginBottom: "12px" }} />
+            <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>{stats.url}</div>
             <div style={{ fontSize: "14px", color: "#64748b" }}>URL Scans</div>
           </div>
-          <div
-            style={{
-              background: "white",
-              borderRadius: "20px",
-              padding: "20px",
-              textAlign: "center",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-            }}
-          >
-            <FaEnvelope
-              style={{ fontSize: "32px", color: "#f5576c", marginBottom: "12px" }}
-            />
-            <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
-              {stats.message}
-            </div>
+          <div style={{ background: "white", borderRadius: "20px", padding: "20px", textAlign: "center", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
+            <FaEnvelope style={{ fontSize: "32px", color: "#f5576c", marginBottom: "12px" }} />
+            <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>{stats.message}</div>
             <div style={{ fontSize: "14px", color: "#64748b" }}>Message Scans</div>
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "16px",
-          marginBottom: "32px",
-          alignItems: "center",
-        }}
-      >
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "32px", alignItems: "center" }}>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           {["all", "url", "message"].map((type) => (
             <button
@@ -619,134 +432,48 @@ const History = () => {
                 transition: "all 0.3s ease",
               }}
             >
-              {type === "all"
-                ? "All Scans"
-                : type === "url"
-                ? "URL Scans"
-                : "Message Scans"}
+              {type === "all" ? "All Scans" : type === "url" ? "URL Scans" : "Message Scans"}
             </button>
           ))}
         </div>
 
-        <button
-          onClick={() => setShowDatePicker(!showDatePicker)}
-          style={{
-            padding: "10px 20px",
-            background: dateFilter.preset !== "all" ? "#667eea" : "white",
-            color: dateFilter.preset !== "all" ? "white" : "#64748b",
-            border: "2px solid",
-            borderColor: dateFilter.preset !== "all" ? "#667eea" : "#e2e8f0",
-            borderRadius: "12px",
-            cursor: "pointer",
-            fontWeight: "600",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            transition: "all 0.3s ease",
-          }}
-        >
+        <button onClick={() => setShowDatePicker(!showDatePicker)} style={{ padding: "10px 20px", background: dateFilter.preset !== "all" ? "#667eea" : "white", color: dateFilter.preset !== "all" ? "white" : "#64748b", border: "2px solid", borderColor: dateFilter.preset !== "all" ? "#667eea" : "#e2e8f0", borderRadius: "12px", cursor: "pointer", fontWeight: "600", display: "flex", alignItems: "center", gap: "8px", transition: "all 0.3s ease" }}>
           <FaCalendarAlt />
           {dateFilter.preset === "all" ? "All Time" : getDateFilterLabel()}
           {dateFilter.preset !== "all" && (
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                clearDateFilter();
-              }}
-              style={{
-                background: "rgba(255,255,255,0.3)",
-                borderRadius: "50%",
-                padding: "2px 6px",
-                fontSize: "12px",
-                cursor: "pointer",
-                marginLeft: "4px",
-              }}
-            >
+            <span onClick={(e) => { e.stopPropagation(); clearDateFilter(); }} style={{ background: "rgba(255,255,255,0.3)", borderRadius: "50%", padding: "2px 6px", fontSize: "12px", cursor: "pointer", marginLeft: "4px" }}>
               <FaTimes />
             </span>
           )}
         </button>
 
         <div style={{ position: "relative", flex: "1", minWidth: "200px" }}>
-          <FaSearch
-            style={{
-              position: "absolute",
-              left: "16px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "#94a3b8",
-            }}
-          />
+          <FaSearch style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
           <input
             type="text"
             placeholder="Search by reference ID or content..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px 16px 12px 48px",
-              border: "2px solid #e2e8f0",
-              borderRadius: "12px",
-              fontSize: "14px",
-              outline: "none",
-              transition: "border-color 0.3s",
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = "#667eea";
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = "#e2e8f0";
-            }}
+            style={{ width: "100%", padding: "12px 16px 12px 48px", border: "2px solid #e2e8f0", borderRadius: "12px", fontSize: "14px", outline: "none", transition: "border-color 0.3s" }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#667eea"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; }}
           />
         </div>
       </div>
 
       {/* Date Picker Dropdown */}
       {showDatePicker && (
-        <div
-          style={{
-            background: "white",
-            borderRadius: "16px",
-            padding: "24px",
-            marginBottom: "24px",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "16px",
-            }}
-          >
+        <div style={{ background: "white", borderRadius: "16px", padding: "24px", marginBottom: "24px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", border: "1px solid #e2e8f0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#1e293b" }}>
-              <FaCalendarAlt style={{ marginRight: "8px", color: "#667eea" }} />
-              Filter by Date
+              <FaCalendarAlt style={{ marginRight: "8px", color: "#667eea" }} /> Filter by Date
             </h3>
-            <button
-              onClick={() => setShowDatePicker(false)}
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: "20px",
-                cursor: "pointer",
-                color: "#94a3b8",
-              }}
-            >
+            <button onClick={() => setShowDatePicker(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8" }}>
               <FaTimes />
             </button>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "8px",
-              marginBottom: "16px",
-            }}
-          >
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
             {[
               { value: "all", label: "All Time" },
               { value: "today", label: "Today" },
@@ -760,10 +487,8 @@ const History = () => {
                 onClick={() => handleDatePresetChange(preset.value)}
                 style={{
                   padding: "8px 16px",
-                  background:
-                    dateFilter.preset === preset.value ? "#667eea" : "#f1f5f9",
-                  color:
-                    dateFilter.preset === preset.value ? "white" : "#475569",
+                  background: dateFilter.preset === preset.value ? "#667eea" : "#f1f5f9",
+                  color: dateFilter.preset === preset.value ? "white" : "#475569",
                   border: "none",
                   borderRadius: "10px",
                   cursor: "pointer",
@@ -778,110 +503,25 @@ const History = () => {
           </div>
 
           {dateFilter.preset === "custom" && (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "12px",
-                alignItems: "end",
-                paddingTop: "16px",
-                borderTop: "1px solid #f1f5f9",
-              }}
-            >
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "end", paddingTop: "16px", borderTop: "1px solid #f1f5f9" }}>
               <div style={{ flex: "1", minWidth: "150px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "#64748b",
-                    marginBottom: "4px",
-                  }}
-                >
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  value={tempStartDate}
-                  onChange={(e) => setTempStartDate(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    border: "2px solid #e2e8f0",
-                    borderRadius: "10px",
-                    fontSize: "14px",
-                    outline: "none",
-                    transition: "border-color 0.3s",
-                  }}
-                />
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#64748b", marginBottom: "4px" }}>Start Date</label>
+                <input type="date" value={tempStartDate} onChange={(e) => setTempStartDate(e.target.value)} style={{ width: "100%", padding: "10px 12px", border: "2px solid #e2e8f0", borderRadius: "10px", fontSize: "14px", outline: "none", transition: "border-color 0.3s" }} />
               </div>
               <div style={{ flex: "1", minWidth: "150px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "#64748b",
-                    marginBottom: "4px",
-                  }}
-                >
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  value={tempEndDate}
-                  onChange={(e) => setTempEndDate(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    border: "2px solid #e2e8f0",
-                    borderRadius: "10px",
-                    fontSize: "14px",
-                    outline: "none",
-                    transition: "border-color 0.3s",
-                  }}
-                />
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#64748b", marginBottom: "4px" }}>End Date</label>
+                <input type="date" value={tempEndDate} onChange={(e) => setTempEndDate(e.target.value)} style={{ width: "100%", padding: "10px 12px", border: "2px solid #e2e8f0", borderRadius: "10px", fontSize: "14px", outline: "none", transition: "border-color 0.3s" }} />
               </div>
-              <button
-                onClick={handleCustomDateApply}
-                style={{
-                  padding: "10px 24px",
-                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "10px",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                  transition: "all 0.3s ease",
-                }}
-              >
+              <button onClick={handleCustomDateApply} style={{ padding: "10px 24px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "white", border: "none", borderRadius: "10px", cursor: "pointer", fontWeight: "600", transition: "all 0.3s ease" }}>
                 Apply Range
               </button>
             </div>
           )}
 
-          <div
-            style={{
-              marginTop: "12px",
-              fontSize: "12px",
-              color: "#94a3b8",
-              display: "flex",
-              justifyContent: "space-between",
-            }}
-          >
+          <div style={{ marginTop: "12px", fontSize: "12px", color: "#94a3b8", display: "flex", justifyContent: "space-between" }}>
             <span>Showing {filteredScans.length} scans</span>
             {dateFilter.preset !== "all" && (
-              <button
-                onClick={clearDateFilter}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#ef4444",
-                  cursor: "pointer",
-                  fontWeight: "500",
-                  fontSize: "12px",
-                }}
-              >
+              <button onClick={clearDateFilter} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontWeight: "500", fontSize: "12px" }}>
                 Clear Filter
               </button>
             )}
@@ -890,134 +530,43 @@ const History = () => {
       )}
 
       {/* Results Count */}
-      <div
-        style={{
-          marginBottom: "16px",
-          fontSize: "14px",
-          color: "#64748b",
-          display: "flex",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "8px",
-        }}
-      >
+      <div style={{ marginBottom: "16px", fontSize: "14px", color: "#64748b", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
         <span>
           Showing {filteredScans.length} of {scans.length} scans
           {searchTerm && (
-            <span
-              style={{ marginLeft: "8px", fontWeight: "600", color: "#667eea" }}
-            >
+            <span style={{ marginLeft: "8px", fontWeight: "600", color: "#667eea" }}>
               (filtered by "{searchTerm}")
             </span>
           )}
         </span>
         {dateFilter.preset !== "all" && (
           <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            <FaCalendarAlt size={12} />
-            {getDateFilterLabel()}
+            <FaCalendarAlt size={12} /> {getDateFilterLabel()}
           </span>
         )}
       </div>
 
       {/* Scans Table */}
-      <div
-        style={{
-          background: "white",
-          borderRadius: "24px",
-          overflow: "hidden",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
-        }}
-      >
+      <div style={{ background: "white", borderRadius: "24px", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.1)" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr
-                style={{
-                  background: "#f8fafc",
-                  borderBottom: "1px solid #e2e8f0",
-                }}
-              >
-                <th
-                  style={{
-                    padding: "20px",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    color: "#475569",
-                  }}
-                >
-                  Reference
-                </th>
-                <th
-                  style={{
-                    padding: "20px",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    color: "#475569",
-                  }}
-                >
-                  Content
-                </th>
-                <th
-                  style={{
-                    padding: "20px",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    color: "#475569",
-                  }}
-                >
-                  Prediction
-                </th>
-                <th
-                  style={{
-                    padding: "20px",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    color: "#475569",
-                  }}
-                >
-                  Date
-                </th>
-                <th
-                  style={{
-                    padding: "20px",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    color: "#475569",
-                  }}
-                >
-                  Actions
-                </th>
+              <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Reference</th>
+                <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Content</th>
+                <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Prediction</th>
+                <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Date</th>
+                <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredScans.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan="5"
-                    style={{ textAlign: "center", padding: "80px", color: "#94a3b8" }}
-                  >
-                    <FaShieldAlt
-                      style={{
-                        fontSize: "48px",
-                        marginBottom: "16px",
-                        opacity: 0.5,
-                      }}
-                    />
+                  <td colSpan="5" style={{ textAlign: "center", padding: "80px", color: "#94a3b8" }}>
+                    <FaShieldAlt style={{ fontSize: "48px", marginBottom: "16px", opacity: 0.5 }} />
                     <p>No scans found.</p>
                     {searchTerm && (
-                      <button
-                        onClick={() => setSearchTerm("")}
-                        style={{
-                          marginTop: "12px",
-                          padding: "8px 20px",
-                          background: "#667eea",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "8px",
-                          cursor: "pointer",
-                          fontSize: "14px",
-                        }}
-                      >
+                      <button onClick={() => setSearchTerm("")} style={{ marginTop: "12px", padding: "8px 20px", background: "#667eea", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "14px" }}>
                         Clear Search
                       </button>
                     )}
@@ -1058,92 +607,34 @@ const History = () => {
                         transition: "background 0.3s",
                         ...(isGuest ? { background: "#f8fafc" } : {}),
                       }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = "#f8fafc")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = isGuest
-                          ? "#f8fafc"
-                          : "white")
-                      }
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = isGuest ? "#f8fafc" : "white")}
                     >
-                      <td
-                        style={{
-                          padding: "16px 20px",
-                          fontWeight: "600",
-                          color: "#667eea",
-                          fontSize: "13px",
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        <span
-                          style={{ display: "flex", alignItems: "center", gap: "4px" }}
-                        >
+                      <td style={{ padding: "16px 20px", fontWeight: "600", color: "#667eea", fontSize: "13px", fontFamily: "monospace" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                           <FaHashtag size={10} style={{ opacity: 0.5 }} />
                           {reference ? truncateText(reference, 20) : "N/A"}
                           {isGuest && (
-                            <span
-                              style={{
-                                marginLeft: "8px",
-                                fontSize: "9px",
-                                background: "#94a3b8",
-                                color: "white",
-                                padding: "1px 8px",
-                                borderRadius: "4px",
-                                fontWeight: "500",
-                              }}
-                            >
+                            <span style={{ marginLeft: "8px", fontSize: "9px", background: "#94a3b8", color: "white", padding: "1px 8px", borderRadius: "4px", fontWeight: "500" }}>
                               Guest
                             </span>
                           )}
                         </span>
                       </td>
-                      <td
-                        style={{ padding: "16px 20px", maxWidth: "300px" }}
-                      >
-                        <div
-                          style={{
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            color: "#475569",
-                          }}
-                          title={scan?.content || scan?.url || "N/A"}
-                        >
+                      <td style={{ padding: "16px 20px", maxWidth: "300px" }}>
+                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#475569" }} title={scan?.content || scan?.url || "N/A"}>
                           {truncateText(scan?.content || scan?.url || "N/A", 50)}
                         </div>
                       </td>
                       <td style={{ padding: "16px 20px" }}>
-                        <span
-                          style={{
-                            padding: "4px 12px",
-                            borderRadius: "20px",
-                            fontSize: "12px",
-                            fontWeight: "600",
-                            background: predColor.bg,
-                            color: predColor.color,
-                          }}
-                        >
+                        <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", background: predColor.bg, color: predColor.color }}>
                           {prediction}
                         </span>
                       </td>
-                      <td
-                        style={{
-                          padding: "16px 20px",
-                          color: "#64748b",
-                          fontSize: "14px",
-                        }}
-                      >
-                        <div
-                          style={{ display: "flex", alignItems: "center", gap: "6px" }}
-                        >
+                      <td style={{ padding: "16px 20px", color: "#64748b", fontSize: "14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                           <FaCalendar size={12} />
-                          {formatDate(
-                            scan?.scannedAt ||
-                              scan?.date ||
-                              scan?.timestamp ||
-                              Date.now()
-                          )}
+                          {formatDate(scan?.scannedAt || scan?.date || scan?.timestamp || Date.now())}
                         </div>
                       </td>
                       <td style={{ padding: "16px 20px" }}>
@@ -1160,11 +651,7 @@ const History = () => {
                               borderRadius: "8px",
                               transition: "background 0.3s",
                             }}
-                            title={
-                              isAuthenticated
-                                ? "View details"
-                                : "Sign in to view details"
-                            }
+                            title={isAuthenticated ? "View details" : "Sign in to view details"}
                           >
                             <FaEye />
                           </button>
@@ -1174,15 +661,8 @@ const History = () => {
                             style={{
                               background: "none",
                               border: "none",
-                              color: isDownloading
-                                ? "#94a3b8"
-                                : isAuthenticated
-                                ? "#64748b"
-                                : "#94a3b8",
-                              cursor:
-                                isDownloading || !isAuthenticated
-                                  ? "not-allowed"
-                                  : "pointer",
+                              color: isDownloading ? "#94a3b8" : isAuthenticated ? "#64748b" : "#94a3b8",
+                              cursor: isDownloading || !isAuthenticated ? "not-allowed" : "pointer",
                               padding: "6px",
                               borderRadius: "8px",
                               transition: "all 0.3s",
@@ -1190,17 +670,9 @@ const History = () => {
                               alignItems: "center",
                               gap: "4px",
                             }}
-                            title={
-                              isAuthenticated
-                                ? "Download report"
-                                : "Sign in to download report"
-                            }
+                            title={isAuthenticated ? "Download report" : "Sign in to download report"}
                           >
-                            {isDownloading ? (
-                              <FaSpinner className="spinning" size={14} />
-                            ) : (
-                              <FaFilePdf />
-                            )}
+                            {isDownloading ? <FaSpinner className="spinning" size={14} /> : <FaFilePdf />}
                           </button>
                           <button
                             onClick={() => handleDeleteScan(reference)}
@@ -1208,15 +680,8 @@ const History = () => {
                             style={{
                               background: "none",
                               border: "none",
-                              color: isDeleting
-                                ? "#94a3b8"
-                                : isAuthenticated
-                                ? "#ef4444"
-                                : "#94a3b8",
-                              cursor:
-                                isDeleting || !isAuthenticated
-                                  ? "not-allowed"
-                                  : "pointer",
+                              color: isDeleting ? "#94a3b8" : isAuthenticated ? "#ef4444" : "#94a3b8",
+                              cursor: isDeleting || !isAuthenticated ? "not-allowed" : "pointer",
                               padding: "6px",
                               borderRadius: "8px",
                               transition: "all 0.3s",
@@ -1224,17 +689,9 @@ const History = () => {
                               alignItems: "center",
                               gap: "4px",
                             }}
-                            title={
-                              isAuthenticated
-                                ? "Delete scan"
-                                : "Sign in to delete"
-                            }
+                            title={isAuthenticated ? "Delete scan" : "Sign in to delete"}
                           >
-                            {isDeleting ? (
-                              <FaSpinner className="spinning" size={14} />
-                            ) : (
-                              <FaTrashAlt />
-                            )}
+                            {isDeleting ? <FaSpinner className="spinning" size={14} /> : <FaTrashAlt />}
                           </button>
                         </div>
                       </td>
@@ -1290,242 +747,74 @@ const History = () => {
                 alignItems: "center",
               }}
             >
-              <h2
-                style={{ fontSize: "24px", fontWeight: "700", color: "#1e293b" }}
-              >
-                Scan Details
-              </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                style={{
-                  background: "#f1f5f9",
-                  border: "none",
-                  width: "36px",
-                  height: "36px",
-                  borderRadius: "12px",
-                  cursor: "pointer",
-                  fontSize: "20px",
-                  transition: "all 0.3s",
-                }}
-              >
+              <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#1e293b" }}>Scan Details</h2>
+              <button onClick={() => setShowModal(false)} style={{ background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "12px", cursor: "pointer", fontSize: "20px", transition: "all 0.3s" }}>
                 ✕
               </button>
             </div>
 
             <div style={{ padding: "32px" }}>
-              {/* Reference */}
               <div style={{ marginBottom: "24px" }}>
-                <h3
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    color: "#64748b",
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Reference
-                </h3>
-                <div
-                  style={{
-                    background: "#f8fafc",
-                    padding: "12px 16px",
-                    borderRadius: "12px",
-                    color: "#1e293b",
-                    fontFamily: "monospace",
-                    fontSize: "14px",
-                  }}
-                >
+                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Reference</h3>
+                <div style={{ background: "#f8fafc", padding: "12px 16px", borderRadius: "12px", color: "#1e293b", fontFamily: "monospace", fontSize: "14px" }}>
                   {selectedScan.reference}
                 </div>
               </div>
 
-              {/* URL */}
               <div style={{ marginBottom: "24px" }}>
-                <h3
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    color: "#64748b",
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  URL
-                </h3>
-                <div
-                  style={{
-                    background: "#f8fafc",
-                    padding: "12px 16px",
-                    borderRadius: "12px",
-                    color: "#1e293b",
-                    wordBreak: "break-all",
-                  }}
-                >
+                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>URL</h3>
+                <div style={{ background: "#f8fafc", padding: "12px 16px", borderRadius: "12px", color: "#1e293b", wordBreak: "break-all" }}>
                   {selectedScan.url}
                 </div>
               </div>
 
-              {/* Prediction */}
               <div style={{ marginBottom: "24px" }}>
-                <h3
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    color: "#64748b",
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Prediction
-                </h3>
-                <div
-                  style={{
-                    padding: "12px 16px",
-                    borderRadius: "12px",
-                    background:
-                      selectedScan.prediction === "PHISHING"
-                        ? "#fee2e2"
-                        : "#d1fae5",
-                    color:
-                      selectedScan.prediction === "PHISHING"
-                        ? "#dc2626"
-                        : "#065f46",
-                    fontWeight: "600",
-                  }}
-                >
+                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Prediction</h3>
+                <div style={{ padding: "12px 16px", borderRadius: "12px", background: selectedScan.prediction === "PHISHING" ? "#fee2e2" : "#d1fae5", color: selectedScan.prediction === "PHISHING" ? "#dc2626" : "#065f46", fontWeight: "600" }}>
                   {selectedScan.prediction}
                 </div>
               </div>
 
-              {/* Phishing Reasons */}
-              {selectedScan.phishingReasons &&
-                selectedScan.phishingReasons.length > 0 && (
-                  <div style={{ marginBottom: "24px" }}>
-                    <h3
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        color: "#64748b",
-                        marginBottom: "8px",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      🚨 Phishing Indicators
-                    </h3>
-                    <div
-                      style={{
-                        padding: "16px",
-                        background: "#fee2e2",
-                        borderRadius: "12px",
-                        color: "#dc2626",
-                      }}
-                    >
-                      <ul style={{ margin: 0, paddingLeft: "20px" }}>
-                        {Array.isArray(selectedScan.phishingReasons)
-                          ? selectedScan.phishingReasons.map((reason, i) => (
-                              <li key={i} style={{ marginBottom: "4px" }}>
-                                {reason}
-                              </li>
-                            ))
-                          : selectedScan.phishingReasons}
-                      </ul>
-                    </div>
+              {selectedScan.phishingReasons && selectedScan.phishingReasons.length > 0 && (
+                <div style={{ marginBottom: "24px" }}>
+                  <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>🚨 Phishing Indicators</h3>
+                  <div style={{ padding: "16px", background: "#fee2e2", borderRadius: "12px", color: "#dc2626" }}>
+                    <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                      {Array.isArray(selectedScan.phishingReasons) ? selectedScan.phishingReasons.map((reason, i) => (
+                        <li key={i} style={{ marginBottom: "4px" }}>{reason}</li>
+                      )) : selectedScan.phishingReasons}
+                    </ul>
                   </div>
-                )}
+                </div>
+              )}
 
-              {/* Legitimate Reasons */}
-              {selectedScan.legitimateReasons &&
-                selectedScan.legitimateReasons.length > 0 && (
-                  <div style={{ marginBottom: "24px" }}>
-                    <h3
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        color: "#64748b",
-                        marginBottom: "8px",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      ✅ Legitimate Indicators
-                    </h3>
-                    <div
-                      style={{
-                        padding: "16px",
-                        background: "#d1fae5",
-                        borderRadius: "12px",
-                        color: "#065f46",
-                      }}
-                    >
-                      <ul style={{ margin: 0, paddingLeft: "20px" }}>
-                        {Array.isArray(selectedScan.legitimateReasons)
-                          ? selectedScan.legitimateReasons.map((reason, i) => (
-                              <li key={i} style={{ marginBottom: "4px" }}>
-                                {reason}
-                              </li>
-                            ))
-                          : selectedScan.legitimateReasons}
-                      </ul>
-                    </div>
+              {selectedScan.legitimateReasons && selectedScan.legitimateReasons.length > 0 && (
+                <div style={{ marginBottom: "24px" }}>
+                  <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>✅ Legitimate Indicators</h3>
+                  <div style={{ padding: "16px", background: "#d1fae5", borderRadius: "12px", color: "#065f46" }}>
+                    <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                      {Array.isArray(selectedScan.legitimateReasons) ? selectedScan.legitimateReasons.map((reason, i) => (
+                        <li key={i} style={{ marginBottom: "4px" }}>{reason}</li>
+                      )) : selectedScan.legitimateReasons}
+                    </ul>
                   </div>
-                )}
+                </div>
+              )}
 
-              {/* Conclusion */}
               <div style={{ marginBottom: "24px" }}>
-                <h3
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    color: "#64748b",
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Conclusion
-                </h3>
-                <div
-                  style={{
-                    padding: "16px",
-                    background: "#f8fafc",
-                    borderRadius: "12px",
-                    color: "#475569",
-                    lineHeight: "1.7",
-                  }}
-                >
+                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Conclusion</h3>
+                <div style={{ padding: "16px", background: "#f8fafc", borderRadius: "12px", color: "#475569", lineHeight: "1.7" }}>
                   {selectedScan.conclusion}
                 </div>
               </div>
 
-              {/* Timestamp */}
               <div style={{ marginBottom: "24px" }}>
-                <h3
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    color: "#64748b",
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Scanned At
-                </h3>
-                <div
-                  style={{
-                    padding: "12px 16px",
-                    background: "#f8fafc",
-                    borderRadius: "12px",
-                    color: "#64748b",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <FaCalendar />
-                  {formatDate(selectedScan.scannedAt)}
+                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Scanned At</h3>
+                <div style={{ padding: "12px 16px", background: "#f8fafc", borderRadius: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <FaCalendar /> {formatDate(selectedScan.scannedAt)}
                 </div>
               </div>
 
-              {/* Download Button */}
               <div>
                 <button
                   onClick={() => handleDownloadReport(selectedScan.reference)}
@@ -1533,19 +822,13 @@ const History = () => {
                   style={{
                     width: "100%",
                     padding: "14px",
-                    background:
-                      downloadingId === selectedScan.reference
-                        ? "#94a3b8"
-                        : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    background: downloadingId === selectedScan.reference ? "#94a3b8" : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                     color: "white",
                     border: "none",
                     borderRadius: "12px",
                     fontSize: "16px",
                     fontWeight: "600",
-                    cursor:
-                      downloadingId === selectedScan.reference
-                        ? "not-allowed"
-                        : "pointer",
+                    cursor: downloadingId === selectedScan.reference ? "not-allowed" : "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1571,25 +854,11 @@ const History = () => {
         </div>
       )}
 
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        initialMode="register"
-        onSuccess={() => {
-          setShowAuthModal(false);
-          fetchHistory();
-        }}
-      />
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} initialMode="register" onSuccess={() => { setShowAuthModal(false); fetchHistory(); }} />
 
       <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .spinning {
-          animation: spin 1s linear infinite;
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .spinning { animation: spin 1s linear infinite; }
       `}</style>
     </div>
   );

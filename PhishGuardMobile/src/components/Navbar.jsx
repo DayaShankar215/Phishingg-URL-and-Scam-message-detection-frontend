@@ -23,6 +23,7 @@ const Navbar = () => {
   const [authMode, setAuthMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -68,6 +69,12 @@ const Navbar = () => {
   const getIconName = (item) => isActive(item.route) ? item.activeIcon : item.icon;
 
   const handleAuth = async () => {
+    // ✅ FIX: Validate password match
+    if (authMode === 'register' && password !== confirmPassword) {
+      showToast('Passwords do not match', 'error');
+      return;
+    }
+
     setLoading(true);
     try {
       if (authMode === 'login') {
@@ -78,6 +85,7 @@ const Navbar = () => {
       setShowAuthModal(false);
       setEmail('');
       setPassword('');
+      setConfirmPassword('');
       setFirstName('');
       setLastName('');
       showToast(authMode === 'login' ? 'Welcome back!' : 'Account created!', 'success');
@@ -308,8 +316,8 @@ const Navbar = () => {
                   }]}
                   placeholder="Confirm Password"
                   placeholderTextColor={colors.textMuted}
-                  value={password}
-                  onChangeText={setPassword}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
                   secureTextEntry
                 />
               )}
