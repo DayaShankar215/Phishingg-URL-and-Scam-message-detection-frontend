@@ -20,6 +20,14 @@ const ThemeToggle = () => {
     return option ? option.icon : 'sunny-outline';
   };
 
+  // Get the color for the icon based on current theme
+  const getIconColor = () => {
+    if (theme === 'system') {
+      return isDark ? '#fbbf24' : '#475569';
+    }
+    return colors.text;
+  };
+
   return (
     <>
       <TouchableOpacity
@@ -29,7 +37,7 @@ const ThemeToggle = () => {
         }]}
         onPress={() => setModalVisible(true)}
       >
-        <Ionicons name={getCurrentIcon()} size={20} color={colors.text} />
+        <Ionicons name={getCurrentIcon()} size={20} color={getIconColor()} />
       </TouchableOpacity>
 
       <Modal
@@ -46,6 +54,8 @@ const ThemeToggle = () => {
             <Text style={[styles.modalTitle, { color: colors.text }]}>Choose Theme</Text>
             {options.map((option) => {
               const isActive = theme === option.value;
+              const isSystemActive = option.value === 'system' && theme === 'system';
+              
               return (
                 <TouchableOpacity
                   key={option.value}
@@ -74,6 +84,11 @@ const ThemeToggle = () => {
                   </Text>
                   {isActive && (
                     <Ionicons name="checkmark" size={20} color={colors.primary[600]} />
+                  )}
+                  {option.value === 'system' && theme === 'system' && (
+                    <Text style={[styles.systemStatus, { color: colors.textMuted }]}>
+                      ({isDark ? 'Dark' : 'Light'})
+                    </Text>
                   )}
                 </TouchableOpacity>
               );
@@ -125,6 +140,10 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     flex: 1,
+  },
+  systemStatus: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
 

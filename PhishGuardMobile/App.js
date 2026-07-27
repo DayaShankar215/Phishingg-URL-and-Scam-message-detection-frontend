@@ -13,6 +13,7 @@ import MessageScannerScreen from './src/screens/MessageScannerScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import Navbar from './src/components/Navbar';
 import { Toaster } from './src/components/Toaster';
+import { StatusBar } from 'expo-status-bar';
 
 const Tab = createBottomTabNavigator();
 
@@ -22,6 +23,7 @@ const AppContent = () => {
 
   return (
     <SafeAreaProvider>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <NavigationContainer theme={{
           colors: {

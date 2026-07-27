@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ThemeContext = createContext();
@@ -24,18 +24,36 @@ export const ThemeProvider = ({ children }) => {
   const [currentTheme, setCurrentTheme] = useState('light');
   const [isLoading, setIsLoading] = useState(true);
 
+  // Load saved theme on mount
   useEffect(() => {
     loadTheme();
   }, []);
 
+  // Listen for system theme changes
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        // Re-check system theme when app becomes active
+        updateThemeBasedOnSystem();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // Update theme when system scheme changes
   useEffect(() => {
     if (theme === 'system') {
-      setCurrentTheme(systemScheme === 'dark' ? 'dark' : 'light');
-    } else {
-      setCurrentTheme(theme);
+      updateThemeBasedOnSystem();
     }
-    saveTheme(theme);
-  }, [theme, systemScheme]);
+  }, [systemScheme]);
+
+  const updateThemeBasedOnSystem = () => {
+    const newTheme = systemScheme === 'dark' ? 'dark' : 'light';
+    setCurrentTheme(newTheme);
+  };
 
   const loadTheme = async () => {
     try {
@@ -47,9 +65,17 @@ export const ThemeProvider = ({ children }) => {
         } else {
           setCurrentTheme(saved);
         }
+      } else {
+        // Default to system theme if no saved preference
+        setTheme('system');
+        setCurrentTheme(systemScheme === 'dark' ? 'dark' : 'light');
+        await AsyncStorage.setItem('appTheme', 'system');
       }
     } catch (error) {
       console.error('Failed to load theme:', error);
+      // Fallback to system theme
+      setTheme('system');
+      setCurrentTheme(systemScheme === 'dark' ? 'dark' : 'light');
     } finally {
       setIsLoading(false);
     }
@@ -65,6 +91,12 @@ export const ThemeProvider = ({ children }) => {
 
   const toggleTheme = (mode) => {
     setTheme(mode);
+    saveTheme(mode);
+    if (mode === 'system') {
+      setCurrentTheme(systemScheme === 'dark' ? 'dark' : 'light');
+    } else {
+      setCurrentTheme(mode);
+    }
   };
 
   const value = {
