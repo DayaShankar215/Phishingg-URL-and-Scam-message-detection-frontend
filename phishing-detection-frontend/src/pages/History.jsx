@@ -27,6 +27,8 @@ import {
   FaUserPlus,
   FaInfoCircle,
   FaFilePdf,
+  FaGlobe,
+  FaComment,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 
@@ -56,6 +58,33 @@ const History = () => {
   const [tempStartDate, setTempStartDate] = useState("");
   const [tempEndDate, setTempEndDate] = useState("");
 
+  // Helper function to get prediction from API response
+  const getPrediction = (scan) => {
+    return scan.overallPrediction || scan.prediction || "UNKNOWN";
+  };
+
+  // Helper function to detect scan type
+  const getScanType = (scan) => {
+    // Check if type is explicitly set
+    if (scan.type) return scan.type;
+    if (scan.scanType) {
+      const type = scan.scanType.toLowerCase();
+      if (type === "url" || type === "message") return type;
+    }
+    // Check if it's a message scan by looking for message field
+    if (scan.message) return "message";
+    // Check if it's a URL scan by looking for url field or content that looks like URL
+    if (scan.url) return "url";
+    if (scan.content) {
+      // Try to detect type from content
+      const content = scan.content || "";
+      if (content.match(/^https?:\/\/[^\s]+/)) return "url";
+      return "message";
+    }
+    // Default to URL if we can't determine
+    return "url";
+  };
+
   useEffect(() => {
     fetchHistory();
   }, [filter, isAuthenticated]);
@@ -81,16 +110,19 @@ const History = () => {
           scansData = response.response;
         }
 
-        const formattedScans = scansData.map((scan) => ({
-          reference: scan.reference,
-          url: scan.url || scan.content,
-          prediction: scan.prediction,
-          conclusion: scan.conclusion,
-          scannedAt: scan.scannedAt,
-          type: scan.type || scan.scanType || (scan.message ? 'message' : 'url'),
-          content: scan.url || scan.message || scan.content,
-          _raw: scan,
-        }));
+        const formattedScans = scansData.map((scan) => {
+          const type = getScanType(scan);
+          return {
+            reference: scan.reference,
+            url: scan.url || scan.content,
+            prediction: getPrediction(scan),
+            conclusion: scan.conclusion,
+            scannedAt: scan.scannedAt,
+            type: type,
+            content: scan.url || scan.message || scan.content || scan.url,
+            _raw: scan,
+          };
+        });
 
         setScans(formattedScans);
       } else {
@@ -221,7 +253,7 @@ const History = () => {
       setSelectedScan({
         reference: response.reference,
         url: response.url,
-        prediction: response.prediction,
+        prediction: getPrediction(response),
         legitimateReasons: response.legitimateReasons || [],
         phishingReasons: response.phishingReasons || [],
         conclusion: response.conclusion,
@@ -252,7 +284,7 @@ const History = () => {
       const pdfData = {
         reference: scanDetails.reference,
         url: scanDetails.url,
-        prediction: scanDetails.prediction,
+        prediction: getPrediction(scanDetails),
         conclusion: scanDetails.conclusion,
         scannedAt: scanDetails.scannedAt,
         phishingReasons: scanDetails.phishingReasons || [],
@@ -313,8 +345,11 @@ const History = () => {
     const searchLower = term.toLowerCase().trim();
     const reference = (scan?.reference || "").toString().toLowerCase();
     const content = (scan?.content || scan?.url || scan?.message || "").toLowerCase();
+    const type = (scan?.type || "").toLowerCase();
 
-    return reference.includes(searchLower) || content.includes(searchLower);
+    return reference.includes(searchLower) || 
+           content.includes(searchLower) || 
+           type.includes(searchLower);
   };
 
   const filteredScans = (() => {
@@ -332,6 +367,37 @@ const History = () => {
 
     return filtered;
   })();
+
+  // Get prediction color for display
+  const getPredictionColor = (pred) => {
+    const upperPred = pred?.toUpperCase() || "";
+    switch (upperPred) {
+      case "PHISHING":
+      case "DANGEROUS":
+      case "MALICIOUS":
+        return { bg: "#fee2e2", color: "#dc2626" };
+      case "SCAM":
+        return { bg: "#fef3c7", color: "#d97706" };
+      case "SUSPICIOUS":
+      case "WARNING":
+        return { bg: "#fef3c7", color: "#d97706" };
+      case "SAFE":
+      case "LEGITIMATE":
+        return { bg: "#d1fae5", color: "#065f46" };
+      default:
+        return { bg: "#f1f5f9", color: "#64748b" };
+    }
+  };
+
+  // Get type badge style
+  const getTypeBadge = (type) => {
+    if (type === "url") {
+      return { bg: "#dbeafe", color: "#1d4ed8", icon: <FaLink size={12} />, label: "URL" };
+    } else if (type === "message") {
+      return { bg: "#fce7f3", color: "#be185d", icon: <FaComment size={12} />, label: "Message" };
+    }
+    return { bg: "#f1f5f9", color: "#64748b", icon: null, label: "Unknown" };
+  };
 
   if (loading) {
     return <LoadingSpinner text="Loading security history..." />;
@@ -451,7 +517,7 @@ const History = () => {
           <FaSearch style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
           <input
             type="text"
-            placeholder="Search by reference ID or content..."
+            placeholder="Search by reference ID, content or type..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{ width: "100%", padding: "12px 16px 12px 48px", border: "2px solid #e2e8f0", borderRadius: "12px", fontSize: "14px", outline: "none", transition: "border-color 0.3s" }}
@@ -553,6 +619,7 @@ const History = () => {
             <thead>
               <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
                 <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Reference</th>
+                <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Type</th>
                 <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Content</th>
                 <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Prediction</th>
                 <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Date</th>
@@ -562,7 +629,7 @@ const History = () => {
             <tbody>
               {filteredScans.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ textAlign: "center", padding: "80px", color: "#94a3b8" }}>
+                  <td colSpan="6" style={{ textAlign: "center", padding: "80px", color: "#94a3b8" }}>
                     <FaShieldAlt style={{ fontSize: "48px", marginBottom: "16px", opacity: 0.5 }} />
                     <p>No scans found.</p>
                     {searchTerm && (
@@ -579,25 +646,8 @@ const History = () => {
                   const isDeleting = deletingId === reference;
                   const isGuest = scan?.isGuest === true;
                   const prediction = scan?.prediction || "UNKNOWN";
-
-                  const getPredictionColor = (pred) => {
-                    switch (pred?.toUpperCase()) {
-                      case "PHISHING":
-                      case "DANGEROUS":
-                      case "MALICIOUS":
-                        return { bg: "#fee2e2", color: "#dc2626" };
-                      case "SUSPICIOUS":
-                      case "WARNING":
-                        return { bg: "#fef3c7", color: "#d97706" };
-                      case "SAFE":
-                      case "LEGITIMATE":
-                        return { bg: "#d1fae5", color: "#065f46" };
-                      default:
-                        return { bg: "#f1f5f9", color: "#64748b" };
-                    }
-                  };
-
                   const predColor = getPredictionColor(prediction);
+                  const typeBadge = getTypeBadge(scan?.type);
 
                   return (
                     <tr
@@ -619,6 +669,22 @@ const History = () => {
                               Guest
                             </span>
                           )}
+                        </span>
+                      </td>
+                      <td style={{ padding: "16px 20px" }}>
+                        <span style={{ 
+                          display: "inline-flex", 
+                          alignItems: "center", 
+                          gap: "6px",
+                          padding: "4px 12px", 
+                          borderRadius: "20px", 
+                          fontSize: "12px", 
+                          fontWeight: "600", 
+                          background: typeBadge.bg, 
+                          color: typeBadge.color 
+                        }}>
+                          {typeBadge.icon}
+                          {typeBadge.label}
                         </span>
                       </td>
                       <td style={{ padding: "16px 20px", maxWidth: "300px" }}>
