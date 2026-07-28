@@ -51,7 +51,9 @@ const URLScanner = () => {
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   const getRiskScoreFromPrediction = (prediction) => {
-    switch (prediction?.toUpperCase()) {
+    if (!prediction) return 50;
+    const upper = prediction.toUpperCase().trim();
+    switch (upper) {
       case "PHISHING":
       case "DANGEROUS":
       case "MALICIOUS":
@@ -68,11 +70,17 @@ const URLScanner = () => {
   };
 
   const processScanResponse = (response, scannedUrl) => {
-    const prediction = response.prediction?.toUpperCase() || "UNKNOWN";
+    // Get prediction from API response - use overallPrediction
+    const rawPrediction = response.overallPrediction || response.prediction || "UNKNOWN";
+    // Keep the original prediction as is from API
+    const prediction = rawPrediction;
+    
     let riskScore = 50;
     let resultType = "unknown";
 
-    switch (prediction) {
+    const upperPrediction = prediction.toUpperCase().trim();
+    
+    switch (upperPrediction) {
       case "PHISHING":
       case "DANGEROUS":
       case "MALICIOUS":
@@ -97,8 +105,8 @@ const URLScanner = () => {
     return {
       reference: response.reference,
       url: response.url || scannedUrl,
-      prediction: response.prediction,
-      classification: response.prediction || "UNKNOWN",
+      prediction: prediction, // Use the raw prediction from API
+      classification: prediction || "UNKNOWN",
       riskScore: riskScore,
       // confidence: 0.85,
       explanation: response.conclusion || "Analysis completed",
@@ -128,6 +136,7 @@ const URLScanner = () => {
       console.log("API Response:", response);
 
       const scanResult = processScanResponse(response, url);
+      console.log("Processed Result:", scanResult);
       setResult(scanResult);
 
       if (!isAuthenticated) {
@@ -182,8 +191,8 @@ const URLScanner = () => {
       const pdfData = {
         reference: scanDetails.reference,
         url: scanDetails.url,
-        prediction: scanDetails.prediction,
-        riskScore: result.riskScore || getRiskScoreFromPrediction(scanDetails.prediction),
+        prediction: scanDetails.overallPrediction || scanDetails.prediction,
+        riskScore: result.riskScore || getRiskScoreFromPrediction(scanDetails.overallPrediction || scanDetails.prediction),
         conclusion: scanDetails.conclusion,
         scannedAt: scanDetails.scannedAt,
         phishingReasons: scanDetails.phishingReasons || [],
