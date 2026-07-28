@@ -120,7 +120,7 @@ export const changePassword = async (passwordData) => {
 
 export const scanURL = async (url) => {
   try {
-    const response = await api.post("/scans", { url });
+    const response = await api.post("/scans/url", { url });
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: "Failed to scan URL" };
@@ -129,7 +129,7 @@ export const scanURL = async (url) => {
 
 export const scanMessage = async (message) => {
   try {
-    const response = await api.post("/scans", { message });
+    const response = await api.post("/scans/messages", { message });
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: "Failed to scan message" };
