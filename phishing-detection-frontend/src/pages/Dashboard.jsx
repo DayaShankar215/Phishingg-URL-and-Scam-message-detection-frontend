@@ -59,6 +59,11 @@ const Dashboard = () => {
     fetchDashboardStats();
   }, [isAuthenticated]);
 
+  // Helper function to get prediction from API response
+  const getPrediction = (scan) => {
+    return scan.overallPrediction || scan.prediction || "UNKNOWN";
+  };
+
   const fetchDashboardStats = async () => {
     try {
       setLoading(true);
@@ -76,32 +81,35 @@ const Dashboard = () => {
         }
 
         const totalScans = allScans.length;
+        
         const phishingDetected = allScans.filter(
-          (s) =>
-            s.prediction?.toUpperCase() === "PHISHING" ||
-            s.prediction?.toUpperCase() === "DANGEROUS" ||
-            s.prediction?.toUpperCase() === "MALICIOUS"
+          (s) => {
+            const pred = getPrediction(s).toUpperCase();
+            return pred === "PHISHING" || pred === "DANGEROUS" || pred === "MALICIOUS";
+          }
         ).length;
 
         const scamMessages = allScans.filter(
-          (s) =>
-            s.prediction?.toUpperCase() === "SCAM" ||
-            s.prediction?.toUpperCase() === "SUSPICIOUS"
+          (s) => {
+            const pred = getPrediction(s).toUpperCase();
+            return pred === "SCAM" || pred === "SUSPICIOUS" || pred === "WARNING";
+          }
         ).length;
 
         const safeDetections = allScans.filter(
-          (s) =>
-            s.prediction?.toUpperCase() === "SAFE" ||
-            s.prediction?.toUpperCase() === "LEGITIMATE"
+          (s) => {
+            const pred = getPrediction(s).toUpperCase();
+            return pred === "SAFE" || pred === "LEGITIMATE";
+          }
         ).length;
 
         const recentScans = allScans.slice(0, 5).map((scan) => ({
           reference: scan.reference,
-          content: scan.url,
+          content: scan.url || scan.content,
           type: "url",
-          result: getResultFromPrediction(scan.prediction),
+          result: getResultFromPrediction(getPrediction(scan)),
           date: scan.scannedAt,
-          prediction: scan.prediction || "UNKNOWN",
+          prediction: getPrediction(scan),
         }));
 
         const weeklyData = generateWeeklyDataFromScans(allScans);
@@ -153,7 +161,8 @@ const Dashboard = () => {
   };
 
   const getResultFromPrediction = (prediction) => {
-    switch (prediction?.toUpperCase()) {
+    const pred = prediction?.toUpperCase() || "";
+    switch (pred) {
       case "PHISHING":
       case "DANGEROUS":
       case "MALICIOUS":
@@ -188,7 +197,7 @@ const Dashboard = () => {
       const dateStr = scanDate.toISOString().split("T")[0];
 
       if (dayMap[dateStr]) {
-        const prediction = scan.prediction?.toUpperCase() || "";
+        const prediction = getPrediction(scan).toUpperCase();
         if (
           prediction === "PHISHING" ||
           prediction === "DANGEROUS" ||
@@ -233,7 +242,6 @@ const Dashboard = () => {
   const hasData = stats.totalScans > 0;
   const hasWeeklyData = weeklyData.some((d) => d.phishing > 0 || d.scam > 0 || d.safe > 0);
 
-  // ✅ FIX: Total threats should NOT include safe detections
   const totalThreats = stats.phishingDetected + stats.scamMessages;
 
   const pieData = [
@@ -671,11 +679,14 @@ const Dashboard = () => {
               <tbody>
                 {stats.recentScans?.slice(0, 5).map((scan, index) => {
                   const getPredictionColor = (prediction) => {
-                    switch (prediction?.toUpperCase()) {
+                    const pred = prediction?.toUpperCase() || "";
+                    switch (pred) {
                       case "PHISHING": return { bg: "#fee2e2", color: "#dc2626" };
                       case "SCAM": return { bg: "#fef3c7", color: "#d97706" };
                       case "SUSPICIOUS": return { bg: "#fef3c7", color: "#d97706" };
+                      case "WARNING": return { bg: "#fef3c7", color: "#d97706" };
                       case "SAFE": return { bg: "#d1fae5", color: "#065f46" };
+                      case "LEGITIMATE": return { bg: "#d1fae5", color: "#065f46" };
                       default: return { bg: "#f1f5f9", color: "#64748b" };
                     }
                   };
