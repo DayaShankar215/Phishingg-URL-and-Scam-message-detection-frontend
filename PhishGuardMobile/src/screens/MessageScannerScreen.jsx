@@ -1,39 +1,52 @@
+// src/screens/MessageScannerScreen.jsx
 import React, { useState } from 'react';
-import { 
-  View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  ScrollView, ActivityIndicator, Dimensions, Platform 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Dimensions,
+  TextInput,
 } from 'react-native';
-import { scanMessage, submitFeedback } from '../services/api';
-import { downloadPDF } from '../services/pdfGenerator';
-import { validateMessage } from '../utils/validators';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useGuest } from '../context/GuestContext';
 import { getColors } from '../constants/colors';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import RiskBadge from '../components/RiskBadge';
+import { scanMessage, submitFeedback, getPrediction } from '../services/api';
+import { downloadPDF } from '../services/pdfGenerator';
+import LoadingSpinner from '../components/LoadingSpinner';
+import AuthModal from '../components/AuthModal';
 import { showToast } from '../components/Toaster';
+import { validateMessage } from '../utils/validators';
 
 const { width } = Dimensions.get('window');
 
 export default function MessageScannerScreen() {
   const { isDark } = useTheme();
+  const colors = getColors(isDark);
   const { isAuthenticated } = useAuth();
   const { addScan } = useGuest();
-  const colors = getColors(isDark);
+
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [charCount, setCharCount] = useState(0);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [isAccurate, setIsAccurate] = useState(true);
-  const [rating, setRating] = useState(0);
-  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackReply, setFeedbackReply] = useState('');
   const [downloading, setDownloading] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Commented out - will be used in future
+  // const [isAccurate, setIsAccurate] = useState(true);
+  // const [rating, setRating] = useState(0);
 
   const handleMessageChange = (text) => {
     setMessage(text);
@@ -52,15 +65,19 @@ export default function MessageScannerScreen() {
     setError(null);
     setShowFeedback(false);
     setFeedbackSubmitted(false);
+    setFeedbackReply('');
 
     try {
       const response = await scanMessage(message);
-      
-      const prediction = response.prediction?.toUpperCase() || 'UNKNOWN';
+      console.log('API Response:', response);
+
+      const prediction = getPrediction(response);
+      const upperPrediction = prediction.toUpperCase();
+
       let riskScore = 50;
       let resultType = 'unknown';
-      
-      switch (prediction) {
+
+      switch (upperPrediction) {
         case 'PHISHING':
         case 'DANGEROUS':
         case 'MALICIOUS':
@@ -82,13 +99,13 @@ export default function MessageScannerScreen() {
           riskScore = 50;
           resultType = 'unknown';
       }
-      
+
       const scanResult = {
         reference: response.reference,
         message: message,
         content: message,
-        prediction: response.prediction,
-        classification: response.prediction || 'UNKNOWN',
+        prediction: prediction,
+        classification: prediction || 'UNKNOWN',
         riskScore: riskScore,
         confidence: 0.85,
         explanation: response.conclusion || 'Analysis completed',
@@ -101,14 +118,15 @@ export default function MessageScannerScreen() {
         features: extractMessageFeatures(message),
         extractedUrls: extractUrlsFromMessage(message),
       };
-      
+
       setResult(scanResult);
-      
+
       if (!isAuthenticated) {
         addScan(scanResult);
       }
-      
+
       setShowFeedback(true);
+      setFeedbackMessage('');
       showToast('Message analysis completed!', 'success');
     } catch (err) {
       console.error('Scan Error:', err);
@@ -152,6 +170,12 @@ export default function MessageScannerScreen() {
   };
 
   const handleDownloadPDF = async () => {
+    if (!isAuthenticated) {
+      showToast('Please sign in to download reports', 'warning');
+      setShowAuthModal(true);
+      return;
+    }
+
     if (!result) {
       showToast('No scan result available', 'error');
       return;
@@ -170,17 +194,27 @@ export default function MessageScannerScreen() {
   };
 
   const handleSubmitFeedback = async () => {
-    if (rating === 0) {
-      showToast('Please rate the detection accuracy', 'warning');
+    if (!feedbackMessage || feedbackMessage.trim() === '') {
+      showToast('Please provide your feedback', 'error');
       return;
     }
 
     setSubmitting(true);
     try {
-      await submitFeedback(result.reference, 'message', isAccurate, feedbackText, rating);
+      const response = await submitFeedback(feedbackMessage);
+      console.log('Feedback Response:', response);
+      
+      if (response && response.reply) {
+        setFeedbackReply(response.reply);
+      }
+      
       setFeedbackSubmitted(true);
-      showToast('Thank you for your feedback!', 'success');
-      setTimeout(() => { setShowFeedback(false); setFeedbackSubmitted(false); }, 3000);
+      showToast('Thank you for your feedback! 🎉', 'success');
+      setTimeout(() => {
+        setShowFeedback(false);
+        setFeedbackSubmitted(false);
+        setFeedbackReply('');
+      }, 5000);
     } catch (err) {
       showToast(err.message || 'Failed to submit feedback', 'error');
     } finally {
@@ -188,19 +222,20 @@ export default function MessageScannerScreen() {
     }
   };
 
-  const renderStars = () => (
-    <View style={styles.starsContainer}>
-      {[1, 2, 3, 4, 5].map((star) => (
-        <TouchableOpacity key={star} onPress={() => setRating(star)}>
-          <Ionicons 
-            name={star <= rating ? 'star' : 'star-outline'} 
-            size={32} 
-            color={star <= rating ? '#ffc107' : colors.textMuted} 
-          />
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+  // Commented out - will be used in future
+  // const renderStars = () => (
+  //   <View style={styles.starsContainer}>
+  //     {[1, 2, 3, 4, 5].map((star) => (
+  //       <TouchableOpacity key={star} onPress={() => setRating(star)}>
+  //         <Ionicons
+  //           name={star <= rating ? 'star' : 'star-outline'}
+  //           size={32}
+  //           color={star <= rating ? '#ffc107' : colors.textMuted}
+  //         />
+  //       </TouchableOpacity>
+  //     ))}
+  //   </View>
+  // );
 
   const getRiskLevel = (score) => {
     if (score > 70) return { label: 'High Risk', color: '#ef4444', bg: '#fee2e2', icon: '🚨', badge: 'Scam' };
@@ -210,9 +245,13 @@ export default function MessageScannerScreen() {
 
   const riskLevel = result ? getRiskLevel(result.riskScore) : null;
 
+  if (loading) {
+    return <LoadingSpinner text="Analyzing message..." />;
+  }
+
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: colors.background }]} 
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.contentContainer}
     >
@@ -241,7 +280,7 @@ export default function MessageScannerScreen() {
       </LinearGradient>
 
       {/* Input Card */}
-      <View style={[styles.inputCard, { 
+      <View style={[styles.inputCard, {
         backgroundColor: colors.backgroundCard,
         borderColor: colors.borderLight,
       }]}>
@@ -249,8 +288,8 @@ export default function MessageScannerScreen() {
           <Ionicons name="chatbubble-outline" size={18} color="#f5576c" />
           <Text style={[styles.inputLabel, { color: colors.text }]}>Paste Suspicious Message</Text>
         </View>
-        
-        <View style={[styles.textAreaContainer, { 
+
+        <View style={[styles.textAreaContainer, {
           borderColor: colors.border,
           backgroundColor: colors.backgroundInput,
         }]}>
@@ -274,12 +313,12 @@ export default function MessageScannerScreen() {
             </Text>
           </View>
         </View>
-        
-        <TouchableOpacity 
-          style={[styles.scanButton, loading && styles.scanButtonDisabled, { 
+
+        <TouchableOpacity
+          style={[styles.scanButton, loading && styles.scanButtonDisabled, {
             backgroundColor: loading ? colors.textMuted : '#f5576c',
-          }]} 
-          onPress={handleScan} 
+          }]}
+          onPress={handleScan}
           disabled={loading}
         >
           {loading ? (
@@ -295,8 +334,8 @@ export default function MessageScannerScreen() {
 
       {/* Error Display */}
       {error && (
-        <View style={[styles.errorCard, { 
-          backgroundColor: colors.danger + '20', 
+        <View style={[styles.errorCard, {
+          backgroundColor: colors.danger + '20',
           borderColor: colors.danger,
         }]}>
           <Ionicons name="alert-circle" size={20} color={colors.danger} />
@@ -308,7 +347,7 @@ export default function MessageScannerScreen() {
       {result && (
         <View style={styles.resultsContainer}>
           {/* Risk Score Card */}
-          <View style={[styles.riskCard, { 
+          <View style={[styles.riskCard, {
             backgroundColor: 'white',
             borderColor: riskLevel.color + '40',
           }]}>
@@ -340,7 +379,7 @@ export default function MessageScannerScreen() {
 
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { 
+                <View style={[styles.progressFill, {
                   width: `${Math.min(result.riskScore, 100)}%`,
                   backgroundColor: riskLevel.color,
                 }]} />
@@ -356,12 +395,14 @@ export default function MessageScannerScreen() {
               {result.riskScore > 70
                 ? '🚨 HIGH RISK: This is likely a scam! Do not respond or click any links.'
                 : result.riskScore > 30
-                ? '⚠️ MEDIUM RISK: This message shows scam indicators. Exercise caution.'
-                : '✅ LOW RISK: This message appears legitimate.'}
+                  ? '⚠️ MEDIUM RISK: This message shows scam indicators. Exercise caution.'
+                  : '✅ LOW RISK: This message appears legitimate.'}
             </Text>
 
-            <TouchableOpacity 
-              style={[styles.downloadButton, { backgroundColor: riskLevel.color }]}
+            <TouchableOpacity
+              style={[styles.downloadButton, {
+                backgroundColor: isAuthenticated ? riskLevel.color : colors.textMuted
+              }]}
               onPress={handleDownloadPDF}
               disabled={downloading}
             >
@@ -379,7 +420,7 @@ export default function MessageScannerScreen() {
           </View>
 
           {/* Message Content */}
-          <View style={[styles.messageCard, { 
+          <View style={[styles.messageCard, {
             backgroundColor: 'white',
             borderColor: colors.border,
           }]}>
@@ -392,7 +433,7 @@ export default function MessageScannerScreen() {
                 <Text style={[styles.messageSubtitle, { color: colors.textMuted }]}>Content that was scanned</Text>
               </View>
             </View>
-            <View style={[styles.messageContent, { 
+            <View style={[styles.messageContent, {
               backgroundColor: colors.backgroundInput,
               borderLeftColor: riskLevel.color,
             }]}>
@@ -403,7 +444,7 @@ export default function MessageScannerScreen() {
           </View>
 
           {/* Classification Card */}
-          <View style={[styles.infoCard, { 
+          <View style={[styles.infoCard, {
             backgroundColor: 'white',
             borderColor: colors.border,
           }]}>
@@ -430,7 +471,7 @@ export default function MessageScannerScreen() {
           </View>
 
           {/* Red Flags Card */}
-          <View style={[styles.infoCard, { 
+          <View style={[styles.infoCard, {
             backgroundColor: 'white',
             borderColor: colors.border,
           }]}>
@@ -452,7 +493,7 @@ export default function MessageScannerScreen() {
 
           {/* Message Features */}
           {result.features && (
-            <View style={[styles.featuresCard, { 
+            <View style={[styles.featuresCard, {
               backgroundColor: 'white',
               borderColor: colors.border,
             }]}>
@@ -467,7 +508,7 @@ export default function MessageScannerScreen() {
               </View>
 
               <View style={styles.featuresGrid}>
-                <View style={[styles.featureItem, { 
+                <View style={[styles.featureItem, {
                   backgroundColor: colors.backgroundInput,
                   borderColor: colors.border,
                 }]}>
@@ -480,7 +521,7 @@ export default function MessageScannerScreen() {
                   </View>
                 </View>
 
-                <View style={[styles.featureItem, { 
+                <View style={[styles.featureItem, {
                   backgroundColor: colors.backgroundInput,
                   borderColor: colors.border,
                 }]}>
@@ -495,50 +536,50 @@ export default function MessageScannerScreen() {
                   </View>
                 </View>
 
-                <View style={[styles.featureItem, { 
+                <View style={[styles.featureItem, {
                   backgroundColor: colors.backgroundInput,
                   borderColor: result.features.hasURL ? '#fca5a5' : '#6ee7b7',
                 }]}>
-                  <View style={[styles.featureItemIcon, { 
-                    backgroundColor: result.features.hasURL ? '#ef444420' : '#10b98120' 
+                  <View style={[styles.featureItemIcon, {
+                    backgroundColor: result.features.hasURL ? '#ef444420' : '#10b98120'
                   }]}>
                     <Ionicons name="link-outline" size={18} color={result.features.hasURL ? '#ef4444' : '#10b981'} />
                   </View>
                   <View style={styles.featureItemContent}>
                     <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Contains URL</Text>
-                    <Text style={[styles.featureItemValue, { 
-                      color: result.features.hasURL ? '#ef4444' : '#10b981' 
+                    <Text style={[styles.featureItemValue, {
+                      color: result.features.hasURL ? '#ef4444' : '#10b981'
                     }]}>
                       {result.features.hasURL ? '⚠️ Yes' : '✓ No'}
                     </Text>
                   </View>
                 </View>
 
-                <View style={[styles.featureItem, { 
+                <View style={[styles.featureItem, {
                   backgroundColor: colors.backgroundInput,
                   borderColor: result.features.hasPhone ? '#fca5a5' : '#6ee7b7',
                 }]}>
-                  <View style={[styles.featureItemIcon, { 
-                    backgroundColor: result.features.hasPhone ? '#ef444420' : '#10b98120' 
+                  <View style={[styles.featureItemIcon, {
+                    backgroundColor: result.features.hasPhone ? '#ef444420' : '#10b98120'
                   }]}>
                     <Ionicons name="call-outline" size={18} color={result.features.hasPhone ? '#ef4444' : '#10b981'} />
                   </View>
                   <View style={styles.featureItemContent}>
                     <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Contains Phone</Text>
-                    <Text style={[styles.featureItemValue, { 
-                      color: result.features.hasPhone ? '#ef4444' : '#10b981' 
+                    <Text style={[styles.featureItemValue, {
+                      color: result.features.hasPhone ? '#ef4444' : '#10b981'
                     }]}>
                       {result.features.hasPhone ? '⚠️ Yes' : '✓ No'}
                     </Text>
                   </View>
                 </View>
 
-                <View style={[styles.featureItem, { 
+                <View style={[styles.featureItem, {
                   backgroundColor: colors.backgroundInput,
                   borderColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#fca5a5' : '#6ee7b7',
                 }]}>
-                  <View style={[styles.featureItemIcon, { 
-                    backgroundColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#ef444420' : '#10b98120' 
+                  <View style={[styles.featureItemIcon, {
+                    backgroundColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#ef444420' : '#10b98120'
                   }]}>
                     <Ionicons name="warning-outline" size={18} color={(result.features.suspiciousKeywordCount || 0) > 0 ? '#ef4444' : '#10b981'} />
                   </View>
@@ -550,7 +591,7 @@ export default function MessageScannerScreen() {
                   </View>
                 </View>
 
-                <View style={[styles.featureItem, { 
+                <View style={[styles.featureItem, {
                   backgroundColor: colors.backgroundInput,
                   borderColor: colors.border,
                 }]}>
@@ -570,7 +611,7 @@ export default function MessageScannerScreen() {
 
           {/* Extracted URLs */}
           {result.extractedUrls && result.extractedUrls.length > 0 && (
-            <View style={[styles.urlsCard, { 
+            <View style={[styles.urlsCard, {
               backgroundColor: 'white',
               borderColor: '#fcd34d',
             }]}>
@@ -586,7 +627,7 @@ export default function MessageScannerScreen() {
                 </View>
               </View>
               {result.extractedUrls.map((url, idx) => (
-                <View key={idx} style={[styles.urlItem, { 
+                <View key={idx} style={[styles.urlItem, {
                   backgroundColor: colors.backgroundInput,
                   borderColor: colors.border,
                 }]}>
@@ -603,7 +644,7 @@ export default function MessageScannerScreen() {
           )}
 
           {/* Recommendation */}
-          <View style={[styles.recommendationCard, { 
+          <View style={[styles.recommendationCard, {
             backgroundColor: riskLevel.bg,
             borderColor: riskLevel.color,
           }]}>
@@ -624,14 +665,14 @@ export default function MessageScannerScreen() {
               {result.riskScore > 70
                 ? '🚫 DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier.'
                 : result.riskScore > 30
-                ? '⚠️ Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels.'
-                : '✓ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.'}
+                  ? '⚠️ Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels.'
+                  : '✓ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.'}
             </Text>
           </View>
 
           {/* Feedback Section */}
           {showFeedback && !feedbackSubmitted && (
-            <View style={[styles.feedbackCard, { 
+            <View style={[styles.feedbackCard, {
               backgroundColor: colors.backgroundCard,
               borderColor: colors.border,
             }]}>
@@ -639,52 +680,64 @@ export default function MessageScannerScreen() {
                 <View style={[styles.feedbackIcon, { backgroundColor: colors.info + '20' }]}>
                   <Ionicons name="chatbubble" size={24} color={colors.info} />
                 </View>
-                <Text style={[styles.feedbackTitle, { color: colors.text }]}>Was this detection accurate?</Text>
+                <Text style={[styles.feedbackTitle, { color: colors.text }]}>Share Your Feedback</Text>
+                <Text style={[styles.feedbackSubtitle, { color: colors.textMuted }]}>
+                  Your feedback helps us improve our AI models
+                </Text>
               </View>
-              
-              <View style={styles.accuracyButtons}>
-                <TouchableOpacity 
-                  style={[styles.accuracyBtn, isAccurate && styles.accuracyBtnActive, { 
+
+              {/* Commented out - Will be used in future */}
+              {/* <View style={styles.accuracyButtons}>
+                <TouchableOpacity
+                  style={[styles.accuracyBtn, isAccurate && styles.accuracyBtnActive, {
                     backgroundColor: isAccurate ? colors.success + '20' : colors.backgroundInput,
                     borderColor: isAccurate ? colors.success : colors.border,
-                  }]} 
+                  }]}
                   onPress={() => setIsAccurate(true)}
                 >
                   <Ionicons name="thumbs-up" size={20} color={isAccurate ? colors.success : colors.textMuted} />
                   <Text style={[styles.accuracyBtnText, isAccurate && { color: colors.success }]}>Yes</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.accuracyBtn, !isAccurate && styles.accuracyBtnActive, { 
+                <TouchableOpacity
+                  style={[styles.accuracyBtn, !isAccurate && styles.accuracyBtnActive, {
                     backgroundColor: !isAccurate ? colors.danger + '20' : colors.backgroundInput,
                     borderColor: !isAccurate ? colors.danger : colors.border,
-                  }]} 
+                  }]}
                   onPress={() => setIsAccurate(false)}
                 >
                   <Ionicons name="thumbs-down" size={20} color={!isAccurate ? colors.danger : colors.textMuted} />
                   <Text style={[styles.accuracyBtnText, !isAccurate && { color: colors.danger }]}>No</Text>
                 </TouchableOpacity>
+              </View> */}
+
+              {/* Commented out - Will be used in future */}
+              {/* <Text style={[styles.ratingLabel, { color: colors.textMuted }]}>Rate the detection quality</Text>
+              {renderStars()} */}
+
+              <View style={styles.feedbackInputContainer}>
+                <Text style={[styles.feedbackLabel, { color: colors.text }]}>Your Feedback *</Text>
+                <TextInput
+                  style={[styles.commentsInput, {
+                    borderColor: colors.border,
+                    color: colors.text,
+                    backgroundColor: colors.backgroundInput,
+                  }]}
+                  placeholder="Tell us about your experience... What could we improve?"
+                  placeholderTextColor={colors.textMuted}
+                  value={feedbackMessage}
+                  onChangeText={setFeedbackMessage}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+                <Text style={[styles.charCount, { color: colors.textMuted }]}>
+                  {feedbackMessage.length}/500 characters
+                </Text>
               </View>
 
-              <Text style={[styles.ratingLabel, { color: colors.textMuted }]}>Rate the detection quality</Text>
-              {renderStars()}
-              
-              <TextInput 
-                style={[styles.commentsInput, { 
-                  borderColor: colors.border,
-                  color: colors.text,
-                  backgroundColor: colors.backgroundInput,
-                }]} 
-                placeholder="Additional comments (optional)" 
-                placeholderTextColor={colors.textMuted} 
-                value={feedbackText} 
-                onChangeText={setFeedbackText} 
-                multiline 
-                numberOfLines={3} 
-              />
-              
-              <TouchableOpacity 
-                style={[styles.submitBtn, { backgroundColor: '#f5576c' }]} 
-                onPress={handleSubmitFeedback} 
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: '#f5576c' }]}
+                onPress={handleSubmitFeedback}
                 disabled={submitting}
               >
                 <Text style={styles.submitBtnText}>
@@ -695,12 +748,19 @@ export default function MessageScannerScreen() {
           )}
 
           {feedbackSubmitted && (
-            <View style={[styles.thankYouCard, { 
-              backgroundColor: colors.success + '20', 
+            <View style={[styles.thankYouCard, {
+              backgroundColor: colors.success + '20',
               borderColor: colors.success,
             }]}>
               <Ionicons name="checkmark-circle" size={48} color={colors.success} />
-              <Text style={[styles.thankYouTitle, { color: colors.success }]}>Thank You!</Text>
+              <Text style={[styles.thankYouTitle, { color: colors.success }]}>Thank You for Your Feedback!</Text>
+              {feedbackReply && (
+                <View style={styles.replyContainer}>
+                  <Text style={[styles.replyText, { color: colors.text }]}>
+                    💬 "{feedbackReply}"
+                  </Text>
+                </View>
+              )}
               <Text style={[styles.thankYouText, { color: colors.textSecondary }]}>
                 Your feedback helps us improve our scam detection accuracy.
               </Text>
@@ -708,6 +768,18 @@ export default function MessageScannerScreen() {
           )}
         </View>
       )}
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false);
+        }}
+        initialMode="register"
+        onSuccess={() => {
+          setShowAuthModal(false);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -1159,9 +1231,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   feedbackHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
     marginBottom: 16,
   },
   feedbackIcon: {
@@ -1170,11 +1240,37 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 8,
   },
   feedbackTitle: {
     fontSize: 17,
     fontWeight: '700',
-    flex: 1,
+    textAlign: 'center',
+  },
+  feedbackSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  feedbackInputContainer: {
+    marginBottom: 16,
+  },
+  feedbackLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  commentsInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 14,
+    textAlignVertical: 'top',
+    marginBottom: 4,
+    minHeight: 100,
+  },
+  charCount: {
+    fontSize: 11,
+    textAlign: 'right',
   },
   accuracyButtons: {
     flexDirection: 'row',
@@ -1207,15 +1303,6 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 18,
   },
-  commentsInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 14,
-    textAlignVertical: 'top',
-    marginBottom: 16,
-    minHeight: 70,
-  },
   submitBtn: {
     borderRadius: 12,
     paddingVertical: 14,
@@ -1237,10 +1324,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginTop: 12,
+    textAlign: 'center',
   },
   thankYouText: {
     fontSize: 14,
     textAlign: 'center',
     marginTop: 4,
   },
+  replyContainer: {
+    padding: 16,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    marginTop: 12,
+    maxWidth: '100%',
+    width: '100%',
+  },
+  replyText: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
 });
+
+// export default MessageScannerScreen;

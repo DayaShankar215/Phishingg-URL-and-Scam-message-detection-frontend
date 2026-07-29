@@ -1,38 +1,51 @@
+// src/screens/URLScannerScreen.jsx
 import React, { useState } from 'react';
-import { 
-  View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  ScrollView, ActivityIndicator, Dimensions, Platform 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Dimensions,
+  TextInput,
 } from 'react-native';
-import { scanURL, submitFeedback, getScanByReference } from '../services/api';
-import { downloadPDF } from '../services/pdfGenerator';
-import { validateURL } from '../utils/validators';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useGuest } from '../context/GuestContext';
 import { getColors } from '../constants/colors';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import RiskBadge from '../components/RiskBadge';
+import { scanURL, submitFeedback, getPrediction } from '../services/api';
+import { downloadPDF } from '../services/pdfGenerator';
+import LoadingSpinner from '../components/LoadingSpinner';
+import AuthModal from '../components/AuthModal';
 import { showToast } from '../components/Toaster';
+import { validateURL } from '../utils/validators';
 
 const { width } = Dimensions.get('window');
 
 export default function URLScannerScreen() {
   const { isDark } = useTheme();
+  const colors = getColors(isDark);
   const { isAuthenticated } = useAuth();
   const { addScan } = useGuest();
-  const colors = getColors(isDark);
+
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [isAccurate, setIsAccurate] = useState(true);
-  const [rating, setRating] = useState(0);
-  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackReply, setFeedbackReply] = useState('');
   const [downloading, setDownloading] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Commented out - will be used in future
+  // const [isAccurate, setIsAccurate] = useState(true);
+  // const [rating, setRating] = useState(0);
 
   const handleScan = async () => {
     const validation = validateURL(url);
@@ -46,15 +59,19 @@ export default function URLScannerScreen() {
     setError(null);
     setShowFeedback(false);
     setFeedbackSubmitted(false);
+    setFeedbackReply('');
 
     try {
       const response = await scanURL(url);
-      
-      const prediction = response.prediction?.toUpperCase() || 'UNKNOWN';
+      console.log('API Response:', response);
+
+      const prediction = getPrediction(response);
+      const upperPrediction = prediction.toUpperCase();
+
       let riskScore = 50;
       let resultType = 'unknown';
-      
-      switch (prediction) {
+
+      switch (upperPrediction) {
         case 'PHISHING':
         case 'DANGEROUS':
         case 'MALICIOUS':
@@ -75,12 +92,12 @@ export default function URLScannerScreen() {
           riskScore = 50;
           resultType = 'unknown';
       }
-      
+
       const scanResult = {
         reference: response.reference,
         url: url,
-        prediction: response.prediction,
-        classification: response.prediction || 'UNKNOWN',
+        prediction: prediction,
+        classification: prediction || 'UNKNOWN',
         riskScore: riskScore,
         confidence: 0.85,
         explanation: response.conclusion || 'Analysis completed',
@@ -92,14 +109,15 @@ export default function URLScannerScreen() {
         phishingReasons: response.phishingReasons || [],
         legitimateReasons: response.legitimateReasons || [],
       };
-      
+
       setResult(scanResult);
-      
+
       if (!isAuthenticated) {
         addScan(scanResult);
       }
-      
+
       setShowFeedback(true);
+      setFeedbackMessage('');
       showToast('Scan completed successfully!', 'success');
     } catch (err) {
       console.error('Scan Error:', err);
@@ -111,6 +129,12 @@ export default function URLScannerScreen() {
   };
 
   const handleDownloadPDF = async () => {
+    if (!isAuthenticated) {
+      showToast('Please sign in to download reports', 'warning');
+      setShowAuthModal(true);
+      return;
+    }
+
     if (!result) {
       showToast('No scan result available', 'error');
       return;
@@ -129,17 +153,27 @@ export default function URLScannerScreen() {
   };
 
   const handleSubmitFeedback = async () => {
-    if (rating === 0) {
-      showToast('Please rate the detection accuracy', 'warning');
+    if (!feedbackMessage || feedbackMessage.trim() === '') {
+      showToast('Please provide your feedback', 'error');
       return;
     }
 
     setSubmitting(true);
     try {
-      await submitFeedback(result.reference, 'url', isAccurate, feedbackText, rating);
+      const response = await submitFeedback(feedbackMessage);
+      console.log('Feedback Response:', response);
+      
+      if (response && response.reply) {
+        setFeedbackReply(response.reply);
+      }
+      
       setFeedbackSubmitted(true);
-      showToast('Thank you for your feedback!', 'success');
-      setTimeout(() => { setShowFeedback(false); setFeedbackSubmitted(false); }, 3000);
+      showToast('Thank you for your feedback! 🎉', 'success');
+      setTimeout(() => {
+        setShowFeedback(false);
+        setFeedbackSubmitted(false);
+        setFeedbackReply('');
+      }, 5000);
     } catch (err) {
       showToast(err.message || 'Failed to submit feedback', 'error');
     } finally {
@@ -147,19 +181,20 @@ export default function URLScannerScreen() {
     }
   };
 
-  const renderStars = () => (
-    <View style={styles.starsContainer}>
-      {[1, 2, 3, 4, 5].map((star) => (
-        <TouchableOpacity key={star} onPress={() => setRating(star)}>
-          <Ionicons 
-            name={star <= rating ? 'star' : 'star-outline'} 
-            size={32} 
-            color={star <= rating ? '#ffc107' : colors.textMuted} 
-          />
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+  // Commented out - will be used in future
+  // const renderStars = () => (
+  //   <View style={styles.starsContainer}>
+  //     {[1, 2, 3, 4, 5].map((star) => (
+  //       <TouchableOpacity key={star} onPress={() => setRating(star)}>
+  //         <Ionicons
+  //           name={star <= rating ? 'star' : 'star-outline'}
+  //           size={32}
+  //           color={star <= rating ? '#ffc107' : colors.textMuted}
+  //         />
+  //       </TouchableOpacity>
+  //     ))}
+  //   </View>
+  // );
 
   const getRiskLevel = (score) => {
     if (score > 70) return { label: 'High Risk', color: '#ef4444', bg: '#fee2e2', icon: '🚨', badge: 'Phishing' };
@@ -169,9 +204,13 @@ export default function URLScannerScreen() {
 
   const riskLevel = result ? getRiskLevel(result.riskScore) : null;
 
+  if (loading) {
+    return <LoadingSpinner text="Scanning URL..." />;
+  }
+
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: colors.background }]} 
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.contentContainer}
     >
@@ -200,7 +239,7 @@ export default function URLScannerScreen() {
       </LinearGradient>
 
       {/* Input Card */}
-      <View style={[styles.inputCard, { 
+      <View style={[styles.inputCard, {
         backgroundColor: colors.backgroundCard,
         borderColor: colors.borderLight,
       }]}>
@@ -208,19 +247,19 @@ export default function URLScannerScreen() {
           <Ionicons name="link-outline" size={18} color={colors.primary[600]} />
           <Text style={[styles.inputLabel, { color: colors.text }]}>Enter Website URL</Text>
         </View>
-        
-        <View style={[styles.inputContainer, { 
+
+        <View style={[styles.inputContainer, {
           borderColor: colors.border,
           backgroundColor: colors.backgroundInput,
         }]}>
           <Ionicons name="globe-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
-          <TextInput 
-            style={[styles.input, { color: colors.text }]} 
-            placeholder="https://example.com" 
-            placeholderTextColor={colors.textMuted} 
-            value={url} 
-            onChangeText={setUrl} 
-            editable={!loading} 
+          <TextInput
+            style={[styles.input, { color: colors.text }]}
+            placeholder="https://example.com"
+            placeholderTextColor={colors.textMuted}
+            value={url}
+            onChangeText={setUrl}
+            editable={!loading}
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -230,12 +269,12 @@ export default function URLScannerScreen() {
             </TouchableOpacity>
           )}
         </View>
-        
-        <TouchableOpacity 
-          style={[styles.scanButton, loading && styles.scanButtonDisabled, { 
+
+        <TouchableOpacity
+          style={[styles.scanButton, loading && styles.scanButtonDisabled, {
             backgroundColor: loading ? colors.textMuted : colors.primary[600],
-          }]} 
-          onPress={handleScan} 
+          }]}
+          onPress={handleScan}
           disabled={loading}
         >
           {loading ? (
@@ -247,7 +286,7 @@ export default function URLScannerScreen() {
             </>
           )}
         </TouchableOpacity>
-        
+
         <Text style={[styles.inputHint, { color: colors.textMuted }]}>
           Supports HTTP, HTTPS, and all standard URL formats
         </Text>
@@ -255,8 +294,8 @@ export default function URLScannerScreen() {
 
       {/* Error Display */}
       {error && (
-        <View style={[styles.errorCard, { 
-          backgroundColor: colors.danger + '20', 
+        <View style={[styles.errorCard, {
+          backgroundColor: colors.danger + '20',
           borderColor: colors.danger,
         }]}>
           <Ionicons name="alert-circle" size={20} color={colors.danger} />
@@ -268,7 +307,7 @@ export default function URLScannerScreen() {
       {result && (
         <View style={styles.resultsContainer}>
           {/* Risk Score Card */}
-          <View style={[styles.riskCard, { 
+          <View style={[styles.riskCard, {
             backgroundColor: 'white',
             borderColor: riskLevel.color + '40',
           }]}>
@@ -300,7 +339,7 @@ export default function URLScannerScreen() {
 
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { 
+                <View style={[styles.progressFill, {
                   width: `${Math.min(result.riskScore, 100)}%`,
                   backgroundColor: riskLevel.color,
                 }]} />
@@ -316,12 +355,14 @@ export default function URLScannerScreen() {
               {result.riskScore > 70
                 ? '🚫 HIGH RISK: This website appears to be a phishing site! Do not proceed.'
                 : result.riskScore > 30
-                ? '⚠️ MEDIUM RISK: This website shows suspicious characteristics. Exercise caution.'
-                : '✅ LOW RISK: This website appears to be safe.'}
+                  ? '⚠️ MEDIUM RISK: This website shows suspicious characteristics. Exercise caution.'
+                  : '✅ LOW RISK: This website appears to be safe.'}
             </Text>
 
-            <TouchableOpacity 
-              style={[styles.downloadButton, { backgroundColor: riskLevel.color }]}
+            <TouchableOpacity
+              style={[styles.downloadButton, {
+                backgroundColor: isAuthenticated ? riskLevel.color : colors.textMuted
+              }]}
               onPress={handleDownloadPDF}
               disabled={downloading}
             >
@@ -339,7 +380,7 @@ export default function URLScannerScreen() {
           </View>
 
           {/* Classification Card */}
-          <View style={[styles.infoCard, { 
+          <View style={[styles.infoCard, {
             backgroundColor: 'white',
             borderColor: colors.border,
           }]}>
@@ -366,7 +407,7 @@ export default function URLScannerScreen() {
           </View>
 
           {/* Explanation Card */}
-          <View style={[styles.infoCard, { 
+          <View style={[styles.infoCard, {
             backgroundColor: 'white',
             borderColor: colors.border,
           }]}>
@@ -387,7 +428,7 @@ export default function URLScannerScreen() {
           </View>
 
           {/* Recommendation */}
-          <View style={[styles.recommendationCard, { 
+          <View style={[styles.recommendationCard, {
             backgroundColor: riskLevel.bg,
             borderColor: riskLevel.color,
           }]}>
@@ -408,14 +449,14 @@ export default function URLScannerScreen() {
               {result.riskScore > 70
                 ? '🚫 DO NOT proceed to this website. Report this URL to security authorities immediately. This is a confirmed phishing attempt designed to steal your credentials.'
                 : result.riskScore > 30
-                ? '⚠️ Exercise extreme caution. Verify the website\'s authenticity through official channels before entering any personal information or credentials.'
-                : '✅ You can safely proceed. However, always verify the URL matches the official website before entering sensitive information.'}
+                  ? '⚠️ Exercise extreme caution. Verify the website\'s authenticity through official channels before entering any personal information or credentials.'
+                  : '✅ You can safely proceed. However, always verify the URL matches the official website before entering sensitive information.'}
             </Text>
           </View>
 
           {/* Feedback Section */}
           {showFeedback && !feedbackSubmitted && (
-            <View style={[styles.feedbackCard, { 
+            <View style={[styles.feedbackCard, {
               backgroundColor: colors.backgroundCard,
               borderColor: colors.border,
             }]}>
@@ -423,52 +464,64 @@ export default function URLScannerScreen() {
                 <View style={[styles.feedbackIcon, { backgroundColor: colors.info + '20' }]}>
                   <Ionicons name="chatbubble" size={24} color={colors.info} />
                 </View>
-                <Text style={[styles.feedbackTitle, { color: colors.text }]}>Was this detection accurate?</Text>
+                <Text style={[styles.feedbackTitle, { color: colors.text }]}>Share Your Feedback</Text>
+                <Text style={[styles.feedbackSubtitle, { color: colors.textMuted }]}>
+                  Your feedback helps us improve our AI models
+                </Text>
               </View>
-              
-              <View style={styles.accuracyButtons}>
-                <TouchableOpacity 
-                  style={[styles.accuracyBtn, isAccurate && styles.accuracyBtnActive, { 
+
+              {/* Commented out - Will be used in future */}
+              {/* <View style={styles.accuracyButtons}>
+                <TouchableOpacity
+                  style={[styles.accuracyBtn, isAccurate && styles.accuracyBtnActive, {
                     backgroundColor: isAccurate ? colors.success + '20' : colors.backgroundInput,
                     borderColor: isAccurate ? colors.success : colors.border,
-                  }]} 
+                  }]}
                   onPress={() => setIsAccurate(true)}
                 >
                   <Ionicons name="thumbs-up" size={20} color={isAccurate ? colors.success : colors.textMuted} />
                   <Text style={[styles.accuracyBtnText, isAccurate && { color: colors.success }]}>Yes</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.accuracyBtn, !isAccurate && styles.accuracyBtnActive, { 
+                <TouchableOpacity
+                  style={[styles.accuracyBtn, !isAccurate && styles.accuracyBtnActive, {
                     backgroundColor: !isAccurate ? colors.danger + '20' : colors.backgroundInput,
                     borderColor: !isAccurate ? colors.danger : colors.border,
-                  }]} 
+                  }]}
                   onPress={() => setIsAccurate(false)}
                 >
                   <Ionicons name="thumbs-down" size={20} color={!isAccurate ? colors.danger : colors.textMuted} />
                   <Text style={[styles.accuracyBtnText, !isAccurate && { color: colors.danger }]}>No</Text>
                 </TouchableOpacity>
+              </View> */}
+
+              {/* Commented out - Will be used in future */}
+              {/* <Text style={[styles.ratingLabel, { color: colors.textMuted }]}>Rate the detection quality</Text>
+              {renderStars()} */}
+
+              <View style={styles.feedbackInputContainer}>
+                <Text style={[styles.feedbackLabel, { color: colors.text }]}>Your Feedback *</Text>
+                <TextInput
+                  style={[styles.commentsInput, {
+                    borderColor: colors.border,
+                    color: colors.text,
+                    backgroundColor: colors.backgroundInput,
+                  }]}
+                  placeholder="Tell us about your experience... What could we improve?"
+                  placeholderTextColor={colors.textMuted}
+                  value={feedbackMessage}
+                  onChangeText={setFeedbackMessage}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+                <Text style={[styles.charCount, { color: colors.textMuted }]}>
+                  {feedbackMessage.length}/500 characters
+                </Text>
               </View>
 
-              <Text style={[styles.ratingLabel, { color: colors.textMuted }]}>Rate the detection quality</Text>
-              {renderStars()}
-              
-              <TextInput 
-                style={[styles.commentsInput, { 
-                  borderColor: colors.border,
-                  color: colors.text,
-                  backgroundColor: colors.backgroundInput,
-                }]} 
-                placeholder="Additional comments (optional)" 
-                placeholderTextColor={colors.textMuted} 
-                value={feedbackText} 
-                onChangeText={setFeedbackText} 
-                multiline 
-                numberOfLines={3} 
-              />
-              
-              <TouchableOpacity 
-                style={[styles.submitBtn, { backgroundColor: colors.primary[600] }]} 
-                onPress={handleSubmitFeedback} 
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: colors.primary[600] }]}
+                onPress={handleSubmitFeedback}
                 disabled={submitting}
               >
                 <Text style={styles.submitBtnText}>
@@ -479,12 +532,19 @@ export default function URLScannerScreen() {
           )}
 
           {feedbackSubmitted && (
-            <View style={[styles.thankYouCard, { 
-              backgroundColor: colors.success + '20', 
+            <View style={[styles.thankYouCard, {
+              backgroundColor: colors.success + '20',
               borderColor: colors.success,
             }]}>
               <Ionicons name="checkmark-circle" size={48} color={colors.success} />
-              <Text style={[styles.thankYouTitle, { color: colors.success }]}>Thank You!</Text>
+              <Text style={[styles.thankYouTitle, { color: colors.success }]}>Thank You for Your Feedback!</Text>
+              {feedbackReply && (
+                <View style={styles.replyContainer}>
+                  <Text style={[styles.replyText, { color: colors.text }]}>
+                    💬 "{feedbackReply}"
+                  </Text>
+                </View>
+              )}
               <Text style={[styles.thankYouText, { color: colors.textSecondary }]}>
                 Your feedback helps us improve our detection accuracy.
               </Text>
@@ -492,6 +552,18 @@ export default function URLScannerScreen() {
           )}
         </View>
       )}
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false);
+        }}
+        initialMode="register"
+        onSuccess={() => {
+          setShowAuthModal(false);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -810,9 +882,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   feedbackHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
     marginBottom: 16,
   },
   feedbackIcon: {
@@ -821,11 +891,37 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 8,
   },
   feedbackTitle: {
     fontSize: 17,
     fontWeight: '700',
-    flex: 1,
+    textAlign: 'center',
+  },
+  feedbackSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  feedbackInputContainer: {
+    marginBottom: 16,
+  },
+  feedbackLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  commentsInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 14,
+    textAlignVertical: 'top',
+    marginBottom: 4,
+    minHeight: 100,
+  },
+  charCount: {
+    fontSize: 11,
+    textAlign: 'right',
   },
   accuracyButtons: {
     flexDirection: 'row',
@@ -858,15 +954,6 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 18,
   },
-  commentsInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 14,
-    textAlignVertical: 'top',
-    marginBottom: 16,
-    minHeight: 70,
-  },
   submitBtn: {
     borderRadius: 12,
     paddingVertical: 14,
@@ -888,10 +975,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginTop: 12,
+    textAlign: 'center',
   },
   thankYouText: {
     fontSize: 14,
     textAlign: 'center',
     marginTop: 4,
   },
+  replyContainer: {
+    padding: 16,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    marginTop: 12,
+    maxWidth: '100%',
+    width: '100%',
+  },
+  replyText: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
 });
+
+// export default URLScannerScreen;

@@ -1,3 +1,4 @@
+// src/screens/HistoryScreen.jsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -26,6 +27,7 @@ import {
   getScanHistory,
   getScanByReference,
   deleteScanByReference,
+  getPrediction,
 } from '../services/api';
 import { downloadPDF } from '../services/pdfGenerator';
 import { formatDate, truncateText } from '../utils/formatters';
@@ -57,7 +59,36 @@ const HistoryScreen = () => {
   const [tempStartDate, setTempStartDate] = useState('');
   const [tempEndDate, setTempEndDate] = useState('');
 
+  // Helper function to detect scan type
+  const getScanType = (scan) => {
+    if (scan.type) {
+      const type = scan.type.toLowerCase();
+      if (type === 'url' || type === 'message') return type;
+    }
+    if (scan.scanType) {
+      const type = scan.scanType.toLowerCase();
+      if (type === 'url' || type === 'message') return type;
+      if (type.includes('url')) return 'url';
+      if (type.includes('message')) return 'message';
+    }
+    if (scan.message) return 'message';
+    if (scan.url) return 'url';
+    if (scan.content) {
+      const content = String(scan.content);
+      if (content.match(/^https?:\/\/[^\s]+/) || content.match(/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/)) {
+        return 'url';
+      }
+      if (content.length > 50) return 'message';
+      return content.length > 20 ? 'message' : 'url';
+    }
+    return 'url';
+  };
+
   useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
     fetchHistory();
   }, [filter, isAuthenticated]);
 
@@ -82,16 +113,19 @@ const HistoryScreen = () => {
           scansData = response.response;
         }
 
-        const formattedScans = scansData.map((scan) => ({
-          reference: scan.reference,
-          url: scan.url,
-          prediction: scan.prediction,
-          conclusion: scan.conclusion,
-          scannedAt: scan.scannedAt,
-          type: 'url',
-          content: scan.url,
-          _raw: scan,
-        }));
+        const formattedScans = scansData.map((scan) => {
+          const type = getScanType(scan);
+          return {
+            reference: scan.reference,
+            url: scan.url || scan.content,
+            prediction: getPrediction(scan),
+            conclusion: scan.conclusion,
+            scannedAt: scan.scannedAt,
+            type: type,
+            content: scan.url || scan.message || scan.content || scan.url || '',
+            _raw: scan,
+          };
+        });
 
         setScans(formattedScans);
       } else {
@@ -223,7 +257,7 @@ const HistoryScreen = () => {
       setSelectedScan({
         reference: response.reference,
         url: response.url,
-        prediction: response.prediction,
+        prediction: getPrediction(response),
         legitimateReasons: response.legitimateReasons || [],
         phishingReasons: response.phishingReasons || [],
         conclusion: response.conclusion,
@@ -254,7 +288,7 @@ const HistoryScreen = () => {
       const pdfData = {
         reference: scanDetails.reference,
         url: scanDetails.url,
-        prediction: scanDetails.prediction,
+        prediction: getPrediction(scanDetails),
         conclusion: scanDetails.conclusion,
         scannedAt: scanDetails.scannedAt,
         phishingReasons: scanDetails.phishingReasons || [],
@@ -317,8 +351,11 @@ const HistoryScreen = () => {
     const searchLower = term.toLowerCase().trim();
     const reference = (scan?.reference || '').toString().toLowerCase();
     const content = (scan?.content || scan?.url || scan?.message || '').toLowerCase();
+    const type = (scan?.type || '').toLowerCase();
 
-    return reference.includes(searchLower) || content.includes(searchLower);
+    return reference.includes(searchLower) ||
+      content.includes(searchLower) ||
+      type.includes(searchLower);
   };
 
   const filteredScans = (() => {
@@ -343,11 +380,14 @@ const HistoryScreen = () => {
   };
 
   const getPredictionColor = (pred) => {
-    switch (pred?.toUpperCase()) {
+    const upperPred = pred?.toUpperCase() || '';
+    switch (upperPred) {
       case 'PHISHING':
       case 'DANGEROUS':
       case 'MALICIOUS':
         return { bg: '#fee2e2', color: '#dc2626' };
+      case 'SCAM':
+        return { bg: '#fef3c7', color: '#d97706' };
       case 'SUSPICIOUS':
       case 'WARNING':
         return { bg: '#fef3c7', color: '#d97706' };
@@ -359,14 +399,16 @@ const HistoryScreen = () => {
     }
   };
 
-  if (loading) {
-    return <LoadingSpinner text="Loading security history..." />;
-  }
+  const getTypeBadge = (type) => {
+    if (type === 'url') {
+      return { bg: '#dbeafe', color: '#1d4ed8', icon: 'link-outline', label: 'URL' };
+    } else if (type === 'message') {
+      return { bg: '#fce7f3', color: '#be185d', icon: 'chatbubble-outline', label: 'Message' };
+    }
+    return { bg: '#f1f5f9', color: '#64748b', icon: 'help-outline', label: 'Unknown' };
+  };
 
-  // ============================================================
-  // EMPTY STATE - Without Sign Up to Save button
-  // ============================================================
-  if (!isAuthenticated && scans.length === 0) {
+  if (!isAuthenticated) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ScrollView>
@@ -389,7 +431,7 @@ const HistoryScreen = () => {
             </View>
           </LinearGradient>
 
-          <View style={[styles.emptyCard, { 
+          <View style={[styles.emptyCard, {
             backgroundColor: colors.backgroundCard,
             borderColor: colors.borderLight,
             marginHorizontal: 16,
@@ -403,26 +445,40 @@ const HistoryScreen = () => {
               <Ionicons name="shield-outline" size={56} color={colors.primary[600]} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              No Scans Yet
+              Sign in to View History
             </Text>
             <Text style={[styles.emptyDescription, { color: colors.textMuted }]}>
-              You haven't performed any scans yet. Start scanning URLs and messages to see results here.
+              You need to be signed in to view and manage your scan history. Guest mode does not save scan history.
             </Text>
             <TouchableOpacity
               style={[styles.primaryBtn, { backgroundColor: colors.primary[600] }]}
-              onPress={() => navigation.navigate('URL Scanner')}
+              onPress={() => setShowAuthModal(true)}
             >
-              <Text style={styles.primaryBtnText}>Start Scanning</Text>
+              <Text style={styles.primaryBtnText}>Sign Up / Login</Text>
             </TouchableOpacity>
           </View>
+
+          <AuthModal
+            isOpen={showAuthModal}
+            onClose={() => {
+              setShowAuthModal(false);
+              navigation.navigate('Dashboard');
+            }}
+            initialMode="login"
+            onSuccess={() => {
+              setShowAuthModal(false);
+              fetchHistory();
+            }}
+          />
         </ScrollView>
       </View>
     );
   }
 
-  // ============================================================
-  // MAIN VIEW - With scans
-  // ============================================================
+  if (loading) {
+    return <LoadingSpinner text="Loading security history..." />;
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -450,23 +506,10 @@ const HistoryScreen = () => {
             <Ionicons name="refresh-outline" size={22} color="white" />
           </TouchableOpacity>
         </View>
-
-        {!isAuthenticated && scans.length > 0 && (
-          <View style={[styles.guestBanner, { backgroundColor: '#fef3c7', borderColor: '#fcd34d' }]}>
-            <Ionicons name="information-circle-outline" size={18} color="#d97706" />
-            <Text style={styles.guestBannerText}>Guest Mode • History is temporary</Text>
-            <TouchableOpacity
-              style={[styles.guestBannerBtn, { backgroundColor: colors.primary[600] }]}
-              onPress={() => setShowAuthModal(true)}
-            >
-              <Text style={styles.guestBannerBtnText}>Sign Up to Save</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </LinearGradient>
 
       {/* Stats Cards */}
-      <View style={[styles.statsContainer, { 
+      <View style={[styles.statsContainer, {
         backgroundColor: colors.backgroundCard,
         borderColor: colors.borderLight,
       }]}>
@@ -519,7 +562,7 @@ const HistoryScreen = () => {
         </ScrollView>
 
         <TouchableOpacity
-          style={[styles.dateFilterBtn, { 
+          style={[styles.dateFilterBtn, {
             backgroundColor: dateFilter.preset !== 'all' ? colors.primary[600] : colors.backgroundInput,
             borderColor: dateFilter.preset !== 'all' ? colors.primary[600] : colors.border,
           }]}
@@ -538,14 +581,14 @@ const HistoryScreen = () => {
       </View>
 
       {/* Search */}
-      <View style={[styles.searchContainer, { 
+      <View style={[styles.searchContainer, {
         backgroundColor: colors.backgroundInput,
         borderColor: colors.border,
       }]}>
         <Ionicons name="search-outline" size={20} color={colors.textMuted} />
         <TextInput
           style={[styles.searchInput, { color: colors.text }]}
-          placeholder="Search by reference ID or content..."
+          placeholder="Search by reference ID, content or type..."
           placeholderTextColor={colors.textMuted}
           value={searchTerm}
           onChangeText={setSearchTerm}
@@ -559,7 +602,7 @@ const HistoryScreen = () => {
 
       {/* Date Picker Dropdown */}
       {showDatePicker && (
-        <View style={[styles.datePickerContainer, { 
+        <View style={[styles.datePickerContainer, {
           backgroundColor: colors.backgroundCard,
           borderColor: colors.border,
         }]}>
@@ -603,7 +646,7 @@ const HistoryScreen = () => {
               <View style={styles.dateInputGroup}>
                 <Text style={[styles.dateInputLabel, { color: colors.textMuted }]}>Start</Text>
                 <TextInput
-                  style={[styles.dateInput, { 
+                  style={[styles.dateInput, {
                     backgroundColor: colors.backgroundInput,
                     borderColor: colors.border,
                     color: colors.text,
@@ -617,7 +660,7 @@ const HistoryScreen = () => {
               <View style={styles.dateInputGroup}>
                 <Text style={[styles.dateInputLabel, { color: colors.textMuted }]}>End</Text>
                 <TextInput
-                  style={[styles.dateInput, { 
+                  style={[styles.dateInput, {
                     backgroundColor: colors.backgroundInput,
                     borderColor: colors.border,
                     color: colors.text,
@@ -677,7 +720,7 @@ const HistoryScreen = () => {
         contentContainerStyle={styles.scrollContent}
       >
         {filteredScans.length === 0 ? (
-          <View style={[styles.noScansCard, { 
+          <View style={[styles.noScansCard, {
             backgroundColor: colors.backgroundCard,
             borderColor: colors.borderLight,
           }]}>
@@ -700,11 +743,12 @@ const HistoryScreen = () => {
             const isGuest = scan?.isGuest === true;
             const prediction = scan?.prediction || 'UNKNOWN';
             const predColor = getPredictionColor(prediction);
+            const typeBadge = getTypeBadge(scan?.type);
 
             return (
               <TouchableOpacity
                 key={reference || Math.random()}
-                style={[styles.scanCard, { 
+                style={[styles.scanCard, {
                   backgroundColor: isGuest ? colors.backgroundSecondary : colors.backgroundCard,
                   borderColor: colors.borderLight,
                 }]}
@@ -722,16 +766,16 @@ const HistoryScreen = () => {
                         <Text style={styles.guestBadgeText}>Guest</Text>
                       </View>
                     )}
-                    <View style={[styles.typeBadge, { 
-                      backgroundColor: scan.type === 'url' ? '#e3f2fd' : '#f3e5f5' 
+                    <View style={[styles.typeBadge, {
+                      backgroundColor: typeBadge.bg
                     }]}>
-                      <Ionicons 
-                        name={scan.type === 'url' ? 'link-outline' : 'chatbubble-outline'} 
-                        size={12} 
-                        color={scan.type === 'url' ? '#1976d2' : '#7b1fa2'} 
+                      <Ionicons
+                        name={typeBadge.icon}
+                        size={12}
+                        color={typeBadge.color}
                       />
-                      <Text style={styles.typeBadgeText}>
-                        {scan.type === 'url' ? 'URL' : 'Message'}
+                      <Text style={[styles.typeBadgeText, { color: typeBadge.color }]}>
+                        {typeBadge.label}
                       </Text>
                     </View>
                   </View>
@@ -794,7 +838,7 @@ const HistoryScreen = () => {
           onRequestClose={() => setShowModal(false)}
         >
           <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
-            <View style={[styles.modalContent, { 
+            <View style={[styles.modalContent, {
               backgroundColor: colors.backgroundCard,
               borderColor: colors.border,
             }]}>
@@ -812,7 +856,7 @@ const HistoryScreen = () => {
                 {/* Reference */}
                 <View style={styles.modalSection}>
                   <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Reference</Text>
-                  <View style={[styles.modalValueBox, { 
+                  <View style={[styles.modalValueBox, {
                     backgroundColor: colors.backgroundInput,
                     borderColor: colors.border,
                   }]}>
@@ -825,7 +869,7 @@ const HistoryScreen = () => {
                 {/* URL */}
                 <View style={styles.modalSection}>
                   <Text style={[styles.modalLabel, { color: colors.textMuted }]}>URL</Text>
-                  <View style={[styles.modalValueBox, { 
+                  <View style={[styles.modalValueBox, {
                     backgroundColor: colors.backgroundInput,
                     borderColor: colors.border,
                   }]}>
@@ -838,11 +882,11 @@ const HistoryScreen = () => {
                 {/* Prediction */}
                 <View style={styles.modalSection}>
                   <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Prediction</Text>
-                  <View style={[styles.modalValueBox, { 
+                  <View style={[styles.modalValueBox, {
                     backgroundColor: selectedScan.prediction === 'PHISHING' ? '#fee2e2' : '#d1fae5',
                     borderColor: selectedScan.prediction === 'PHISHING' ? '#fca5a5' : '#6ee7b7',
                   }]}>
-                    <Text style={[styles.modalText, { 
+                    <Text style={[styles.modalText, {
                       color: selectedScan.prediction === 'PHISHING' ? '#dc2626' : '#065f46',
                       fontWeight: '600',
                     }]}>
@@ -855,7 +899,7 @@ const HistoryScreen = () => {
                 {selectedScan.phishingReasons && selectedScan.phishingReasons.length > 0 && (
                   <View style={styles.modalSection}>
                     <Text style={[styles.modalLabel, { color: colors.textMuted }]}>🚨 Phishing Indicators</Text>
-                    <View style={[styles.modalValueBox, { 
+                    <View style={[styles.modalValueBox, {
                       backgroundColor: '#fee2e2',
                       borderColor: '#fca5a5',
                     }]}>
@@ -878,7 +922,7 @@ const HistoryScreen = () => {
                 {selectedScan.legitimateReasons && selectedScan.legitimateReasons.length > 0 && (
                   <View style={styles.modalSection}>
                     <Text style={[styles.modalLabel, { color: colors.textMuted }]}>✅ Legitimate Indicators</Text>
-                    <View style={[styles.modalValueBox, { 
+                    <View style={[styles.modalValueBox, {
                       backgroundColor: '#d1fae5',
                       borderColor: '#6ee7b7',
                     }]}>
@@ -900,7 +944,7 @@ const HistoryScreen = () => {
                 {/* Conclusion */}
                 <View style={styles.modalSection}>
                   <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Conclusion</Text>
-                  <View style={[styles.modalValueBox, { 
+                  <View style={[styles.modalValueBox, {
                     backgroundColor: colors.backgroundInput,
                     borderColor: colors.border,
                   }]}>
@@ -913,7 +957,7 @@ const HistoryScreen = () => {
                 {/* Scanned At */}
                 <View style={styles.modalSection}>
                   <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Scanned At</Text>
-                  <View style={[styles.modalValueBox, { 
+                  <View style={[styles.modalValueBox, {
                     backgroundColor: colors.backgroundInput,
                     borderColor: colors.border,
                   }]}>
@@ -928,7 +972,7 @@ const HistoryScreen = () => {
 
                 {/* Download Button */}
                 <TouchableOpacity
-                  style={[styles.modalDownloadBtn, { 
+                  style={[styles.modalDownloadBtn, {
                     backgroundColor: downloadingId === selectedScan.reference ? colors.textMuted : colors.primary[600],
                   }]}
                   onPress={() => handleDownloadReport(selectedScan.reference)}
@@ -970,8 +1014,6 @@ const HistoryScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
-  // Header
   headerGradient: {
     paddingHorizontal: 24,
     paddingTop: 20,
@@ -1016,36 +1058,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // Guest Banner
-  guestBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexWrap: 'wrap',
-  },
-  guestBannerText: {
-    fontSize: 13,
-    color: '#92400e',
-    flex: 1,
-  },
-  guestBannerBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  guestBannerBtnText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  // Stats
   statsContainer: {
     flexDirection: 'row',
     marginHorizontal: 16,
@@ -1080,8 +1092,6 @@ const styles = StyleSheet.create({
     width: 1,
     height: 40,
   },
-
-  // Filters
   filtersContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1126,8 +1136,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-
-  // Search
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1144,8 +1152,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     paddingVertical: 0,
   },
-
-  // Date Picker
   datePickerContainer: {
     marginHorizontal: 16,
     marginTop: 12,
@@ -1235,8 +1241,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-
-  // Results Count
   resultsCount: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1259,14 +1263,10 @@ const styles = StyleSheet.create({
   dateLabelText: {
     fontSize: 12,
   },
-
-  // Scroll Content
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
   },
-
-  // Scan Card
   scanCard: {
     borderRadius: 16,
     padding: 16,
@@ -1317,7 +1317,6 @@ const styles = StyleSheet.create({
   typeBadgeText: {
     fontSize: 9,
     fontWeight: '600',
-    color: '#64748b',
   },
   actionButtons: {
     flexDirection: 'row',
@@ -1353,8 +1352,6 @@ const styles = StyleSheet.create({
   scanDate: {
     fontSize: 11,
   },
-
-  // No Scans
   noScansCard: {
     alignItems: 'center',
     padding: 40,
@@ -1377,8 +1374,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-
-  // Empty State
+  emptyCard: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    padding: 32,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
   emptyIconContainer: {
     marginBottom: 16,
   },
@@ -1393,14 +1396,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 24,
   },
-  emptyCard: {
-    marginHorizontal: 16,
-    marginTop: 20,
-    padding: 32,
-    borderRadius: 24,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
   primaryBtn: {
     paddingHorizontal: 28,
     paddingVertical: 12,
@@ -1411,8 +1406,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-
-  // Modal
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',

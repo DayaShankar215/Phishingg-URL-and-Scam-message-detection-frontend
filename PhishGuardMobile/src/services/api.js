@@ -1,3 +1,4 @@
+// services/api.js
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -15,10 +16,7 @@ const api = axios.create({
 // --- Request Interceptor ---
 api.interceptors.request.use(
   async (config) => {
-    // Add ngrok skip warning header
     config.headers["ngrok-skip-browser-warning"] = "true";
-    
-    // Get token from AsyncStorage (replaces localStorage)
     try {
       const token = await AsyncStorage.getItem("accessToken");
       if (token) {
@@ -27,7 +25,6 @@ api.interceptors.request.use(
     } catch (error) {
       console.error("Error getting token:", error);
     }
-    
     return config;
   },
   (error) => {
@@ -38,11 +35,30 @@ api.interceptors.request.use(
 // --- Response Interceptor ---
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.code === "ERR_NETWORK") {
       throw { 
         message: "Cannot connect to server. Please check your connection.",
-        isCorsError: true
+        isCorsError: true,
+        status: 0
+      };
+    }
+    if (error.response && error.response.status === 401) {
+      await AsyncStorage.removeItem("accessToken");
+      await AsyncStorage.removeItem("user");
+      throw { 
+        message: "Session expired. Please login again.",
+        status: 401,
+        isAuthError: true
+      };
+    }
+    if (error.response && error.response.status === 403) {
+      await AsyncStorage.removeItem("accessToken");
+      await AsyncStorage.removeItem("user");
+      throw { 
+        message: "Access denied. Please login again.",
+        status: 403,
+        isAuthError: true
       };
     }
     if (error.response) {
@@ -134,9 +150,13 @@ export const changePassword = async (passwordData) => {
 
 // ==================== SCAN ENDPOINTS ====================
 
+export const getPrediction = (scan) => {
+  return scan.overallPrediction || scan.prediction || "UNKNOWN";
+};
+
 export const scanURL = async (url) => {
   try {
-    const response = await api.post("/scans", { url });
+    const response = await api.post("/scans/url", { url });
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: "Failed to scan URL" };
@@ -145,7 +165,7 @@ export const scanURL = async (url) => {
 
 export const scanMessage = async (message) => {
   try {
-    const response = await api.post("/scans", { message });
+    const response = await api.post("/scans/messages", { message });
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: "Failed to scan message" };
@@ -159,6 +179,13 @@ export const getScanHistory = async () => {
     const response = await api.get("/scans");
     return response.data;
   } catch (error) {
+    if (error.status === 401 || error.status === 403 || error.isAuthError) {
+      throw { 
+        message: "Please login to view scan history",
+        status: error.status || 401,
+        isAuthError: true
+      };
+    }
     throw error.response?.data || { message: "Failed to fetch scan history" };
   }
 };
@@ -216,10 +243,11 @@ export const getDashboardStats = async () => {
   }
 };
 
-export const submitFeedback = async (scanId, type, isAccurate, comments, rating = null) => {
+// ==================== FEEDBACK ENDPOINT ====================
+
+export const submitFeedback = async (message) => {
   try {
-    const body = { scanId, type, isAccurate, comments };
-    if (rating !== null) body.rating = rating;
+    const body = { message: message };
     const response = await api.post("/feedback", body);
     return response.data;
   } catch (error) {
