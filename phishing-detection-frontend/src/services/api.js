@@ -1,3 +1,4 @@
+// services/api.js
 import axios from "axios";
 
 const API_BASE_URL = "https://mud-cable-passerby.ngrok-free.dev";
@@ -203,10 +204,15 @@ export const getDashboardStats = async () => {
   }
 };
 
-export const submitFeedback = async (scanId, type, isAccurate, comments, rating = null) => {
+// ==================== FEEDBACK ENDPOINT ====================
+
+export const submitFeedback = async (scanId, comments) => {
   try {
-    const body = { scanId, type, isAccurate, comments };
-    if (rating !== null) body.rating = rating;
+    // New API format: { "scanId": "...", "message": "..." }
+    const body = { 
+      scanId: scanId,
+      message: comments 
+    };
     const response = await api.post("/feedback", body);
     return response.data;
   } catch (error) {

@@ -1,3 +1,4 @@
+// pages/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import { getScanHistory } from "../services/api";
 import { useNavigate } from "react-router-dom";
@@ -64,6 +65,71 @@ const Dashboard = () => {
     return scan.overallPrediction || scan.prediction || "UNKNOWN";
   };
 
+  // Helper function to detect scan type
+  const getScanType = (scan) => {
+    // Check if type is explicitly set
+    if (scan.type) {
+      const type = scan.type.toLowerCase();
+      if (type === "url" || type === "message") return type;
+    }
+    if (scan.scanType) {
+      const type = scan.scanType.toLowerCase();
+      if (type === "url" || type === "message") return type;
+      if (type.includes("url")) return "url";
+      if (type.includes("message")) return "message";
+    }
+    // Check if it's a message scan by looking for message field
+    if (scan.message) return "message";
+    // Check if it's a URL scan by looking for url field
+    if (scan.url) return "url";
+    // Check content field
+    if (scan.content) {
+      const content = String(scan.content);
+      if (content.match(/^https?:\/\/[^\s]+/) || content.match(/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/)) {
+        return "url";
+      }
+      if (content.length > 50) return "message";
+      return content.length > 20 ? "message" : "url";
+    }
+    // Default to URL
+    return "url";
+  };
+
+  // Helper function to classify a scan based on type and prediction
+  const classifyScan = (scan) => {
+    const type = getScanType(scan);
+    const pred = getPrediction(scan).toUpperCase();
+    
+    // Determine if it's a threat (phishing or scam)
+    const isThreat = pred === "PHISHING" || pred === "DANGEROUS" || pred === "MALICIOUS" || pred === "SCAM" || pred === "SUSPICIOUS" || pred === "WARNING";
+    
+    // For URL scans
+    if (type === "url") {
+      if (pred === "PHISHING" || pred === "DANGEROUS" || pred === "MALICIOUS") {
+        return "phishing";
+      } else if (pred === "SUSPICIOUS" || pred === "WARNING") {
+        return "suspicious_url";
+      } else if (pred === "SAFE" || pred === "LEGITIMATE") {
+        return "safe";
+      }
+      return "unknown";
+    }
+    
+    // For Message scans
+    if (type === "message") {
+      if (pred === "PHISHING" || pred === "DANGEROUS" || pred === "MALICIOUS" || pred === "SCAM") {
+        return "scam";
+      } else if (pred === "SUSPICIOUS" || pred === "WARNING") {
+        return "suspicious_message";
+      } else if (pred === "SAFE" || pred === "LEGITIMATE") {
+        return "safe";
+      }
+      return "unknown";
+    }
+    
+    return "unknown";
+  };
+
   const fetchDashboardStats = async () => {
     try {
       setLoading(true);
@@ -82,35 +148,34 @@ const Dashboard = () => {
 
         const totalScans = allScans.length;
         
-        const phishingDetected = allScans.filter(
-          (s) => {
-            const pred = getPrediction(s).toUpperCase();
-            return pred === "PHISHING" || pred === "DANGEROUS" || pred === "MALICIOUS";
-          }
-        ).length;
+        // Count using classifyScan function
+        let phishingDetected = 0;
+        let scamMessages = 0;
+        let safeDetections = 0;
 
-        const scamMessages = allScans.filter(
-          (s) => {
-            const pred = getPrediction(s).toUpperCase();
-            return pred === "SCAM" || pred === "SUSPICIOUS" || pred === "WARNING";
+        allScans.forEach((scan) => {
+          const classification = classifyScan(scan);
+          if (classification === "phishing") {
+            phishingDetected++;
+          } else if (classification === "scam") {
+            scamMessages++;
+          } else if (classification === "safe") {
+            safeDetections++;
           }
-        ).length;
+        });
 
-        const safeDetections = allScans.filter(
-          (s) => {
-            const pred = getPrediction(s).toUpperCase();
-            return pred === "SAFE" || pred === "LEGITIMATE";
-          }
-        ).length;
-
-        const recentScans = allScans.slice(0, 5).map((scan) => ({
-          reference: scan.reference,
-          content: scan.url || scan.content,
-          type: "url",
-          result: getResultFromPrediction(getPrediction(scan)),
-          date: scan.scannedAt,
-          prediction: getPrediction(scan),
-        }));
+        const recentScans = allScans.slice(0, 5).map((scan) => {
+          const type = getScanType(scan);
+          const content = scan.url || scan.message || scan.content || "";
+          return {
+            reference: scan.reference,
+            content: content,
+            type: type,
+            result: getResultFromPrediction(getPrediction(scan)),
+            date: scan.scannedAt,
+            prediction: getPrediction(scan),
+          };
+        });
 
         const weeklyData = generateWeeklyDataFromScans(allScans);
 
@@ -126,7 +191,7 @@ const Dashboard = () => {
         const guestStats = getGuestStats();
         const guestRecentScans = guestScans.slice(0, 5).map((scan) => ({
           reference: scan.id || scan.reference || `guest_${Date.now()}`,
-          content: scan.content || scan.url || scan.message,
+          content: scan.content || scan.url || scan.message || "",
           type: scan.type || "url",
           result: scan.result || "unknown",
           date: scan.date || new Date().toISOString(),
@@ -197,20 +262,12 @@ const Dashboard = () => {
       const dateStr = scanDate.toISOString().split("T")[0];
 
       if (dayMap[dateStr]) {
-        const prediction = getPrediction(scan).toUpperCase();
-        if (
-          prediction === "PHISHING" ||
-          prediction === "DANGEROUS" ||
-          prediction === "MALICIOUS"
-        ) {
+        const classification = classifyScan(scan);
+        if (classification === "phishing") {
           dayMap[dateStr].phishing += 1;
-        } else if (
-          prediction === "SCAM" ||
-          prediction === "SUSPICIOUS" ||
-          prediction === "WARNING"
-        ) {
+        } else if (classification === "scam") {
           dayMap[dateStr].scam += 1;
-        } else if (prediction === "SAFE" || prediction === "LEGITIMATE") {
+        } else if (classification === "safe") {
           dayMap[dateStr].safe += 1;
         }
       }
@@ -671,6 +728,7 @@ const Dashboard = () => {
               <thead>
                 <tr>
                   <th>Reference</th>
+                  <th>Type</th>
                   <th>Content</th>
                   <th>Prediction</th>
                   <th>Date</th>
@@ -690,7 +748,20 @@ const Dashboard = () => {
                       default: return { bg: "#f1f5f9", color: "#64748b" };
                     }
                   };
+                  
+                  const getTypeBadge = (type) => {
+                    if (type === "url") {
+                      return { bg: "#dbeafe", color: "#1d4ed8", icon: <FaLink size={12} />, label: "URL" };
+                    } else if (type === "message") {
+                      return { bg: "#fce7f3", color: "#be185d", icon: <FaComment size={12} />, label: "Message" };
+                    }
+                    return { bg: "#f1f5f9", color: "#64748b", icon: null, label: "Unknown" };
+                  };
+
                   const predColor = getPredictionColor(scan.prediction);
+                  const typeBadge = getTypeBadge(scan.type);
+                  const content = scan.content || "N/A";
+
                   return (
                     <tr key={index}>
                       <td style={{ fontFamily: "monospace", fontSize: "12px", color: "#667eea" }}>
@@ -699,8 +770,24 @@ const Dashboard = () => {
                           {scan.reference ? truncateText(scan.reference, 20) : "N/A"}
                         </span>
                       </td>
-                      <td style={{ maxWidth: "250px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {scan.content || "N/A"}
+                      <td>
+                        <span style={{ 
+                          display: "inline-flex", 
+                          alignItems: "center", 
+                          gap: "6px",
+                          padding: "4px 12px", 
+                          borderRadius: "20px", 
+                          fontSize: "12px", 
+                          fontWeight: "600", 
+                          background: typeBadge.bg, 
+                          color: typeBadge.color 
+                        }}>
+                          {typeBadge.icon}
+                          {typeBadge.label}
+                        </span>
+                      </td>
+                      <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {truncateText(content, 50)}
                       </td>
                       <td>
                         <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", background: predColor.bg, color: predColor.color }}>
