@@ -49,6 +49,7 @@ const URLScanner = () => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackReply, setFeedbackReply] = useState("");
 
   const getRiskScoreFromPrediction = (prediction) => {
     if (!prediction) return 50;
@@ -70,9 +71,7 @@ const URLScanner = () => {
   };
 
   const processScanResponse = (response, scannedUrl) => {
-    // Get prediction from API response - use overallPrediction
     const rawPrediction = response.overallPrediction || response.prediction || "UNKNOWN";
-    // Keep the original prediction as is from API
     const prediction = rawPrediction;
     
     let riskScore = 50;
@@ -105,10 +104,9 @@ const URLScanner = () => {
     return {
       reference: response.reference,
       url: response.url || scannedUrl,
-      prediction: prediction, // Use the raw prediction from API
+      prediction: prediction,
       classification: prediction || "UNKNOWN",
       riskScore: riskScore,
-      // confidence: 0.85,
       explanation: response.conclusion || "Analysis completed",
       result: resultType,
       scannedAt: response.scannedAt || new Date().toISOString(),
@@ -130,6 +128,7 @@ const URLScanner = () => {
     setConnectionError(false);
     setShowFeedback(false);
     setFeedbackSubmitted(false);
+    setFeedbackReply("");
 
     try {
       const response = await scanURL(url);
@@ -148,7 +147,7 @@ const URLScanner = () => {
       }
 
       setShowFeedback(true);
-      setFeedback((prev) => ({ ...prev, scanId: response.reference }));
+      setFeedback((prev) => ({ ...prev, scanId: response.reference, comments: "" }));
       toast.success("Scan completed successfully!");
     } catch (err) {
       console.error("Scan Error:", err);
@@ -183,11 +182,9 @@ const URLScanner = () => {
 
     setDownloading(true);
     try {
-      // Fetch scan details for PDF generation
       const scanDetails = await getScanByReference(reference);
       console.log("Scan Details for PDF:", scanDetails);
       
-      // Format the data for PDF generation
       const pdfData = {
         reference: scanDetails.reference,
         url: scanDetails.url,
@@ -199,7 +196,6 @@ const URLScanner = () => {
         legitimateReasons: scanDetails.legitimateReasons || [],
       };
       
-      // Generate PDF using our custom generator
       const { downloadPDF } = await import('../services/pdfGenerator');
       downloadPDF(pdfData, 'url');
       
@@ -222,63 +218,61 @@ const URLScanner = () => {
   const handleFeedbackSubmit = async (e) => {
     e.preventDefault();
 
-    if (!feedback.scanId) {
-      toast.error("Scan ID not found");
-      return;
-    }
-
-    if (feedback.rating === 0) {
-      toast.error("Please rate the detection accuracy");
+    if (!feedback.comments || feedback.comments.trim() === "") {
+      toast.error("Please provide your feedback");
       return;
     }
 
     setSubmitting(true);
     try {
-      await submitFeedback(
-        feedback.scanId,
-        feedback.type,
-        feedback.isAccurate,
-        feedback.comments,
-        feedback.rating
-      );
+      // Send only the feedback message to API
+      const response = await submitFeedback(feedback.comments);
+      console.log("Feedback Response:", response);
+      
+      if (response && response.reply) {
+        setFeedbackReply(response.reply);
+      }
+      
       setFeedbackSubmitted(true);
       toast.success("Thank you for your feedback! 🎉");
       setTimeout(() => {
         setShowFeedback(false);
         setFeedbackSubmitted(false);
-      }, 3000);
+        setFeedbackReply("");
+      }, 5000);
     } catch (error) {
-      toast.error("Failed to submit feedback");
+      toast.error(error.message || "Failed to submit feedback");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const renderStars = () => {
-    return [1, 2, 3, 4, 5].map((star) => (
-      <button
-        key={star}
-        type="button"
-        onClick={() => setFeedback({ ...feedback, rating: star })}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          fontSize: "30px",
-          transition: "transform 0.2s",
-          padding: "0 4px",
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
-        onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-      >
-        {star <= feedback.rating ? (
-          <FaStar style={{ color: "#ffc107" }} />
-        ) : (
-          <FaRegStar style={{ color: "#ddd" }} />
-        )}
-      </button>
-    ));
-  };
+  // Commented out - will be used in future
+  // const renderStars = () => {
+  //   return [1, 2, 3, 4, 5].map((star) => (
+  //     <button
+  //       key={star}
+  //       type="button"
+  //       onClick={() => setFeedback({ ...feedback, rating: star })}
+  //       style={{
+  //         background: "none",
+  //         border: "none",
+  //         cursor: "pointer",
+  //         fontSize: "30px",
+  //         transition: "transform 0.2s",
+  //         padding: "0 4px",
+  //       }}
+  //       onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
+  //       onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+  //     >
+  //       {star <= feedback.rating ? (
+  //         <FaStar style={{ color: "#ffc107" }} />
+  //       ) : (
+  //         <FaRegStar style={{ color: "#ddd" }} />
+  //       )}
+  //     </button>
+  //   ));
+  // };
 
   const getRiskLevel = (score) => {
     if (score > 70)
@@ -541,16 +535,16 @@ const URLScanner = () => {
 
       {error && !connectionError && (
         <div
-          // style={{
-          //   background: "#fee",
-          //   borderLeft: "4px solid #ef4444",
-          //   padding: "16px 20px",
-          //   borderRadius: "12px",
-          //   marginBottom: "24px",
-          //   display: "flex",
-          //   alignItems: "center",
-          //   gap: "12px",
-          // }}
+          style={{
+            background: "#fee",
+            borderLeft: "4px solid #ef4444",
+            padding: "16px 20px",
+            borderRadius: "12px",
+            marginBottom: "24px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+          }}
         >
           <FaExclamationTriangle style={{ color: "#ef4444", fontSize: "20px" }} />
           <p style={{ color: "#dc2626", margin: 0 }}>{error}</p>
@@ -675,22 +669,6 @@ const URLScanner = () => {
                   flexWrap: "wrap",
                 }}
               >
-                <div
-                  // style={{
-                  //   display: "inline-flex",
-                  //   alignItems: "center",
-                  //   gap: "6px",
-                  //   padding: "6px 14px",
-                  //   background: `${riskLevel.color}15`,
-                  //   borderRadius: "8px",
-                  //   fontSize: "13px",
-                  //   fontWeight: "600",
-                  //   color: riskLevel.color,
-                  // }}
-                >
-                  {/* <FaCheckCircle size={14} /> */}
-                  {/* Confidence: {((result.confidence || 0.85) * 100).toFixed(1)}% */}
-                </div>
                 {result.reference && (
                   <div
                     style={{
@@ -810,66 +788,43 @@ const URLScanner = () => {
                 >
                   <span style={{ fontSize: "28px" }}>{riskLevel.icon}</span>
                   <span
-                    // style={{
-                    //   fontSize: "14px",
-                    //   fontWeight: "600",
-                    //   color: riskLevel.color,
-                    //   background: riskLevel.bg,
-                    //   padding: "4px 16px",
-                    //   borderRadius: "100px",
-                    // }}
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: riskLevel.color,
+                      background: riskLevel.bg,
+                      padding: "4px 16px",
+                      borderRadius: "100px",
+                    }}
                   >
-                    {/* {riskLevel.badge} */}
+                    {riskLevel.badge}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: "16px",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "56px",
+                      fontWeight: "800",
+                      color: riskLevel.color,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {Math.round(result.riskScore)}%
                   </span>
                   <span
                     style={{
-                      fontSize: "13px",
-                      fontWeight: "500",
-                      color: "#94a3b8",
+                      fontSize: "18px",
+                      fontWeight: "600",
+                      color: riskLevel.color,
                     }}
                   >
-                    {/* Risk Assessment */}
-                  </span>
-                  {result.reference && (
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "400",
-                        color: "#94a3b8",
-                        background: "#f1f5f9",
-                        padding: "2px 12px",
-                        borderRadius: "4px",
-                      }}
-                    >
-                      {/* Ref: {result.reference} */}
-                    </span>
-                  )}
-                </div>
-                <div
-                  // style={{
-                  //   display: "flex",
-                  //   alignItems: "baseline",
-                  //   gap: "16px",
-                  // }}
-                >
-                  <span
-                    // style={{
-                    //   fontSize: "56px",
-                    //   fontWeight: "800",
-                    //   color: riskLevel.color,
-                    //   lineHeight: 1,
-                    // }}
-                  >
-                    {/* {Math.round(result.riskScore)}% */}
-                  </span>
-                  <span
-                    // style={{
-                    //   fontSize: "18px",
-                    //   fontWeight: "600",
-                    //   color: riskLevel.color,
-                    // }}
-                  >
-                    {/* {riskLevel.label} */}
+                    {riskLevel.label}
                   </span>
                 </div>
               </div>
@@ -930,59 +885,56 @@ const URLScanner = () => {
             {/* Progress Bar */}
             <div style={{ marginTop: "20px", position: "relative", zIndex: 1 }}>
               <div
-                // style={{
-                //   width: "100%",
-                //   height: "8px",
-                //   background: "#f1f5f9",
-                //   borderRadius: "4px",
-                //   overflow: "hidden",
-                // }}
+                style={{
+                  width: "100%",
+                  height: "8px",
+                  background: "#f1f5f9",
+                  borderRadius: "4px",
+                  overflow: "hidden",
+                }}
               >
                 <div
-                  // style={{
-                  //   width: `${result.riskScore}%`,
-                  //   height: "100%",
-                  //   background: `linear-gradient(90deg, ${riskLevel.color}80, ${riskLevel.color})`,
-                  //   borderRadius: "4px",
-                  //   transition: "width 1s ease",
-                  // }}
+                  style={{
+                    width: `${result.riskScore}%`,
+                    height: "100%",
+                    background: `linear-gradient(90deg, ${riskLevel.color}80, ${riskLevel.color})`,
+                    borderRadius: "4px",
+                    transition: "width 1s ease",
+                  }}
                 />
               </div>
               <div
-                // style={{
-                //   display: "flex",
-                //   justifyContent: "space-between",
-                //   marginTop: "8px",
-                //   fontSize: "12px",
-                //   color: "#94a3b8",
-                // }}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: "8px",
+                  fontSize: "12px",
+                  color: "#94a3b8",
+                }}
               >
-                {/* <span>Low Risk (0%)</span>
+                <span>Low Risk (0%)</span>
                 <span>Medium (50%)</span>
-                <span>High Risk (100%)</span> */}
+                <span>High Risk (100%)</span>
               </div>
             </div>
 
             <p
-              // style={{
-              //   marginTop: "16px",
-              //   fontSize: "15px",
-              //   color: riskLevel.color,
-              //   fontWeight: "500",
-              //   position: "relative",
-              //   zIndex: 1,
-              // }}
+              style={{
+                marginTop: "16px",
+                fontSize: "15px",
+                color: riskLevel.color,
+                fontWeight: "500",
+                position: "relative",
+                zIndex: 1,
+              }}
             >
-              {/* {result.riskScore > 70
+              {result.riskScore > 70
                 ? "🚫 HIGH RISK: This website appears to be a phishing site! Do not proceed."
                 : result.riskScore > 30
                 ? "⚠️ MEDIUM RISK: This website shows suspicious characteristics. Exercise caution."
-                : "✅ LOW RISK: This website appears to be safe."} */}
+                : "✅ LOW RISK: This website appears to be safe."}
             </p>
           </div>
-
-          {/* Classification Card */}
-         
 
           {/* Recommendation */}
           <div
@@ -1130,7 +1082,8 @@ const URLScanner = () => {
                   />
                 </div>
 
-                <div style={{ marginBottom: "24px" }}>
+                {/* Commented out - Will be used in future */}
+                {/* <div style={{ marginBottom: "24px" }}>
                   <label
                     style={{
                       display: "block",
@@ -1198,9 +1151,10 @@ const URLScanner = () => {
                       No, inaccurate
                     </button>
                   </div>
-                </div>
+                </div> */}
 
-                <div style={{ marginBottom: "24px" }}>
+                {/* Commented out - Will be used in future */}
+                {/* <div style={{ marginBottom: "24px" }}>
                   <label
                     style={{
                       display: "block",
@@ -1246,7 +1200,7 @@ const URLScanner = () => {
                       </span>
                     )}
                   </div>
-                </div>
+                </div> */}
 
                 <div style={{ marginBottom: "28px" }}>
                   <label
@@ -1260,15 +1214,15 @@ const URLScanner = () => {
                       letterSpacing: "0.5px",
                     }}
                   >
-                    {/* Additional Comments */}
+                    Your Feedback *
                   </label>
-                  {/* <textarea
+                  <textarea
                     rows="4"
                     value={feedback.comments}
                     onChange={(e) =>
                       setFeedback({ ...feedback, comments: e.target.value })
                     }
-                    placeholder="Tell us more about your experience... What could we improve?"
+                    placeholder="Tell us about your experience... What could we improve?"
                     style={{
                       width: "100%",
                       padding: "16px",
@@ -1282,7 +1236,8 @@ const URLScanner = () => {
                     }}
                     onFocus={(e) => (e.target.style.borderColor = "#667eea")}
                     onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
-                  /> */}
+                    required
+                  />
                   <p
                     style={{
                       fontSize: "12px",
@@ -1295,7 +1250,7 @@ const URLScanner = () => {
                   </p>
                 </div>
 
-                {/* <button
+                <button
                   type="submit"
                   disabled={submitting}
                   style={{
@@ -1321,7 +1276,7 @@ const URLScanner = () => {
                   ) : (
                     "Submit Feedback"
                   )}
-                </button> */}
+                </button>
               </form>
             </div>
           )}
@@ -1364,7 +1319,31 @@ const URLScanner = () => {
               >
                 Thank You for Your Feedback!
               </h3>
-              <p style={{ color: "#64748b" }}>
+              {feedbackReply && (
+                <div
+                  style={{
+                    padding: "16px",
+                    background: "#f1f5f9",
+                    borderRadius: "12px",
+                    marginTop: "12px",
+                    maxWidth: "480px",
+                    marginLeft: "auto",
+                    marginRight: "auto",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "14px",
+                      color: "#475569",
+                      fontStyle: "italic",
+                      margin: 0,
+                    }}
+                  >
+                    💬 "{feedbackReply}"
+                  </p>
+                </div>
+              )}
+              <p style={{ color: "#64748b", marginTop: "12px" }}>
                 Your feedback helps us improve our AI models and make the
                 internet safer for everyone.
               </p>
