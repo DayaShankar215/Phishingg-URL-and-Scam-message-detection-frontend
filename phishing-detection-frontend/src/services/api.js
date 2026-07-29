@@ -206,13 +206,10 @@ export const getDashboardStats = async () => {
 
 // ==================== FEEDBACK ENDPOINT ====================
 
-export const submitFeedback = async (scanId, comments) => {
+export const submitFeedback = async (message) => {
   try {
-    // New API format: { "scanId": "...", "message": "..." }
-    const body = { 
-      scanId: scanId,
-      message: comments 
-    };
+    // API expects: { "message": "feedback text" }
+    const body = { message: message };
     const response = await api.post("/feedback", body);
     return response.data;
   } catch (error) {
