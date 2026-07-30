@@ -453,8 +453,8 @@ export default function MessageScannerScreen() {
                 <Ionicons name="chatbubble-ellipses-outline" size={22} color="#f5576c" />
               </View>
               <View>
-                <Text style={[styles.infoTitle, { color: colors.text }]}>Prediction</Text>
-                {/* <Text style={[styles.infoSubtitle, { color: colors.textMuted }]}>AI-Powered Prediction</Text> */}
+                <Text style={[styles.infoTitle, { color: colors.text }]}>Classification</Text>
+                <Text style={[styles.infoSubtitle, { color: colors.textMuted }]}>AI-Powered Prediction</Text>
               </View>
             </View>
             <View style={[styles.infoContent, { backgroundColor: colors.backgroundInput }]}>
@@ -471,7 +471,7 @@ export default function MessageScannerScreen() {
           </View>
 
           {/* Red Flags Card */}
-          {/* <View style={[styles.infoCard, {
+          <View style={[styles.infoCard, {
             backgroundColor: 'white',
             borderColor: colors.border,
           }]}>
@@ -480,7 +480,7 @@ export default function MessageScannerScreen() {
                 <Ionicons name="flag-outline" size={22} color="#fa709a" />
               </View>
               <View>
-                <Text style={[styles.infoTitle, { color: colors.text }]}>Red Flags Detected</Text>
+                <Text style={[styles.infoTitle, { color: colors.text }]}>Analysis Details</Text>
                 <Text style={[styles.infoSubtitle, { color: colors.textMuted }]}>Key Scam Indicators</Text>
               </View>
             </View>
@@ -489,7 +489,7 @@ export default function MessageScannerScreen() {
                 {result.explanation}
               </Text>
             </View>
-          </View> */}
+          </View>
 
           {/* Message Features */}
             {result.features && (

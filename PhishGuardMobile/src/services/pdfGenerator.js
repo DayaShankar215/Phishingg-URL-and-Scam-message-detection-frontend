@@ -4,9 +4,11 @@ import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 import { printToFileAsync } from 'expo-print';
 
+/**
+ * Download PDF from scan data
+ */
 export const downloadPDF = async (scanData, type) => {
   try {
-    // Generate HTML content
     const html = generatePDFHTML(scanData, type);
     
     if (Platform.OS === 'web') {
@@ -27,11 +29,10 @@ export const downloadPDF = async (scanData, type) => {
       const { uri } = await printToFileAsync({
         html: html,
         base64: false,
-        width: 595, // A4 width in points
-        height: 842, // A4 height in points
+        width: 595,
+        height: 842,
       });
 
-      // Share the PDF
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
@@ -42,7 +43,6 @@ export const downloadPDF = async (scanData, type) => {
       return { success: true, uri };
     } catch (printError) {
       console.error('Print Error:', printError);
-      // Fallback: Share as HTML
       const htmlUri = await saveAndShareHTML(html, scanData.reference);
       return { success: true, uri: htmlUri };
     }
@@ -74,6 +74,9 @@ const saveAndShareHTML = async (html, reference) => {
   }
 };
 
+/**
+ * Generate PDF HTML - Replicates web version style
+ */
 const generatePDFHTML = (scanData, type) => {
   const riskScore = getRiskScore(scanData.prediction);
   const riskInfo = getRiskInfo(riskScore);
@@ -88,37 +91,171 @@ const generatePDFHTML = (scanData, type) => {
       <meta charset="UTF-8">
       <title>Security Report</title>
       <style>
+        /* ===== RESET ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, Helvetica, sans-serif; padding: 40px; max-width: 900px; margin: 0 auto; background: #f8fafc; }
-        .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 24px; }
-        .header h1 { margin: 0; font-size: 28px; }
-        .header p { margin: 8px 0 0; opacity: 0.9; }
-        .section { margin: 20px 0; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; }
-        .section h2 { color: #667eea; margin-top: 0; font-size: 18px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; margin-bottom: 12px; }
-        .field { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+        body { 
+          font-family: Arial, Helvetica, sans-serif; 
+          padding: 40px; 
+          max-width: 900px; 
+          margin: 0 auto; 
+          background: #f8fafc; 
+        }
+        .container { 
+          background: white; 
+          padding: 40px; 
+          border-radius: 12px; 
+          box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+        }
+        
+        /* ===== HEADER ===== */
+        .header { 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+          color: white; 
+          padding: 30px; 
+          border-radius: 12px; 
+          text-align: center; 
+          margin-bottom: 24px; 
+        }
+        .header h1 { 
+          margin: 0; 
+          font-size: 28px; 
+          letter-spacing: 1px;
+        }
+        .header p { 
+          margin: 8px 0 0; 
+          opacity: 0.9; 
+          font-size: 14px;
+        }
+        
+        /* ===== SECTIONS ===== */
+        .section { 
+          margin: 20px 0; 
+          padding: 20px; 
+          border: 1px solid #e2e8f0; 
+          border-radius: 12px; 
+        }
+        .section h2 { 
+          color: #667eea; 
+          margin-top: 0; 
+          font-size: 18px; 
+          border-bottom: 2px solid #f1f5f9; 
+          padding-bottom: 10px; 
+          margin-bottom: 12px; 
+        }
+        
+        /* ===== FIELDS ===== */
+        .field { 
+          display: flex; 
+          justify-content: space-between; 
+          padding: 8px 0; 
+          border-bottom: 1px solid #f1f5f9; 
+        }
         .field:last-child { border-bottom: none; }
-        .label { color: #64748b; font-weight: 500; }
-        .value { font-weight: 600; color: #1e293b; word-break: break-all; }
-        .risk-box { padding: 16px; border-radius: 8px; margin: 12px 0; text-align: center; font-weight: bold; font-size: 18px; }
+        .label { 
+          color: #64748b; 
+          font-weight: 500; 
+        }
+        .value { 
+          font-weight: 600; 
+          color: #1e293b; 
+          word-break: break-all; 
+          text-align: right;
+          max-width: 60%;
+        }
+        
+        /* ===== RISK BOX ===== */
+        .risk-box { 
+          padding: 16px; 
+          border-radius: 8px; 
+          margin: 12px 0; 
+          text-align: center; 
+          font-weight: bold; 
+          font-size: 18px; 
+        }
         .risk-high { background: #fee2e2; color: #dc2626; }
         .risk-medium { background: #fef3c7; color: #d97706; }
         .risk-low { background: #dcfce7; color: #16a34a; }
-        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        
+        /* ===== BADGES ===== */
+        .badge { 
+          display: inline-block; 
+          padding: 4px 12px; 
+          border-radius: 20px; 
+          font-size: 12px; 
+          font-weight: 600; 
+        }
         .badge-high { background: #fee2e2; color: #dc2626; }
         .badge-medium { background: #fef3c7; color: #d97706; }
         .badge-low { background: #dcfce7; color: #16a34a; }
-        .progress-bar { width: 100%; height: 10px; background: #f1f5f9; border-radius: 5px; overflow: hidden; margin: 10px 0; }
-        .progress-fill { height: 100%; border-radius: 5px; transition: width 1s ease; background: ${riskInfo.color}; width: ${riskScore}%; }
-        ul { padding-left: 20px; color: #475569; line-height: 1.8; }
+        
+        /* ===== PROGRESS BAR ===== */
+        .progress-bar { 
+          width: 100%; 
+          height: 10px; 
+          background: #f1f5f9; 
+          border-radius: 5px; 
+          overflow: hidden; 
+          margin: 10px 0; 
+        }
+        .progress-fill { 
+          height: 100%; 
+          border-radius: 5px; 
+          transition: width 1s ease; 
+          background: ${riskInfo.color}; 
+          width: ${riskScore}%; 
+        }
+        .progress-labels {
+          display: flex;
+          justify-content: space-between;
+          font-size: 10px;
+          color: #94a3b8;
+          margin-top: 4px;
+        }
+        
+        /* ===== LISTS ===== */
+        ul { 
+          padding-left: 20px; 
+          color: #475569; 
+          line-height: 1.8; 
+        }
         li { margin-bottom: 4px; }
-        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }
-        .risk-score-large { font-size: 48px; font-weight: 800; display: block; }
-        .risk-label { font-size: 18px; font-weight: 600; }
-        .scan-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .detail-item { padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
-        .detail-label { color: #64748b; font-weight: 500; font-size: 13px; }
-        .detail-value { font-weight: 600; color: #1e293b; margin-top: 2px; }
+        
+        /* ===== RISK SCORE DISPLAY ===== */
+        .risk-score-large { 
+          font-size: 48px; 
+          font-weight: 800; 
+          display: block; 
+        }
+        .risk-score-row {
+          display: flex;
+          align-items: baseline;
+          gap: 16px;
+          margin: 8px 0;
+        }
+        .risk-score-value {
+          font-size: 48px;
+          font-weight: 800;
+        }
+        .risk-score-label {
+          font-size: 18px;
+          font-weight: 600;
+        }
+        
+        /* ===== FOOTER ===== */
+        .footer { 
+          text-align: center; 
+          margin-top: 30px; 
+          padding-top: 20px; 
+          border-top: 1px solid #e2e8f0; 
+          color: #94a3b8; 
+          font-size: 12px; 
+        }
+        .footer p:last-child {
+          color: #cbd5e1;
+          margin-top: 4px;
+        }
+        
+        /* ===== RESPONSIVE ===== */
         @media print {
           body { padding: 20px; background: white; }
           .container { box-shadow: none; }
@@ -126,60 +263,114 @@ const generatePDFHTML = (scanData, type) => {
         @media (max-width: 600px) {
           body { padding: 16px; }
           .container { padding: 20px; }
-          .scan-details-grid { grid-template-columns: 1fr; }
-          .field { flex-direction: column; gap: 4px; }
+          .field { flex-direction: column; gap: 4px; align-items: flex-start; }
+          .value { max-width: 100%; text-align: left; }
+          .risk-score-row { flex-wrap: wrap; }
+          .risk-score-value { font-size: 36px; }
         }
       </style>
     </head>
     <body>
       <div class="container">
+        <!-- HEADER -->
         <div class="header">
-          <h1>🛡️ SecureShield Security Report</h1>
-          <p>AI-Powered Threat Detection</p>
+          <h1>🛡️ SECURESHIELD</h1>
+          <p>AI-Powered Security Report</p>
         </div>
   `;
 
-  // Scan Summary
+  // ============================================================
+  // SCAN SUMMARY
+  // ============================================================
   html += `
     <div class="section">
-      <h2>📊 Scan Summary</h2>
-      <div class="field"><span class="label">Report ID:</span><span class="value">${scanData.reference || 'N/A'}</span></div>
-      <div class="field"><span class="label">Type:</span><span class="value">${type === 'url' ? 'URL Scan' : 'Message Scan'}</span></div>
-      <div class="field"><span class="label">Date:</span><span class="value">${new Date().toLocaleString()}</span></div>
-      <div class="field"><span class="label">Risk Score:</span><span class="value" style="color: ${riskInfo.color}; font-size: 24px; font-weight: 800;">${riskScore}%</span></div>
-      <div class="progress-bar"><div class="progress-fill"></div></div>
-      <div class="field"><span class="label">Risk Level:</span><span class="value"><span class="badge ${badgeClass}">${riskInfo.label}</span></span></div>
-      <div class="field"><span class="label">Classification:</span><span class="value">${scanData.prediction || 'Unknown'}</span></div>
+      <h2>📊 SCAN SUMMARY</h2>
+      <div class="field">
+        <span class="label">Report ID:</span>
+        <span class="value">${scanData.reference || 'N/A'}</span>
+      </div>
+      <div class="field">
+        <span class="label">Type:</span>
+        <span class="value">${type === 'url' ? 'URL Scan' : 'Message Scan'}</span>
+      </div>
+      <div class="field">
+        <span class="label">Date:</span>
+        <span class="value">${new Date().toLocaleString()}</span>
+      </div>
+      <div class="field">
+        <span class="label">Risk Score:</span>
+        <span class="value" style="color: ${riskInfo.color}; font-size: 24px; font-weight: 800;">${riskScore}%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill"></div>
+      </div>
+      <div class="progress-labels">
+        <span>Low Risk (0%)</span>
+        <span>Medium (50%)</span>
+        <span>High Risk (100%)</span>
+      </div>
+      <div class="field">
+        <span class="label">Risk Level:</span>
+        <span class="value"><span class="badge ${badgeClass}">${riskInfo.label}</span></span>
+      </div>
+      <div class="field">
+        <span class="label">Classification:</span>
+        <span class="value">${scanData.prediction || 'Unknown'}</span>
+      </div>
       <div class="risk-box ${riskClass}">${riskInfo.message}</div>
     </div>
   `;
 
-  // Scan Details
+  // ============================================================
+  // SCAN DETAILS
+  // ============================================================
   html += `
     <div class="section">
-      <h2>📋 Scan Details</h2>
+      <h2>📋 SCAN DETAILS</h2>
   `;
   
   if (scanData.url) {
-    html += `<div class="field"><span class="label">URL:</span><span class="value">${scanData.url}</span></div>`;
+    html += `
+      <div class="field">
+        <span class="label">URL:</span>
+        <span class="value">${scanData.url}</span>
+      </div>
+    `;
   }
   if (scanData.message) {
-    html += `<div class="field"><span class="label">Message:</span><span class="value">${scanData.message}</span></div>`;
+    html += `
+      <div class="field">
+        <span class="label">Message:</span>
+        <span class="value">${scanData.message}</span>
+      </div>
+    `;
   }
   if (scanData.prediction) {
-    html += `<div class="field"><span class="label">Prediction:</span><span class="value">${scanData.prediction}</span></div>`;
+    html += `
+      <div class="field">
+        <span class="label">Prediction:</span>
+        <span class="value">${scanData.prediction}</span>
+      </div>
+    `;
   }
   if (scanData.scannedAt) {
-    html += `<div class="field"><span class="label">Scanned At:</span><span class="value">${new Date(scanData.scannedAt).toLocaleString()}</span></div>`;
+    html += `
+      <div class="field">
+        <span class="label">Scanned At:</span>
+        <span class="value">${new Date(scanData.scannedAt).toLocaleString()}</span>
+      </div>
+    `;
   }
   
   html += `</div>`;
 
-  // Phishing Reasons
+  // ============================================================
+  // PHISHING REASONS
+  // ============================================================
   if (scanData.phishingReasons && scanData.phishingReasons.length > 0) {
     html += `
       <div class="section">
-        <h2>🚨 Phishing Indicators</h2>
+        <h2>🚨 PHISHING INDICATORS</h2>
         <ul>
     `;
     const reasons = Array.isArray(scanData.phishingReasons) 
@@ -191,11 +382,13 @@ const generatePDFHTML = (scanData, type) => {
     html += `</ul></div>`;
   }
 
-  // Legitimate Reasons
+  // ============================================================
+  // LEGITIMATE REASONS
+  // ============================================================
   if (scanData.legitimateReasons && scanData.legitimateReasons.length > 0) {
     html += `
       <div class="section">
-        <h2>✅ Legitimate Indicators</h2>
+        <h2>✅ LEGITIMATE INDICATORS</h2>
         <ul>
     `;
     const reasons = Array.isArray(scanData.legitimateReasons) 
@@ -207,20 +400,24 @@ const generatePDFHTML = (scanData, type) => {
     html += `</ul></div>`;
   }
 
-  // Conclusion
+  // ============================================================
+  // CONCLUSION
+  // ============================================================
   if (scanData.conclusion) {
     html += `
       <div class="section">
-        <h2>📝 Conclusion</h2>
+        <h2>📝 CONCLUSION</h2>
         <p style="line-height: 1.8; color: #475569;">${scanData.conclusion}</p>
       </div>
     `;
   }
 
-  // Recommendation
+  // ============================================================
+  // RECOMMENDATION
+  // ============================================================
   html += `
     <div class="section">
-      <h2>🛡️ Security Recommendation</h2>
+      <h2>🛡️ SECURITY RECOMMENDATION</h2>
       <div class="risk-box ${riskClass}">
         ${riskScore > 70 
           ? '🚫 DO NOT proceed. Report this immediately. This is a confirmed threat.'
@@ -231,11 +428,13 @@ const generatePDFHTML = (scanData, type) => {
     </div>
   `;
 
-  // Footer
+  // ============================================================
+  // FOOTER
+  // ============================================================
   html += `
         <div class="footer">
           <p>Generated by SecureShield Security System • ${new Date().toLocaleDateString()}</p>
-          <p style="color: #cbd5e1;">This is an automated security report. Please verify information independently.</p>
+          <p>This is an automated security report. Please verify information independently.</p>
         </div>
       </div>
     </body>
@@ -245,6 +444,9 @@ const generatePDFHTML = (scanData, type) => {
   return html;
 };
 
+/**
+ * Get risk score based on prediction
+ */
 const getRiskScore = (prediction) => {
   switch (prediction?.toUpperCase()) {
     case 'PHISHING':
@@ -263,6 +465,9 @@ const getRiskScore = (prediction) => {
   }
 };
 
+/**
+ * Get risk info based on score
+ */
 const getRiskInfo = (score) => {
   if (score > 70) {
     return {

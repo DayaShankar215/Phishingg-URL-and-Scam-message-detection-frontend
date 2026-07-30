@@ -279,7 +279,7 @@ const HistoryScreen = () => {
     if (downloadingId === reference) return;
 
     setDownloadingId(reference);
-    showToast('Generating PDF report...', 'loading');
+    const toastId = showToast('Generating PDF report...', 'loading');
 
     try {
       const scanDetails = await getScanByReference(reference);
@@ -317,31 +317,46 @@ const HistoryScreen = () => {
       'Delete Scan',
       'Are you sure you want to delete this scan? This action cannot be undone.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Cancel', 
+          style: 'cancel',
+          onPress: () => console.log('Delete cancelled')
+        },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             setDeletingId(reference);
+            const toastId = showToast('Deleting scan...', 'loading');
+            
             try {
               const response = await deleteScanByReference(reference);
+              console.log('Delete Response:', response);
+              
               showToast(response?.message || 'Scan deleted successfully!', 'success');
-              setScans((prev) => prev.filter((scan) => scan.reference !== reference));
+              
+              // Remove the scan from local state
+              setScans((prevScans) => prevScans.filter((scan) => scan.reference !== reference));
+              
+              // Refresh history to update stats
               await fetchHistory();
+              
             } catch (error) {
               console.error('Delete Error:', error);
-              if (error.status === 401) {
-                showToast('Please login again to delete scans', 'error');
+              
+              if (error?.status === 401 || error?.status === 403) {
+                showToast('Session expired. Please login again.', 'error');
                 setTimeout(() => logout(), 1500);
               } else {
-                showToast(error.message || 'Failed to delete scan', 'error');
+                showToast(error?.message || 'Failed to delete scan', 'error');
               }
             } finally {
               setDeletingId(null);
             }
           },
         },
-      ]
+      ],
+      { cancelable: false }
     );
   };
 

@@ -760,7 +760,7 @@ const MessageScanner = () => {
                       margin: 0,
                     }}
                   >
-                    Why It Was Flagged
+                   Key Scam Indicators
                   </p>
                 </div>
               </div>
