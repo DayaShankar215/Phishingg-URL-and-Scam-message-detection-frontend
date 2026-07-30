@@ -902,7 +902,7 @@ const MessageScanner = () => {
             </div>
 
             {/* Progress Bar */}
-            <div style={{ marginTop: "20px", position: "relative", zIndex: 1 }}>
+            {/* <div style={{ marginTop: "20px", position: "relative", zIndex: 1 }}>
               <div
                 style={{
                   width: "100%",
@@ -935,9 +935,9 @@ const MessageScanner = () => {
                 <span>Medium (50%)</span>
                 <span>High Risk (100%)</span>
               </div>
-            </div>
+            </div> */}
 
-            <p
+            {/* <p
               style={{
                 marginTop: "16px",
                 fontSize: "15px",
@@ -946,13 +946,13 @@ const MessageScanner = () => {
                 position: "relative",
                 zIndex: 1,
               }}
-            >
-              {result.riskScore > 70
+            > */}
+              {/* {result.riskScore > 70
                 ? "🚨 HIGH RISK: This is likely a scam! Do not respond or click any links."
                 : result.riskScore > 30
                 ? "⚠️ MEDIUM RISK: This message shows scam indicators. Exercise caution."
-                : "✅ LOW RISK: This message appears legitimate."}
-            </p>
+                : "✅ LOW RISK: This message appears legitimate."} */}
+            {/* </p> */}
           </div>
 
           {/* Recommendation */}

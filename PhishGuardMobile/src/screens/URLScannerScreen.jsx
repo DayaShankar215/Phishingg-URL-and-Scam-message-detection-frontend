@@ -416,7 +416,7 @@ export default function URLScannerScreen() {
                 <Ionicons name="warning-outline" size={22} color="#f5576c" />
               </View>
               <View>
-                <Text style={[styles.infoTitle, { color: colors.text }]}>Why It Was Flagged</Text>
+                <Text style={[styles.infoTitle, { color: colors.text }]}>Analysis Details</Text>
                 <Text style={[styles.infoSubtitle, { color: colors.textMuted }]}>Key Indicators</Text>
               </View>
             </View>

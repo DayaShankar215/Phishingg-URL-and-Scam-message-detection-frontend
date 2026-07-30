@@ -741,7 +741,7 @@ const URLScanner = () => {
                       margin: 0,
                     }}
                   >
-                    Why It Was Flagged
+                    Key Indicators
                   </p>
                 </div>
               </div>
@@ -777,7 +777,7 @@ const URLScanner = () => {
                 zIndex: 1,
               }}
             >
-              <div>
+              {/* <div>
                 <div
                   style={{
                     display: "flex",
@@ -827,7 +827,7 @@ const URLScanner = () => {
                     {riskLevel.label}
                   </span>
                 </div>
-              </div>
+              </div> */}
 
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                 <button
@@ -883,7 +883,7 @@ const URLScanner = () => {
             </div>
 
             {/* Progress Bar */}
-            <div style={{ marginTop: "20px", position: "relative", zIndex: 1 }}>
+            {/* <div style={{ marginTop: "20px", position: "relative", zIndex: 1 }}>
               <div
                 style={{
                   width: "100%",
@@ -916,7 +916,7 @@ const URLScanner = () => {
                 <span>Medium (50%)</span>
                 <span>High Risk (100%)</span>
               </div>
-            </div>
+            </div> */}
 
             <p
               style={{
@@ -928,11 +928,11 @@ const URLScanner = () => {
                 zIndex: 1,
               }}
             >
-              {result.riskScore > 70
+              {/* {result.riskScore > 70
                 ? "🚫 HIGH RISK: This website appears to be a phishing site! Do not proceed."
                 : result.riskScore > 30
                 ? "⚠️ MEDIUM RISK: This website shows suspicious characteristics. Exercise caution."
-                : "✅ LOW RISK: This website appears to be safe."}
+                : "✅ LOW RISK: This website appears to be safe."} */}
             </p>
           </div>
 
