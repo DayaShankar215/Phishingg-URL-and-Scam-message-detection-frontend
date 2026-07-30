@@ -1,8 +1,9 @@
+// context/GuestContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { v4 as uuidv4 } from 'uuid';
 
-const GUEST_STORAGE_KEY = "guest_data";
+const GUEST_STORAGE_KEY = 'guest_data';
 
 const GuestContext = createContext();
 
@@ -47,16 +48,20 @@ export const GuestProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (isInitialized && sessionId !== null) {
-      try {
-        AsyncStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({
-          sessionId,
-          scans,
-        }));
-      } catch (error) {
-        console.error("Failed to save guest data:", error);
+    const saveGuestData = async () => {
+      if (isInitialized && sessionId !== null) {
+        try {
+          await AsyncStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({
+            sessionId,
+            scans,
+          }));
+        } catch (error) {
+          console.error("Failed to save guest data:", error);
+        }
       }
-    }
+    };
+
+    saveGuestData();
   }, [scans, sessionId, isInitialized]);
 
   const addScan = (scan) => {
@@ -70,14 +75,8 @@ export const GuestProvider = ({ children }) => {
     return newScan;
   };
 
-  const clearScans = async () => {
+  const clearScans = () => {
     setScans([]);
-    if (sessionId) {
-      await AsyncStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({
-        sessionId,
-        scans: [],
-      }));
-    }
   };
 
   const getScans = () => scans;
@@ -96,7 +95,7 @@ export const GuestProvider = ({ children }) => {
 
   const migrateToUser = async () => {
     const guestScans = [...scans];
-    await clearScans();
+    clearScans();
     return guestScans;
   };
 
@@ -118,3 +117,5 @@ export const GuestProvider = ({ children }) => {
     </GuestContext.Provider>
   );
 };
+
+export default GuestProvider;

@@ -1,3 +1,4 @@
+// components/AuthModal.jsx
 import React, { useState } from 'react';
 import {
   View,
@@ -24,7 +25,6 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const { register, login } = useAuth();
 
-  // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -136,7 +136,6 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onSuccess }) => {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
               >
-                {/* Close Button */}
                 <TouchableOpacity
                   style={[styles.closeBtn, { backgroundColor: colors.backgroundInput }]}
                   onPress={handleClose}
@@ -144,7 +143,6 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onSuccess }) => {
                   <Ionicons name="close" size={20} color={colors.textMuted} />
                 </TouchableOpacity>
 
-                {/* Logo */}
                 <View style={styles.logoContainer}>
                   <View
                     style={[
@@ -164,7 +162,6 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onSuccess }) => {
                   </Text>
                 </View>
 
-                {/* Form */}
                 <View style={styles.formContainer}>
                   {mode === 'register' && (
                     <>
@@ -335,44 +332,12 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onSuccess }) => {
                   </TouchableOpacity>
                 </View>
 
-                {/* Divider */}
                 <View style={styles.dividerContainer}>
                   <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
                   <Text style={[styles.dividerText, { color: colors.textMuted }]}>OR</Text>
                   <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
                 </View>
 
-                {/* Social Buttons */}
-                {/* <View style={styles.socialContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.socialBtn,
-                      {
-                        borderColor: colors.border,
-                        backgroundColor: colors.backgroundInput,
-                      },
-                    ]}
-                    // Google auth would go here
-                  >
-                    <Ionicons name="logo-google" size={20} color="#ea4335" />
-                    <Text style={[styles.socialBtnText, { color: colors.text }]}>Google</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.socialBtn,
-                      {
-                        borderColor: colors.border,
-                        backgroundColor: colors.backgroundInput,
-                      },
-                    ]}
-                    // GitHub auth would go here
-                  >
-                    <Ionicons name="logo-github" size={20} color={colors.text} />
-                    <Text style={[styles.socialBtnText, { color: colors.text }]}>GitHub</Text>
-                  </TouchableOpacity>
-                </View> */}
-
-                {/* Switch Mode */}
                 <View style={styles.switchContainer}>
                   <Text style={[styles.switchText, { color: colors.textMuted }]}>
                     {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
@@ -533,25 +498,6 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     fontSize: 12,
-    fontWeight: '500',
-  },
-  socialContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  socialBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 2,
-  },
-  socialBtnText: {
-    fontSize: 14,
     fontWeight: '500',
   },
   switchContainer: {

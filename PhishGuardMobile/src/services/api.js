@@ -13,7 +13,6 @@ const api = axios.create({
   timeout: 60000,
 });
 
-// --- Request Interceptor ---
 api.interceptors.request.use(
   async (config) => {
     config.headers["ngrok-skip-browser-warning"] = "true";
@@ -27,12 +26,9 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// --- Response Interceptor ---
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -242,8 +238,6 @@ export const getDashboardStats = async () => {
     throw error.response?.data || { message: "Failed to fetch dashboard statistics" };
   }
 };
-
-// ==================== FEEDBACK ENDPOINT ====================
 
 export const submitFeedback = async (message) => {
   try {

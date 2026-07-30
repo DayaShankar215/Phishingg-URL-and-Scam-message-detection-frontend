@@ -1,3 +1,4 @@
+// context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   register as apiRegister, 
@@ -97,3 +98,5 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+export default AuthProvider;

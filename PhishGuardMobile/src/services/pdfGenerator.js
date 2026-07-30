@@ -1,43 +1,86 @@
 // services/pdfGenerator.js
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
+import { printToFileAsync } from 'expo-print';
 
-/**
- * Download PDF from scan data (JSON format) - Same as Web
- */
-export const downloadPDF = (scanData, type) => {
-  const doc = generatePDFReport(scanData, type);
-  const fileName = `security_report_${scanData.reference || Date.now()}.html`;
-  
-  // For Web
-  if (Platform.OS === 'web') {
-    const blob = new Blob([doc], { type: 'text/html' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    return { success: true };
+export const downloadPDF = async (scanData, type) => {
+  try {
+    // Generate HTML content
+    const html = generatePDFHTML(scanData, type);
+    
+    if (Platform.OS === 'web') {
+      // Web: Download as HTML file
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `security_report_${scanData.reference || Date.now()}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return { success: true };
+    }
+
+    // Mobile: Use expo-print to generate PDF
+    try {
+      const { uri } = await printToFileAsync({
+        html: html,
+        base64: false,
+        width: 595, // A4 width in points
+        height: 842, // A4 height in points
+      });
+
+      // Share the PDF
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Security Report',
+        });
+      }
+
+      return { success: true, uri };
+    } catch (printError) {
+      console.error('Print Error:', printError);
+      // Fallback: Share as HTML
+      const htmlUri = await saveAndShareHTML(html, scanData.reference);
+      return { success: true, uri: htmlUri };
+    }
+  } catch (error) {
+    console.error('PDF Generation Error:', error);
+    throw new Error('Failed to generate PDF report: ' + error.message);
   }
-  
-  // For Mobile - Share as HTML
-  return sharePDFAsHTML(doc, fileName);
 };
 
-/**
- * Generate clean PDF report from scan data - Same as Web Version
- */
-const generatePDFReport = (scanData, type) => {
+const saveAndShareHTML = async (html, reference) => {
+  try {
+    const fileName = `security_report_${reference || Date.now()}.html`;
+    const fileUri = FileSystem.documentDirectory + fileName;
+    
+    await FileSystem.writeAsStringAsync(fileUri, html, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'text/html',
+        dialogTitle: 'Security Report',
+      });
+    }
+    return fileUri;
+  } catch (error) {
+    console.error('HTML Share Error:', error);
+    throw error;
+  }
+};
+
+const generatePDFHTML = (scanData, type) => {
   const riskScore = getRiskScore(scanData.prediction);
   const riskInfo = getRiskInfo(riskScore);
   
   const riskClass = riskScore > 70 ? 'risk-high' : riskScore > 30 ? 'risk-medium' : 'risk-low';
   const badgeClass = riskScore > 70 ? 'badge-high' : riskScore > 30 ? 'badge-medium' : 'badge-low';
 
-  // Build HTML exactly like web version
   let html = `
     <!DOCTYPE html>
     <html>
@@ -45,18 +88,19 @@ const generatePDFReport = (scanData, type) => {
       <meta charset="UTF-8">
       <title>Security Report</title>
       <style>
-        body { font-family: Arial, sans-serif; padding: 40px; max-width: 900px; margin: 0 auto; background: #f8fafc; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; padding: 40px; max-width: 900px; margin: 0 auto; background: #f8fafc; }
         .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 24px; }
         .header h1 { margin: 0; font-size: 28px; }
         .header p { margin: 8px 0 0; opacity: 0.9; }
         .section { margin: 20px 0; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; }
-        .section h2 { color: #667eea; margin-top: 0; font-size: 18px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+        .section h2 { color: #667eea; margin-top: 0; font-size: 18px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; margin-bottom: 12px; }
         .field { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
         .field:last-child { border-bottom: none; }
         .label { color: #64748b; font-weight: 500; }
         .value { font-weight: 600; color: #1e293b; word-break: break-all; }
-        .risk-box { padding: 16px; border-radius: 8px; margin: 16px 0; text-align: center; font-weight: bold; font-size: 18px; }
+        .risk-box { padding: 16px; border-radius: 8px; margin: 12px 0; text-align: center; font-weight: bold; font-size: 18px; }
         .risk-high { background: #fee2e2; color: #dc2626; }
         .risk-medium { background: #fef3c7; color: #d97706; }
         .risk-low { background: #dcfce7; color: #16a34a; }
@@ -66,12 +110,25 @@ const generatePDFReport = (scanData, type) => {
         .badge-low { background: #dcfce7; color: #16a34a; }
         .progress-bar { width: 100%; height: 10px; background: #f1f5f9; border-radius: 5px; overflow: hidden; margin: 10px 0; }
         .progress-fill { height: 100%; border-radius: 5px; transition: width 1s ease; background: ${riskInfo.color}; width: ${riskScore}%; }
-        .url-list { background: #f8fafc; padding: 10px; border-radius: 8px; margin: 10px 0; }
-        .url-item { padding: 8px; font-family: monospace; color: #dc2626; border-bottom: 1px solid #e2e8f0; }
-        .url-item:last-child { border-bottom: none; }
-        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }
         ul { padding-left: 20px; color: #475569; line-height: 1.8; }
         li { margin-bottom: 4px; }
+        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }
+        .risk-score-large { font-size: 48px; font-weight: 800; display: block; }
+        .risk-label { font-size: 18px; font-weight: 600; }
+        .scan-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .detail-item { padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+        .detail-label { color: #64748b; font-weight: 500; font-size: 13px; }
+        .detail-value { font-weight: 600; color: #1e293b; margin-top: 2px; }
+        @media print {
+          body { padding: 20px; background: white; }
+          .container { box-shadow: none; }
+        }
+        @media (max-width: 600px) {
+          body { padding: 16px; }
+          .container { padding: 20px; }
+          .scan-details-grid { grid-template-columns: 1fr; }
+          .field { flex-direction: column; gap: 4px; }
+        }
       </style>
     </head>
     <body>
@@ -89,7 +146,7 @@ const generatePDFReport = (scanData, type) => {
       <div class="field"><span class="label">Report ID:</span><span class="value">${scanData.reference || 'N/A'}</span></div>
       <div class="field"><span class="label">Type:</span><span class="value">${type === 'url' ? 'URL Scan' : 'Message Scan'}</span></div>
       <div class="field"><span class="label">Date:</span><span class="value">${new Date().toLocaleString()}</span></div>
-      <div class="field"><span class="label">Risk Score:</span><span class="value" style="color: ${riskInfo.color}; font-size: 24px;">${riskScore}%</span></div>
+      <div class="field"><span class="label">Risk Score:</span><span class="value" style="color: ${riskInfo.color}; font-size: 24px; font-weight: 800;">${riskScore}%</span></div>
       <div class="progress-bar"><div class="progress-fill"></div></div>
       <div class="field"><span class="label">Risk Level:</span><span class="value"><span class="badge ${badgeClass}">${riskInfo.label}</span></span></div>
       <div class="field"><span class="label">Classification:</span><span class="value">${scanData.prediction || 'Unknown'}</span></div>
@@ -108,6 +165,12 @@ const generatePDFReport = (scanData, type) => {
   }
   if (scanData.message) {
     html += `<div class="field"><span class="label">Message:</span><span class="value">${scanData.message}</span></div>`;
+  }
+  if (scanData.prediction) {
+    html += `<div class="field"><span class="label">Prediction:</span><span class="value">${scanData.prediction}</span></div>`;
+  }
+  if (scanData.scannedAt) {
+    html += `<div class="field"><span class="label">Scanned At:</span><span class="value">${new Date(scanData.scannedAt).toLocaleString()}</span></div>`;
   }
   
   html += `</div>`;
@@ -182,36 +245,6 @@ const generatePDFReport = (scanData, type) => {
   return html;
 };
 
-/**
- * Share PDF as HTML on mobile - Using legacy API to avoid deprecation warning
- */
-const sharePDFAsHTML = async (htmlContent, fileName) => {
-  try {
-    const docDir = FileSystem.documentDirectory;
-    const fileUri = docDir + fileName;
-    
-    // Using writeAsStringAsync from legacy import
-    await FileSystem.writeAsStringAsync(fileUri, htmlContent, {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
-    
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(fileUri, {
-        mimeType: 'text/html',
-        dialogTitle: 'Security Report',
-      });
-    }
-    return { success: true, fileUri };
-  } catch (error) {
-    console.error('PDF Sharing Error:', error);
-    // Fallback: If sharing fails, at least the file is saved
-    return { success: false, error: error.message };
-  }
-};
-
-/**
- * Get risk score based on prediction - Same as Web
- */
 const getRiskScore = (prediction) => {
   switch (prediction?.toUpperCase()) {
     case 'PHISHING':
@@ -230,9 +263,6 @@ const getRiskScore = (prediction) => {
   }
 };
 
-/**
- * Get risk info based on score - Same as Web
- */
 const getRiskInfo = (score) => {
   if (score > 70) {
     return {
@@ -255,6 +285,4 @@ const getRiskInfo = (score) => {
   }
 };
 
-export default {
-  downloadPDF,
-};
+export default { downloadPDF };

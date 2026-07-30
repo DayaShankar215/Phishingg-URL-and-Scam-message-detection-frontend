@@ -1,3 +1,4 @@
+// components/Navbar.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, Animated, 
@@ -69,9 +70,16 @@ const Navbar = () => {
   const getIconName = (item) => isActive(item.route) ? item.activeIcon : item.icon;
 
   const handleAuth = async () => {
-    // ✅ FIX: Validate password match
     if (authMode === 'register' && password !== confirmPassword) {
       showToast('Passwords do not match', 'error');
+      return;
+    }
+    if (authMode === 'register' && password.length < 6) {
+      showToast('Password must be at least 6 characters', 'error');
+      return;
+    }
+    if (authMode === 'register' && !firstName.trim()) {
+      showToast('Please enter your first name', 'error');
       return;
     }
 
@@ -98,6 +106,7 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     await logout();
+    navigation.navigate('Dashboard');
   };
 
   return (
@@ -143,11 +152,16 @@ const Navbar = () => {
               </>
             ) : (
               <View style={styles.userContainer}>
-                <View style={[styles.userAvatar, { backgroundColor: colors.primary[600] }]}>
-                  <Text style={styles.userAvatarText}>
-                    {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U'}
-                  </Text>
-                </View>
+                <TouchableOpacity
+                  style={styles.userAvatar}
+                  onPress={() => navigation.navigate('Profile')}
+                >
+                  <View style={[styles.avatarCircle, { backgroundColor: colors.primary[600] }]}>
+                    <Text style={styles.userAvatarText}>
+                      {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={handleLogout}>
                   <Ionicons name="log-out-outline" size={22} color={colors.text} />
                 </TouchableOpacity>
@@ -234,6 +248,20 @@ const Navbar = () => {
               )}
             </TouchableOpacity>
           ))}
+          
+          {/* Profile link in menu */}
+          {isAuthenticated && (
+            <TouchableOpacity
+              style={[styles.menuItem, { marginTop: 8 }]}
+              onPress={() => { navigateTo('Profile'); }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuItemIcon, { backgroundColor: colors.backgroundInput }]}>
+                <Ionicons name="person-outline" size={22} color={colors.textMuted} />
+              </View>
+              <Text style={[styles.menuItemText, { color: colors.text }]}>Profile</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </Animated.View>
 
@@ -394,15 +422,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   userAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    padding: 2,
+  },
+  avatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   userAvatarText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   authButton: {

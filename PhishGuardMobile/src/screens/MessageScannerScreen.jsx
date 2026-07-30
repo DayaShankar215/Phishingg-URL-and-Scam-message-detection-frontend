@@ -359,7 +359,7 @@ export default function MessageScannerScreen() {
                     {riskLevel.badge}
                   </Text>
                 </View>
-                <Text style={styles.riskLabel}>Scam Assessment</Text>
+                  {/* <Text style={styles.riskLabel}>Scam Assessment</Text> */}
                 {result.reference && (
                   <Text style={[styles.riskRef, { color: colors.textMuted }]}>
                     Ref: {result.reference}
@@ -368,16 +368,16 @@ export default function MessageScannerScreen() {
               </View>
             </View>
 
-            <View style={styles.riskScoreRow}>
+            {/* <View style={styles.riskScoreRow}>
               <Text style={[styles.riskScoreValue, { color: riskLevel.color }]}>
                 {Math.round(result.riskScore)}%
               </Text>
               <Text style={[styles.riskScoreLabel, { color: riskLevel.color }]}>
                 {riskLevel.label}
               </Text>
-            </View>
+            </View> */}
 
-            <View style={styles.progressContainer}>
+            {/* <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
                 <View style={[styles.progressFill, {
                   width: `${Math.min(result.riskScore, 100)}%`,
@@ -389,15 +389,15 @@ export default function MessageScannerScreen() {
                 <Text style={styles.progressLabel}>Suspicious</Text>
                 <Text style={styles.progressLabel}>Dangerous</Text>
               </View>
-            </View>
+            </View> */}
 
-            <Text style={[styles.riskMessage, { color: riskLevel.color }]}>
+            {/* <Text style={[styles.riskMessage, { color: riskLevel.color }]}>
               {result.riskScore > 70
                 ? '🚨 HIGH RISK: This is likely a scam! Do not respond or click any links.'
                 : result.riskScore > 30
                   ? '⚠️ MEDIUM RISK: This message shows scam indicators. Exercise caution.'
                   : '✅ LOW RISK: This message appears legitimate.'}
-            </Text>
+            </Text> */}
 
             <TouchableOpacity
               style={[styles.downloadButton, {
@@ -453,8 +453,8 @@ export default function MessageScannerScreen() {
                 <Ionicons name="chatbubble-ellipses-outline" size={22} color="#f5576c" />
               </View>
               <View>
-                <Text style={[styles.infoTitle, { color: colors.text }]}>AI Classification</Text>
-                <Text style={[styles.infoSubtitle, { color: colors.textMuted }]}>AI-Powered Prediction</Text>
+                <Text style={[styles.infoTitle, { color: colors.text }]}>Prediction</Text>
+                {/* <Text style={[styles.infoSubtitle, { color: colors.textMuted }]}>AI-Powered Prediction</Text> */}
               </View>
             </View>
             <View style={[styles.infoContent, { backgroundColor: colors.backgroundInput }]}>
@@ -462,16 +462,16 @@ export default function MessageScannerScreen() {
                 {result.prediction || result.classification}
               </Text>
             </View>
-            <View style={styles.confidenceBadge}>
+            {/* <View style={styles.confidenceBadge}>
               <Ionicons name="checkmark-circle" size={16} color={riskLevel.color} />
               <Text style={[styles.confidenceText, { color: riskLevel.color }]}>
                 Confidence: {((result.confidence || 0.5) * 100).toFixed(1)}%
               </Text>
-            </View>
+            </View> */}
           </View>
 
           {/* Red Flags Card */}
-          <View style={[styles.infoCard, {
+          {/* <View style={[styles.infoCard, {
             backgroundColor: 'white',
             borderColor: colors.border,
           }]}>
@@ -489,128 +489,129 @@ export default function MessageScannerScreen() {
                 {result.explanation}
               </Text>
             </View>
-          </View>
+          </View> */}
 
           {/* Message Features */}
-          {result.features && (
-            <View style={[styles.featuresCard, {
-              backgroundColor: 'white',
-              borderColor: colors.border,
-            }]}>
-              <View style={styles.featuresHeader}>
-                <View style={[styles.featuresIcon, { backgroundColor: '#06b6d420' }]}>
-                  <Ionicons name="stats-chart-outline" size={22} color="#06b6d4" />
-                </View>
-                <View>
-                  <Text style={[styles.featuresTitle, { color: colors.text }]}>Message Analysis Details</Text>
-                  <Text style={[styles.featuresSubtitle, { color: colors.textMuted }]}>Technical Message Features</Text>
-                </View>
-              </View>
+            {result.features && (
+              <View style={[styles.featuresCard, {
+                backgroundColor: 'white',
+                borderColor: colors.border,
+              }
+              ]}>
+                {/* <View style={styles.featuresHeader}> */}
+                  {/* <View style={[styles.featuresIcon, { backgroundColor: '#06b6d420' }]}>
+                    <Ionicons name="stats-chart-outline" size={22} color="#06b6d4" />
+                  </View> */}
+                  {/* <View>
+                    <Text style={[styles.featuresTitle, { color: colors.text }]}>Message Analysis Details</Text>
+                    <Text style={[styles.featuresSubtitle, { color: colors.textMuted }]}>Technical Message Features</Text>
+                  </View> */}
+                {/* </View> */}
 
-              <View style={styles.featuresGrid}>
-                <View style={[styles.featureItem, {
-                  backgroundColor: colors.backgroundInput,
-                  borderColor: colors.border,
-                }]}>
-                  <View style={[styles.featureItemIcon, { backgroundColor: '#0ea5e920' }]}>
-                    <Ionicons name="text-outline" size={18} color="#0ea5e9" />
-                  </View>
-                  <View style={styles.featureItemContent}>
-                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Message Length</Text>
-                    <Text style={[styles.featureItemValue, { color: colors.text }]}>{result.features.length || 0} chars</Text>
-                  </View>
-                </View>
-
-                <View style={[styles.featureItem, {
-                  backgroundColor: colors.backgroundInput,
-                  borderColor: colors.border,
-                }]}>
-                  <View style={[styles.featureItemIcon, { backgroundColor: '#f59e0b20' }]}>
-                    <Ionicons name="trending-up-outline" size={18} color="#f59e0b" />
-                  </View>
-                  <View style={styles.featureItemContent}>
-                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Uppercase Ratio</Text>
-                    <Text style={[styles.featureItemValue, { color: colors.text }]}>
-                      {((result.features.uppercaseRatio || 0) * 100).toFixed(1)}%
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={[styles.featureItem, {
-                  backgroundColor: colors.backgroundInput,
-                  borderColor: result.features.hasURL ? '#fca5a5' : '#6ee7b7',
-                }]}>
-                  <View style={[styles.featureItemIcon, {
-                    backgroundColor: result.features.hasURL ? '#ef444420' : '#10b98120'
-                  }]}>
-                    <Ionicons name="link-outline" size={18} color={result.features.hasURL ? '#ef4444' : '#10b981'} />
-                  </View>
-                  <View style={styles.featureItemContent}>
-                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Contains URL</Text>
-                    <Text style={[styles.featureItemValue, {
-                      color: result.features.hasURL ? '#ef4444' : '#10b981'
+                {/* <View style={styles.featuresGrid}> */}
+                    {/* <View style={[styles.featureItem, {
+                      backgroundColor: colors.backgroundInput,
+                      borderColor: colors.border,
                     }]}>
-                      {result.features.hasURL ? '⚠️ Yes' : '✓ No'}
-                    </Text>
-                  </View>
-                </View>
+                      <View style={[styles.featureItemIcon, { backgroundColor: '#0ea5e920' }]}>
+                        <Ionicons name="text-outline" size={18} color="#0ea5e9" />
+                      </View>
+                      <View style={styles.featureItemContent}>
+                        <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Message Length</Text>
+                        <Text style={[styles.featureItemValue, { color: colors.text }]}>{result.features.length || 0} chars</Text>
+                      </View>
+                    </View> */}
 
-                <View style={[styles.featureItem, {
-                  backgroundColor: colors.backgroundInput,
-                  borderColor: result.features.hasPhone ? '#fca5a5' : '#6ee7b7',
-                }]}>
-                  <View style={[styles.featureItemIcon, {
-                    backgroundColor: result.features.hasPhone ? '#ef444420' : '#10b98120'
+                  {/* <View style={[styles.featureItem, {
+                    backgroundColor: colors.backgroundInput,
+                    borderColor: colors.border,
+                  }]}> */}
+                    {/* <View style={[styles.featureItemIcon, { backgroundColor: '#f59e0b20' }]}>
+                      <Ionicons name="trending-up-outline" size={18} color="#f59e0b" />
+                    </View> */}
+                    {/* <View style={styles.featureItemContent}>
+                      <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Uppercase Ratio</Text>
+                      <Text style={[styles.featureItemValue, { color: colors.text }]}>
+                        {((result.features.uppercaseRatio || 0) * 100).toFixed(1)}%
+                      </Text>
+                    </View> */}
+                  {/* </View> */}
+
+                  {/* <View style={[styles.featureItem, {
+                    backgroundColor: colors.backgroundInput,
+                    borderColor: result.features.hasURL ? '#fca5a5' : '#6ee7b7',
                   }]}>
-                    <Ionicons name="call-outline" size={18} color={result.features.hasPhone ? '#ef4444' : '#10b981'} />
-                  </View>
-                  <View style={styles.featureItemContent}>
-                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Contains Phone</Text>
-                    <Text style={[styles.featureItemValue, {
-                      color: result.features.hasPhone ? '#ef4444' : '#10b981'
+                    <View style={[styles.featureItemIcon, {
+                      backgroundColor: result.features.hasURL ? '#ef444420' : '#10b98120'
                     }]}>
-                      {result.features.hasPhone ? '⚠️ Yes' : '✓ No'}
-                    </Text>
-                  </View>
-                </View>
+                      <Ionicons name="link-outline" size={18} color={result.features.hasURL ? '#ef4444' : '#10b981'} />
+                    </View>
+                    <View style={styles.featureItemContent}>
+                      <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Contains URL</Text>
+                      <Text style={[styles.featureItemValue, {
+                        color: result.features.hasURL ? '#ef4444' : '#10b981'
+                      }]}>
+                        {result.features.hasURL ? '⚠️ Yes' : '✓ No'}
+                      </Text>
+                    </View>
+                  </View> */}
 
-                <View style={[styles.featureItem, {
-                  backgroundColor: colors.backgroundInput,
-                  borderColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#fca5a5' : '#6ee7b7',
-                }]}>
-                  <View style={[styles.featureItemIcon, {
-                    backgroundColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#ef444420' : '#10b98120'
+                  {/* <View style={[styles.featureItem, {
+                    backgroundColor: colors.backgroundInput,
+                    borderColor: result.features.hasPhone ? '#fca5a5' : '#6ee7b7',
                   }]}>
-                    <Ionicons name="warning-outline" size={18} color={(result.features.suspiciousKeywordCount || 0) > 0 ? '#ef4444' : '#10b981'} />
-                  </View>
-                  <View style={styles.featureItemContent}>
-                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Suspicious Keywords</Text>
-                    <Text style={[styles.featureItemValue, { color: colors.text }]}>
-                      {result.features.suspiciousKeywordCount || 0} found
-                    </Text>
-                  </View>
-                </View>
+                    <View style={[styles.featureItemIcon, {
+                      backgroundColor: result.features.hasPhone ? '#ef444420' : '#10b98120'
+                    }]}>
+                      <Ionicons name="call-outline" size={18} color={result.features.hasPhone ? '#ef4444' : '#10b981'} />
+                    </View>
+                    <View style={styles.featureItemContent}>
+                      <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Contains Phone</Text>
+                      <Text style={[styles.featureItemValue, {
+                        color: result.features.hasPhone ? '#ef4444' : '#10b981'
+                      }]}>
+                        {result.features.hasPhone ? '⚠️ Yes' : '✓ No'}
+                      </Text>
+                    </View>
+                  </View> */}
 
-                <View style={[styles.featureItem, {
-                  backgroundColor: colors.backgroundInput,
-                  borderColor: colors.border,
-                }]}>
-                  <View style={[styles.featureItemIcon, { backgroundColor: '#8b5cf620' }]}>
-                    <Ionicons name="at-outline" size={18} color="#8b5cf6" />
-                  </View>
-                  <View style={styles.featureItemContent}>
-                    <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Special Symbols</Text>
-                    <Text style={[styles.featureItemValue, { color: colors.text }]}>
-                      {result.features.specialCharCount || 0}
-                    </Text>
-                  </View>
+                  {/* <View style={[styles.featureItem, {
+                    backgroundColor: colors.backgroundInput,
+                    borderColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#fca5a5' : '#6ee7b7',
+                  }]}>
+                    <View style={[styles.featureItemIcon, {
+                      backgroundColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#ef444420' : '#10b98120'
+                    }]}>
+                      <Ionicons name="warning-outline" size={18} color={(result.features.suspiciousKeywordCount || 0) > 0 ? '#ef4444' : '#10b981'} />
+                    </View>
+                    <View style={styles.featureItemContent}>
+                      <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Suspicious Keywords</Text>
+                      <Text style={[styles.featureItemValue, { color: colors.text }]}>
+                        {result.features.suspiciousKeywordCount || 0} found
+                      </Text>
+                    </View>
+                  </View> */}
+
+                  {/* <View style={[styles.featureItem, {
+                    backgroundColor: colors.backgroundInput,
+                    borderColor: colors.border,
+                  }]}>
+                    <View style={[styles.featureItemIcon, { backgroundColor: '#8b5cf620' }]}>
+                      <Ionicons name="at-outline" size={18} color="#8b5cf6" />
+                    </View>
+                    <View style={styles.featureItemContent}>
+                      <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Special Symbols</Text>
+                      <Text style={[styles.featureItemValue, { color: colors.text }]}>
+                        {result.features.specialCharCount || 0}
+                      </Text>
+                    </View>
+                  </View> */}
                 </View>
-              </View>
-            </View>
-          )}
+              // </View>
+            )}
 
           {/* Extracted URLs */}
-          {result.extractedUrls && result.extractedUrls.length > 0 && (
+          {/* {result.extractedUrls && result.extractedUrls.length > 0 && (
             <View style={[styles.urlsCard, {
               backgroundColor: 'white',
               borderColor: '#fcd34d',
@@ -641,7 +642,7 @@ export default function MessageScannerScreen() {
                 These URLs have been automatically analyzed and contributed to the risk score.
               </Text>
             </View>
-          )}
+          )} */}
 
           {/* Recommendation */}
           <View style={[styles.recommendationCard, {

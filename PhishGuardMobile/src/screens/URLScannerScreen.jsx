@@ -99,7 +99,7 @@ export default function URLScannerScreen() {
         prediction: prediction,
         classification: prediction || 'UNKNOWN',
         riskScore: riskScore,
-        confidence: 0.85,
+        // confidence: 0.85,
         explanation: response.conclusion || 'Analysis completed',
         result: resultType,
         scannedAt: response.scannedAt || new Date().toISOString(),
@@ -328,36 +328,36 @@ export default function URLScannerScreen() {
               </View>
             </View>
 
-            <View style={styles.riskScoreRow}>
+            {/* <View style={styles.riskScoreRow}>
               <Text style={[styles.riskScoreValue, { color: riskLevel.color }]}>
                 {Math.round(result.riskScore)}%
               </Text>
               <Text style={[styles.riskScoreLabel, { color: riskLevel.color }]}>
                 {riskLevel.label}
               </Text>
-            </View>
+            </View> */}
 
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBar}>
+            {/* <View style={styles.progressContainer}> */}
+              {/* <View style={styles.progressBar}>
                 <View style={[styles.progressFill, {
                   width: `${Math.min(result.riskScore, 100)}%`,
                   backgroundColor: riskLevel.color,
                 }]} />
-              </View>
-              <View style={styles.progressLabels}>
-                <Text style={styles.progressLabel}>Low Risk (0%)</Text>
+              </View> */}
+              {/* <View style={styles.progressLabels}> */}
+                {/* <Text style={styles.progressLabel}>Low Risk (0%)</Text>
                 <Text style={styles.progressLabel}>Medium (50%)</Text>
-                <Text style={styles.progressLabel}>High Risk (100%)</Text>
-              </View>
-            </View>
+                <Text style={styles.progressLabel}>High Risk (100%)</Text> */}
+              {/* </View> */}
+            {/* </View> */}
 
-            <Text style={[styles.riskMessage, { color: riskLevel.color }]}>
+            {/* <Text style={[styles.riskMessage, { color: riskLevel.color }]}>
               {result.riskScore > 70
                 ? '🚫 HIGH RISK: This website appears to be a phishing site! Do not proceed.'
                 : result.riskScore > 30
                   ? '⚠️ MEDIUM RISK: This website shows suspicious characteristics. Exercise caution.'
                   : '✅ LOW RISK: This website appears to be safe.'}
-            </Text>
+            </Text> */}
 
             <TouchableOpacity
               style={[styles.downloadButton, {
@@ -398,12 +398,12 @@ export default function URLScannerScreen() {
                 {result.prediction || result.classification}
               </Text>
             </View>
-            <View style={styles.confidenceBadge}>
+            {/* <View style={styles.confidenceBadge}>
               <Ionicons name="checkmark-circle" size={16} color={riskLevel.color} />
               <Text style={[styles.confidenceText, { color: riskLevel.color }]}>
                 Confidence: {((result.confidence || 0.5) * 100).toFixed(1)}%
               </Text>
-            </View>
+            </View> */}
           </View>
 
           {/* Explanation Card */}
