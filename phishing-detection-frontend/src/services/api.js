@@ -20,6 +20,7 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log(`[API] ${config.method.toUpperCase()} ${config.url}`, config);
     return config;
   },
   (error) => {
@@ -29,8 +30,12 @@ api.interceptors.request.use(
 
 // --- Response Interceptor ---
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`[API Response] ${response.status}`, response);
+    return response;
+  },
   (error) => {
+    console.error("[API Error]", error);
     if (error.code === "ERR_NETWORK") {
       throw { 
         message: "Cannot connect to server. Please check your connection.",
@@ -160,12 +165,74 @@ export const getScanByReference = async (reference) => {
 
 export const deleteScanByReference = async (reference) => {
   try {
-    const response = await api.delete(`/scans/${reference}`, {
-      headers: { "Accept": "*/*" },
+    const ref = String(reference).trim();
+    if (!ref) {
+      throw new Error("Invalid reference ID");
+    }
+    
+    console.log(`[DELETE] Attempting to delete scan: ${ref}`);
+    
+    const response = await api.delete(`/scans/${ref}`, {
+      headers: { 
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+      },
     });
-    return response.data;
+    
+    console.log(`[DELETE] Response status: ${response.status}`, response);
+    
+    if (response.status === 204) {
+      return { message: "Scan deleted successfully", success: true };
+    }
+    
+    if (response.data) {
+      return response.data;
+    }
+    
+    return { message: "Scan deleted successfully", success: true };
   } catch (error) {
-    throw error.response?.data || { message: "Failed to delete scan" };
+    console.error("[DELETE] Error:", error);
+    
+    if (error.code === "ERR_NETWORK") {
+      throw { 
+        message: "Cannot connect to server. Please check your connection.",
+        isCorsError: true
+      };
+    }
+    
+    if (error.response) {
+      console.error(`[DELETE] Response status: ${error.response.status}`);
+      console.error(`[DELETE] Response data:`, error.response.data);
+      
+      if (error.response.status === 204) {
+        return { message: "Scan deleted successfully", success: true };
+      }
+      
+      if (error.response.status === 401) {
+        throw { 
+          status: 401, 
+          message: "Session expired. Please login again." 
+        };
+      }
+      
+      if (error.response.status === 403) {
+        throw { 
+          status: 403, 
+          message: "You don't have permission to delete this scan." 
+        };
+      }
+      
+      if (error.response.status === 404) {
+        throw { 
+          status: 404, 
+          message: "Scan not found. It may have already been deleted." 
+        };
+      }
+      
+      throw error.response.data || { message: "Failed to delete scan" };
+    }
+    
+    throw { message: error.message || "Failed to delete scan" };
   }
 };
 
@@ -204,16 +271,36 @@ export const getDashboardStats = async () => {
   }
 };
 
-// ==================== FEEDBACK ENDPOINT ====================
+// ==================== FEEDBACK ENDPOINTS ====================
 
-export const submitFeedback = async (message) => {
+export const submitFeedbackMessage = async (message) => {
   try {
-    // API expects: { "message": "feedback text" }
-    const body = { message: message };
-    const response = await api.post("/feedback", body);
+    console.log("[Feedback] Submitting:", { message });
+    const response = await api.post("/feedback", { message });
+    console.log("[Feedback] Response:", response.data);
     return response.data;
   } catch (error) {
+    console.error("[Feedback] Error:", error);
     throw error.response?.data || { message: "Failed to submit feedback" };
+  }
+};
+
+export const submitAccuracy = async (data) => {
+  try {
+    if (!data.reference) {
+      throw new Error("Scan reference is required");
+    }
+    const payload = {
+      reference: data.reference,
+      accurate: data.accurate
+    };
+    console.log("[Accuracy] Submitting:", payload);
+    const response = await api.post("/feedback/accuracy", payload);
+    console.log("[Accuracy] Response:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("[Accuracy] Error:", error);
+    throw error.response?.data || { message: "Failed to submit accuracy" };
   }
 };
 

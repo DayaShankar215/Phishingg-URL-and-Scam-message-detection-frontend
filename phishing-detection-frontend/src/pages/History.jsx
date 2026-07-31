@@ -1,3 +1,4 @@
+// pages/History.jsx
 import React, { useState, useEffect } from "react";
 import {
   getScanHistory,
@@ -29,6 +30,7 @@ import {
   FaFilePdf,
   FaGlobe,
   FaComment,
+  FaSortNumericDown,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 
@@ -58,30 +60,23 @@ const History = () => {
   const [tempStartDate, setTempStartDate] = useState("");
   const [tempEndDate, setTempEndDate] = useState("");
 
-  // Helper function to get prediction from API response
   const getPrediction = (scan) => {
     return scan.overallPrediction || scan.prediction || "UNKNOWN";
   };
 
-  // Helper function to detect scan type
   const getScanType = (scan) => {
-    // Check if type is explicitly set
     if (scan.type) return scan.type;
     if (scan.scanType) {
       const type = scan.scanType.toLowerCase();
       if (type === "url" || type === "message") return type;
     }
-    // Check if it's a message scan by looking for message field
     if (scan.message) return "message";
-    // Check if it's a URL scan by looking for url field or content that looks like URL
     if (scan.url) return "url";
     if (scan.content) {
-      // Try to detect type from content
       const content = scan.content || "";
       if (content.match(/^https?:\/\/[^\s]+/)) return "url";
       return "message";
     }
-    // Default to URL if we can't determine
     return "url";
   };
 
@@ -120,6 +115,15 @@ const History = () => {
             scannedAt: scan.scannedAt,
             type: type,
             content: scan.url || scan.message || scan.content || scan.url,
+            scanType: scan.scanType,
+            message: scan.message,
+            messagePrediction: scan.messagePrediction,
+            messagePhishingReasons: scan.messagePhishingReasons || [],
+            messageLegitimateReasons: scan.messageLegitimateReasons || [],
+            urlsFound: scan.urlsFound || [],
+            urlResults: scan.urlResults || [],
+            phishingReasons: scan.phishingReasons || [],
+            legitimateReasons: scan.legitimateReasons || [],
             _raw: scan,
           };
         });
@@ -164,7 +168,7 @@ const History = () => {
 
     return scansList.filter((scan) => {
       const scanDate = new Date(
-        scan?.scannedAt || scan?.date || scan?.timestamp || scan?.createdAt
+        scan?.scannedAt || scan?.date || scan?.timestamp || scan?.createdAt || Date.now()
       );
 
       switch (dateFilter.preset) {
@@ -250,14 +254,27 @@ const History = () => {
       const response = await getScanByReference(reference);
       console.log("Scan Details Response:", response);
       
+      const isMessageScan = response.scanType === "MESSAGE" || response.message;
+      
       setSelectedScan({
         reference: response.reference,
-        url: response.url,
+        url: response.url || response.message || "",
         prediction: getPrediction(response),
-        legitimateReasons: response.legitimateReasons || [],
-        phishingReasons: response.phishingReasons || [],
+        legitimateReasons: response.legitimateReasons || response.messageLegitimateReasons || [],
+        phishingReasons: response.phishingReasons || response.messagePhishingReasons || [],
         conclusion: response.conclusion,
         scannedAt: response.scannedAt,
+        isMessageScan: isMessageScan,
+        message: response.message,
+        scanType: response.scanType,
+        messagePrediction: response.messagePrediction,
+        messagePhishingReasons: response.messagePhishingReasons || [],
+        messageLegitimateReasons: response.messageLegitimateReasons || [],
+        urlsFound: response.urlsFound || [],
+        urlResults: response.urlResults || [],
+        overallPrediction: response.overallPrediction,
+        phishingReasons: response.phishingReasons || [],
+        legitimateReasons: response.legitimateReasons || [],
       });
       setShowModal(true);
     } catch (error) {
@@ -279,20 +296,30 @@ const History = () => {
 
     try {
       const scanDetails = await getScanByReference(reference);
-      console.log("Scan Details:", scanDetails);
+      console.log("Scan Details for PDF:", scanDetails);
+      
+      const isMessageScan = scanDetails.scanType === "MESSAGE" || scanDetails.message;
       
       const pdfData = {
         reference: scanDetails.reference,
-        url: scanDetails.url,
+        url: scanDetails.url || scanDetails.message || "",
+        message: scanDetails.message || "",
         prediction: getPrediction(scanDetails),
-        conclusion: scanDetails.conclusion,
+        conclusion: scanDetails.conclusion || "Analysis completed",
         scannedAt: scanDetails.scannedAt,
+        scanType: scanDetails.scanType || (isMessageScan ? "MESSAGE" : "URL"),
+        messagePrediction: scanDetails.messagePrediction,
+        messagePhishingReasons: scanDetails.messagePhishingReasons || [],
+        messageLegitimateReasons: scanDetails.messageLegitimateReasons || [],
+        urlsFound: scanDetails.urlsFound || [],
+        urlResults: scanDetails.urlResults || [],
         phishingReasons: scanDetails.phishingReasons || [],
         legitimateReasons: scanDetails.legitimateReasons || [],
+        overallPrediction: scanDetails.overallPrediction,
       };
       
       const { downloadPDF } = await import('../services/pdfGenerator');
-      downloadPDF(pdfData, 'url');
+      downloadPDF(pdfData, isMessageScan ? 'message' : 'url');
       
       toast.success("PDF report downloaded successfully!", { id: toastId });
     } catch (error) {
@@ -319,20 +346,29 @@ const History = () => {
     const toastId = toast.loading("Deleting scan...");
 
     try {
+      console.log(`[DELETE] Attempting to delete scan with reference: ${reference}`);
+      
       const response = await deleteScanByReference(reference);
+      console.log("[DELETE] Response:", response);
       
       toast.success(response?.message || "Scan deleted successfully!", { id: toastId });
 
       setScans((prev) => prev.filter((scan) => scan.reference !== reference));
+      
       await fetchHistory();
+      
     } catch (error) {
-      console.error("Delete Error:", error);
+      console.error("[DELETE] Error:", error);
       
       if (error?.status === 401 || error?.response?.status === 401) {
         toast.error("Session expired. Please login again.", { id: toastId });
         setTimeout(() => logout(), 1500);
+      } else if (error?.status === 404) {
+        toast.success("Scan already deleted.", { id: toastId });
+        setScans((prev) => prev.filter((scan) => scan.reference !== reference));
+        await fetchHistory();
       } else {
-        toast.error(error.message || "Failed to delete scan", { id: toastId });
+        toast.error(error?.message || "Failed to delete scan", { id: toastId });
       }
     } finally {
       setDeletingId(null);
@@ -368,7 +404,6 @@ const History = () => {
     return filtered;
   })();
 
-  // Get prediction color for display
   const getPredictionColor = (pred) => {
     const upperPred = pred?.toUpperCase() || "";
     switch (upperPred) {
@@ -389,7 +424,6 @@ const History = () => {
     }
   };
 
-  // Get type badge style
   const getTypeBadge = (type) => {
     if (type === "url") {
       return { bg: "#dbeafe", color: "#1d4ed8", icon: <FaLink size={12} />, label: "URL" };
@@ -612,12 +646,16 @@ const History = () => {
         )}
       </div>
 
-      {/* Scans Table */}
+      {/* Scans Table with S.No Column */}
       <div style={{ background: "white", borderRadius: "24px", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.1)" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569", width: "60px" }}>
+                  <FaSortNumericDown style={{ marginRight: "4px" }} />
+                  S.No
+                </th>
                 <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Reference</th>
                 <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Type</th>
                 <th style={{ padding: "20px", textAlign: "left", fontWeight: "600", color: "#475569" }}>Content</th>
@@ -629,7 +667,7 @@ const History = () => {
             <tbody>
               {filteredScans.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: "center", padding: "80px", color: "#94a3b8" }}>
+                  <td colSpan="7" style={{ textAlign: "center", padding: "80px", color: "#94a3b8" }}>
                     <FaShieldAlt style={{ fontSize: "48px", marginBottom: "16px", opacity: 0.5 }} />
                     <p>No scans found.</p>
                     {searchTerm && (
@@ -640,7 +678,7 @@ const History = () => {
                   </td>
                 </tr>
               ) : (
-                filteredScans.map((scan) => {
+                filteredScans.map((scan, index) => {
                   const reference = scan?.reference;
                   const isDownloading = downloadingId === reference;
                   const isDeleting = deletingId === reference;
@@ -651,7 +689,7 @@ const History = () => {
 
                   return (
                     <tr
-                      key={reference || Math.random()}
+                      key={reference || `scan_${index}`}
                       style={{
                         borderBottom: "1px solid #f1f5f9",
                         transition: "background 0.3s",
@@ -660,6 +698,9 @@ const History = () => {
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = isGuest ? "#f8fafc" : "white")}
                     >
+                      <td style={{ padding: "16px 20px", color: "#94a3b8", fontSize: "14px", fontWeight: "500" }}>
+                        {index + 1}
+                      </td>
                       <td style={{ padding: "16px 20px", fontWeight: "600", color: "#667eea", fontSize: "13px", fontFamily: "monospace" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                           <FaHashtag size={10} style={{ opacity: 0.5 }} />
@@ -820,6 +861,7 @@ const History = () => {
             </div>
 
             <div style={{ padding: "32px" }}>
+              {/* Reference */}
               <div style={{ marginBottom: "24px" }}>
                 <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Reference</h3>
                 <div style={{ background: "#f8fafc", padding: "12px 16px", borderRadius: "12px", color: "#1e293b", fontFamily: "monospace", fontSize: "14px" }}>
@@ -827,46 +869,95 @@ const History = () => {
                 </div>
               </div>
 
+              {/* Type */}
               <div style={{ marginBottom: "24px" }}>
-                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>URL</h3>
+                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Scan Type</h3>
+                <div style={{ padding: "12px 16px", borderRadius: "12px", background: selectedScan.scanType === "MESSAGE" ? "#fce7f3" : "#dbeafe", color: selectedScan.scanType === "MESSAGE" ? "#be185d" : "#1d4ed8", fontWeight: "600" }}>
+                  {selectedScan.scanType || (selectedScan.isMessageScan ? "MESSAGE" : "URL")}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div style={{ marginBottom: "24px" }}>
+                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>
+                  {selectedScan.isMessageScan ? "Message" : "URL"}
+                </h3>
                 <div style={{ background: "#f8fafc", padding: "12px 16px", borderRadius: "12px", color: "#1e293b", wordBreak: "break-all" }}>
-                  {selectedScan.url}
+                  {selectedScan.isMessageScan ? selectedScan.message || selectedScan.url : selectedScan.url}
                 </div>
               </div>
 
+              {/* Overall Prediction */}
               <div style={{ marginBottom: "24px" }}>
-                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Prediction</h3>
+                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Overall Prediction</h3>
                 <div style={{ padding: "12px 16px", borderRadius: "12px", background: selectedScan.prediction === "PHISHING" ? "#fee2e2" : "#d1fae5", color: selectedScan.prediction === "PHISHING" ? "#dc2626" : "#065f46", fontWeight: "600" }}>
-                  {selectedScan.prediction}
+                  {selectedScan.overallPrediction || selectedScan.prediction}
                 </div>
               </div>
 
-              {selectedScan.phishingReasons && selectedScan.phishingReasons.length > 0 && (
+              {/* Message Prediction */}
+              {selectedScan.isMessageScan && selectedScan.messagePrediction && (
+                <div style={{ marginBottom: "24px" }}>
+                  <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Message Prediction</h3>
+                  <div style={{ padding: "12px 16px", borderRadius: "12px", background: selectedScan.messagePrediction === "PHISHING" ? "#fee2e2" : "#d1fae5", color: selectedScan.messagePrediction === "PHISHING" ? "#dc2626" : "#065f46", fontWeight: "600" }}>
+                    {selectedScan.messagePrediction}
+                  </div>
+                </div>
+              )}
+
+              {/* Message Phishing Reasons */}
+              {selectedScan.isMessageScan && selectedScan.messagePhishingReasons && selectedScan.messagePhishingReasons.length > 0 && (
+                <div style={{ marginBottom: "24px" }}>
+                  <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>🚨 Message Phishing Indicators</h3>
+                  <div style={{ padding: "16px", background: "#fee2e2", borderRadius: "12px", color: "#dc2626" }}>
+                    <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                      {selectedScan.messagePhishingReasons.map((reason, i) => (
+                        <li key={i} style={{ marginBottom: "4px" }}>{reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* URL Phishing Reasons */}
+              {!selectedScan.isMessageScan && selectedScan.phishingReasons && selectedScan.phishingReasons.length > 0 && (
                 <div style={{ marginBottom: "24px" }}>
                   <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>🚨 Phishing Indicators</h3>
                   <div style={{ padding: "16px", background: "#fee2e2", borderRadius: "12px", color: "#dc2626" }}>
                     <ul style={{ margin: 0, paddingLeft: "20px" }}>
-                      {Array.isArray(selectedScan.phishingReasons) ? selectedScan.phishingReasons.map((reason, i) => (
+                      {selectedScan.phishingReasons.map((reason, i) => (
                         <li key={i} style={{ marginBottom: "4px" }}>{reason}</li>
-                      )) : selectedScan.phishingReasons}
+                      ))}
                     </ul>
                   </div>
                 </div>
               )}
 
-              {selectedScan.legitimateReasons && selectedScan.legitimateReasons.length > 0 && (
+              {/* URLs Found */}
+              {selectedScan.isMessageScan && selectedScan.urlsFound && selectedScan.urlsFound.length > 0 && (
                 <div style={{ marginBottom: "24px" }}>
-                  <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>✅ Legitimate Indicators</h3>
-                  <div style={{ padding: "16px", background: "#d1fae5", borderRadius: "12px", color: "#065f46" }}>
-                    <ul style={{ margin: 0, paddingLeft: "20px" }}>
-                      {Array.isArray(selectedScan.legitimateReasons) ? selectedScan.legitimateReasons.map((reason, i) => (
-                        <li key={i} style={{ marginBottom: "4px" }}>{reason}</li>
-                      )) : selectedScan.legitimateReasons}
-                    </ul>
+                  <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>🔗 URLs Found in Message</h3>
+                  <div style={{ padding: "16px", background: "#fef3c7", borderRadius: "12px", border: "1px solid #fcd34d" }}>
+                    {selectedScan.urlsFound.map((url, index) => {
+                      const urlResult = selectedScan.urlResults?.[index];
+                      return (
+                        <div key={index} style={{ marginBottom: "8px", padding: "8px 12px", background: "white", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                          <p style={{ fontWeight: "600", color: "#1e293b", wordBreak: "break-all", margin: 0 }}>{url}</p>
+                          {urlResult && (
+                            <div style={{ marginTop: "4px" }}>
+                              <span style={{ padding: "2px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: "600", background: urlResult.prediction === "LEGITIMATE" ? "#d1fae5" : "#fee2e2", color: urlResult.prediction === "LEGITIMATE" ? "#065f46" : "#dc2626" }}>
+                                {urlResult.prediction || "UNKNOWN"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
+              {/* Conclusion */}
               <div style={{ marginBottom: "24px" }}>
                 <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Conclusion</h3>
                 <div style={{ padding: "16px", background: "#f8fafc", borderRadius: "12px", color: "#475569", lineHeight: "1.7" }}>
@@ -874,6 +965,7 @@ const History = () => {
                 </div>
               </div>
 
+              {/* Scanned At */}
               <div style={{ marginBottom: "24px" }}>
                 <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>Scanned At</h3>
                 <div style={{ padding: "12px 16px", background: "#f8fafc", borderRadius: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -881,6 +973,7 @@ const History = () => {
                 </div>
               </div>
 
+              {/* Download Button */}
               <div>
                 <button
                   onClick={() => handleDownloadReport(selectedScan.reference)}
@@ -923,8 +1016,13 @@ const History = () => {
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} initialMode="register" onSuccess={() => { setShowAuthModal(false); fetchHistory(); }} />
 
       <style>{`
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .spinning { animation: spin 1s linear infinite; }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .spinning {
+          animation: spin 1s linear infinite;
+        }
       `}</style>
     </div>
   );
