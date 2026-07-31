@@ -43,6 +43,7 @@ export const downloadPDF = async (scanData, type) => {
       return { success: true, uri };
     } catch (printError) {
       console.error('Print Error:', printError);
+      // Fallback: Share as HTML
       const htmlUri = await saveAndShareHTML(html, scanData.reference);
       return { success: true, uri: htmlUri };
     }
@@ -89,120 +90,165 @@ const generatePDFHTML = (scanData, type) => {
     <html>
     <head>
       <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Security Report</title>
       <style>
         /* ===== RESET ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
-          font-family: Arial, Helvetica, sans-serif; 
-          padding: 40px; 
-          max-width: 900px; 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, Helvetica, sans-serif; 
+          padding: 20px; 
+          max-width: 1000px; 
           margin: 0 auto; 
-          background: #f8fafc; 
+          background: #f1f5f9; 
+          color: #1e293b;
         }
         .container { 
           background: white; 
           padding: 40px; 
-          border-radius: 12px; 
-          box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+          border-radius: 16px; 
+          box-shadow: 0 4px 24px rgba(0,0,0,0.08); 
         }
         
         /* ===== HEADER ===== */
         .header { 
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
           color: white; 
-          padding: 30px; 
+          padding: 32px 28px; 
           border-radius: 12px; 
-          text-align: center; 
-          margin-bottom: 24px; 
+          margin-bottom: 28px; 
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .header-icon {
+          width: 48px;
+          height: 48px;
+          background: rgba(255,255,255,0.2);
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
         }
         .header h1 { 
           margin: 0; 
-          font-size: 28px; 
-          letter-spacing: 1px;
+          font-size: 24px; 
+          font-weight: 700;
+          letter-spacing: 0.5px;
         }
-        .header p { 
-          margin: 8px 0 0; 
-          opacity: 0.9; 
-          font-size: 14px;
+        .header-subtitle {
+          font-size: 12px;
+          opacity: 0.8;
+          margin-top: 2px;
+        }
+        .header-right {
+          text-align: right;
+          font-size: 11px;
+          opacity: 0.85;
+          line-height: 1.6;
         }
         
         /* ===== SECTIONS ===== */
         .section { 
           margin: 20px 0; 
-          padding: 20px; 
+          padding: 20px 24px; 
           border: 1px solid #e2e8f0; 
           border-radius: 12px; 
+          background: #fafbfc;
         }
         .section h2 { 
-          color: #667eea; 
+          color: #1e293b; 
           margin-top: 0; 
-          font-size: 18px; 
-          border-bottom: 2px solid #f1f5f9; 
-          padding-bottom: 10px; 
-          margin-bottom: 12px; 
+          font-size: 17px; 
+          font-weight: 700;
+          border-bottom: 2px solid #e2e8f0; 
+          padding-bottom: 12px; 
+          margin-bottom: 16px; 
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .section h2 span {
+          font-size: 20px;
         }
         
         /* ===== FIELDS ===== */
         .field { 
           display: flex; 
           justify-content: space-between; 
-          padding: 8px 0; 
+          padding: 10px 0; 
           border-bottom: 1px solid #f1f5f9; 
+          align-items: flex-start;
         }
         .field:last-child { border-bottom: none; }
         .label { 
           color: #64748b; 
           font-weight: 500; 
+          font-size: 14px;
+          flex-shrink: 0;
+          min-width: 120px;
         }
         .value { 
           font-weight: 600; 
           color: #1e293b; 
           word-break: break-all; 
           text-align: right;
-          max-width: 60%;
+          font-size: 14px;
+          flex: 1;
+          margin-left: 16px;
         }
         
         /* ===== RISK BOX ===== */
         .risk-box { 
-          padding: 16px; 
-          border-radius: 8px; 
-          margin: 12px 0; 
+          padding: 16px 20px; 
+          border-radius: 10px; 
+          margin: 14px 0 0; 
           text-align: center; 
-          font-weight: bold; 
-          font-size: 18px; 
+          font-weight: 600; 
+          font-size: 16px; 
+          line-height: 1.6;
         }
-        .risk-high { background: #fee2e2; color: #dc2626; }
-        .risk-medium { background: #fef3c7; color: #d97706; }
-        .risk-low { background: #dcfce7; color: #16a34a; }
+        .risk-high { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+        .risk-medium { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
+        .risk-low { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; }
         
         /* ===== BADGES ===== */
         .badge { 
           display: inline-block; 
-          padding: 4px 12px; 
-          border-radius: 20px; 
+          padding: 4px 14px; 
+          border-radius: 100px; 
           font-size: 12px; 
           font-weight: 600; 
         }
-        .badge-high { background: #fee2e2; color: #dc2626; }
-        .badge-medium { background: #fef3c7; color: #d97706; }
-        .badge-low { background: #dcfce7; color: #16a34a; }
+        .badge-high { background: #fef2f2; color: #dc2626; }
+        .badge-medium { background: #fffbeb; color: #d97706; }
+        .badge-low { background: #f0fdf4; color: #16a34a; }
         
         /* ===== PROGRESS BAR ===== */
+        .progress-container {
+          margin: 12px 0 6px;
+        }
         .progress-bar { 
           width: 100%; 
-          height: 10px; 
+          height: 8px; 
           background: #f1f5f9; 
-          border-radius: 5px; 
+          border-radius: 4px; 
           overflow: hidden; 
-          margin: 10px 0; 
         }
         .progress-fill { 
           height: 100%; 
-          border-radius: 5px; 
-          transition: width 1s ease; 
+          border-radius: 4px; 
           background: ${riskInfo.color}; 
-          width: ${riskScore}%; 
+          width: ${Math.min(riskScore, 100)}%; 
+          transition: width 0.8s ease;
         }
         .progress-labels {
           display: flex;
@@ -212,61 +258,110 @@ const generatePDFHTML = (scanData, type) => {
           margin-top: 4px;
         }
         
-        /* ===== LISTS ===== */
-        ul { 
-          padding-left: 20px; 
-          color: #475569; 
-          line-height: 1.8; 
-        }
-        li { margin-bottom: 4px; }
-        
         /* ===== RISK SCORE DISPLAY ===== */
-        .risk-score-large { 
-          font-size: 48px; 
-          font-weight: 800; 
-          display: block; 
-        }
         .risk-score-row {
           display: flex;
           align-items: baseline;
           gap: 16px;
-          margin: 8px 0;
+          margin: 4px 0 8px;
+          flex-wrap: wrap;
         }
         .risk-score-value {
-          font-size: 48px;
+          font-size: 44px;
           font-weight: 800;
+          line-height: 1;
         }
         .risk-score-label {
           font-size: 18px;
           font-weight: 600;
         }
         
+        /* ===== LISTS ===== */
+        ul { 
+          padding-left: 24px; 
+          color: #475569; 
+          line-height: 1.9; 
+          margin: 4px 0;
+        }
+        li { margin-bottom: 4px; font-size: 14px; }
+        
+        /* ===== MESSAGE CONTENT ===== */
+        .message-content {
+          background: #f8fafc;
+          padding: 16px;
+          border-radius: 10px;
+          border-left: 4px solid ${riskInfo.color};
+          font-style: italic;
+          font-size: 14px;
+          line-height: 1.7;
+          color: #334155;
+          margin-top: 4px;
+        }
+        
+        /* ===== URL ITEMS ===== */
+        .url-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 14px;
+          background: white;
+          border-radius: 8px;
+          border: 1px solid #e2e8f0;
+          margin-bottom: 8px;
+        }
+        .url-item:last-child { margin-bottom: 0; }
+        .url-text {
+          font-family: monospace;
+          font-size: 13px;
+          word-break: break-all;
+          flex: 1;
+        }
+        .url-pred {
+          padding: 2px 12px;
+          border-radius: 100px;
+          font-size: 11px;
+          font-weight: 600;
+          margin-left: 12px;
+          flex-shrink: 0;
+        }
+        .url-pred-safe { background: #dcfce7; color: #16a34a; }
+        .url-pred-phishing { background: #fee2e2; color: #dc2626; }
+        .url-pred-unknown { background: #f1f5f9; color: #64748b; }
+        
         /* ===== FOOTER ===== */
         .footer { 
           text-align: center; 
-          margin-top: 30px; 
+          margin-top: 32px; 
           padding-top: 20px; 
           border-top: 1px solid #e2e8f0; 
           color: #94a3b8; 
           font-size: 12px; 
+          line-height: 1.8;
         }
-        .footer p:last-child {
-          color: #cbd5e1;
-          margin-top: 4px;
+        .footer span {
+          color: #667eea;
+          font-weight: 600;
         }
         
         /* ===== RESPONSIVE ===== */
         @media print {
-          body { padding: 20px; background: white; }
-          .container { box-shadow: none; }
+          body { padding: 12px; background: white; }
+          .container { box-shadow: none; padding: 24px; }
+          .section { break-inside: avoid; }
         }
         @media (max-width: 600px) {
-          body { padding: 16px; }
-          .container { padding: 20px; }
+          body { padding: 12px; }
+          .container { padding: 16px; }
+          .header { flex-direction: column; text-align: center; }
+          .header-right { text-align: center; }
+          .header-left { flex-direction: column; }
           .field { flex-direction: column; gap: 4px; align-items: flex-start; }
-          .value { max-width: 100%; text-align: left; }
+          .value { text-align: left; margin-left: 0; max-width: 100%; }
           .risk-score-row { flex-wrap: wrap; }
-          .risk-score-value { font-size: 36px; }
+          .risk-score-value { font-size: 32px; }
+          .section { padding: 16px; }
+          .url-item { flex-direction: column; gap: 6px; align-items: flex-start; }
+          .url-pred { margin-left: 0; }
         }
       </style>
     </head>
@@ -274,8 +369,17 @@ const generatePDFHTML = (scanData, type) => {
       <div class="container">
         <!-- HEADER -->
         <div class="header">
-          <h1>🛡️ SECURESHIELD</h1>
-          <p>AI-Powered Security Report</p>
+          <div class="header-left">
+            <div class="header-icon">🛡️</div>
+            <div>
+              <h1>SECURESHIELD</h1>
+              <div class="header-subtitle">AI-Powered Security Report</div>
+            </div>
+          </div>
+          <div class="header-right">
+            <div>Report ID: ${scanData.reference || 'N/A'}</div>
+            <div>Generated: ${new Date().toLocaleString()}</div>
+          </div>
         </div>
   `;
 
@@ -284,40 +388,37 @@ const generatePDFHTML = (scanData, type) => {
   // ============================================================
   html += `
     <div class="section">
-      <h2>📊 SCAN SUMMARY</h2>
+      <h2><span>📊</span> SCAN SUMMARY</h2>
       <div class="field">
-        <span class="label">Report ID:</span>
-        <span class="value">${scanData.reference || 'N/A'}</span>
-      </div>
-      <div class="field">
-        <span class="label">Type:</span>
+        <span class="label">Scan Type:</span>
         <span class="value">${type === 'url' ? 'URL Scan' : 'Message Scan'}</span>
       </div>
       <div class="field">
-        <span class="label">Date:</span>
-        <span class="value">${new Date().toLocaleString()}</span>
+        <span class="label">Classification:</span>
+        <span class="value"><span class="badge ${badgeClass}">${scanData.prediction || 'Unknown'}</span></span>
       </div>
       <div class="field">
         <span class="label">Risk Score:</span>
-        <span class="value" style="color: ${riskInfo.color}; font-size: 24px; font-weight: 800;">${riskScore}%</span>
+        <span class="value" style="color: ${riskInfo.color}; font-size: 20px; font-weight: 800;">${riskScore}%</span>
       </div>
-      <div class="progress-bar">
-        <div class="progress-fill"></div>
+      <div class="risk-score-row">
+        <span class="risk-score-value" style="color: ${riskInfo.color};">${riskScore}%</span>
+        <span class="risk-score-label" style="color: ${riskInfo.color};">${riskInfo.label}</span>
       </div>
-      <div class="progress-labels">
-        <span>Low Risk (0%)</span>
-        <span>Medium (50%)</span>
-        <span>High Risk (100%)</span>
+      <div class="progress-container">
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+        <div class="progress-labels">
+          <span>Low Risk (0%)</span>
+          <span>Medium (50%)</span>
+          <span>High Risk (100%)</span>
+        </div>
       </div>
       <div class="field">
         <span class="label">Risk Level:</span>
         <span class="value"><span class="badge ${badgeClass}">${riskInfo.label}</span></span>
       </div>
-      <div class="field">
-        <span class="label">Classification:</span>
-        <span class="value">${scanData.prediction || 'Unknown'}</span>
-      </div>
-      <div class="risk-box ${riskClass}">${riskInfo.message}</div>
     </div>
   `;
 
@@ -326,14 +427,14 @@ const generatePDFHTML = (scanData, type) => {
   // ============================================================
   html += `
     <div class="section">
-      <h2>📋 SCAN DETAILS</h2>
+      <h2><span>📋</span> SCAN DETAILS</h2>
   `;
   
   if (scanData.url) {
     html += `
       <div class="field">
         <span class="label">URL:</span>
-        <span class="value">${scanData.url}</span>
+        <span class="value" style="font-family: monospace; font-size: 13px;">${scanData.url}</span>
       </div>
     `;
   }
@@ -341,15 +442,23 @@ const generatePDFHTML = (scanData, type) => {
     html += `
       <div class="field">
         <span class="label">Message:</span>
-        <span class="value">${scanData.message}</span>
+        <span class="value" style="font-family: monospace; font-size: 13px;">${scanData.message}</span>
       </div>
     `;
   }
-  if (scanData.prediction) {
+  if (scanData.overallPrediction) {
     html += `
       <div class="field">
-        <span class="label">Prediction:</span>
-        <span class="value">${scanData.prediction}</span>
+        <span class="label">Overall Prediction:</span>
+        <span class="value"><span class="badge ${badgeClass}">${scanData.overallPrediction}</span></span>
+      </div>
+    `;
+  }
+  if (scanData.messagePrediction) {
+    html += `
+      <div class="field">
+        <span class="label">Message Prediction:</span>
+        <span class="value"><span class="badge ${badgeClass}">${scanData.messagePrediction}</span></span>
       </div>
     `;
   }
@@ -365,12 +474,27 @@ const generatePDFHTML = (scanData, type) => {
   html += `</div>`;
 
   // ============================================================
-  // PHISHING REASONS
+  // MESSAGE PHISHING REASONS (for message scans)
+  // ============================================================
+  if (scanData.messagePhishingReasons && scanData.messagePhishingReasons.length > 0) {
+    html += `
+      <div class="section" style="border-color: #fca5a5; background: #fef2f2;">
+        <h2><span>🚨</span> MESSAGE PHISHING INDICATORS</h2>
+        <ul>
+    `;
+    scanData.messagePhishingReasons.forEach(reason => {
+      html += `<li>${reason}</li>`;
+    });
+    html += `</ul></div>`;
+  }
+
+  // ============================================================
+  // URL PHISHING REASONS
   // ============================================================
   if (scanData.phishingReasons && scanData.phishingReasons.length > 0) {
     html += `
-      <div class="section">
-        <h2>🚨 PHISHING INDICATORS</h2>
+      <div class="section" style="border-color: #fca5a5; background: #fef2f2;">
+        <h2><span>🚨</span> PHISHING INDICATORS</h2>
         <ul>
     `;
     const reasons = Array.isArray(scanData.phishingReasons) 
@@ -387,8 +511,8 @@ const generatePDFHTML = (scanData, type) => {
   // ============================================================
   if (scanData.legitimateReasons && scanData.legitimateReasons.length > 0) {
     html += `
-      <div class="section">
-        <h2>✅ LEGITIMATE INDICATORS</h2>
+      <div class="section" style="border-color: #86efac; background: #f0fdf4;">
+        <h2><span>✅</span> LEGITIMATE INDICATORS</h2>
         <ul>
     `;
     const reasons = Array.isArray(scanData.legitimateReasons) 
@@ -401,30 +525,68 @@ const generatePDFHTML = (scanData, type) => {
   }
 
   // ============================================================
+  // URLS FOUND (for message scans)
+  // ============================================================
+  if (scanData.urlsFound && scanData.urlsFound.length > 0) {
+    html += `
+      <div class="section" style="border-color: #fcd34d; background: #fffbeb;">
+        <h2><span>🔗</span> URLS FOUND IN MESSAGE</h2>
+    `;
+    scanData.urlsFound.forEach((url, index) => {
+      const result = scanData.urlResults?.[index];
+      const predClass = result?.prediction === 'LEGITIMATE' ? 'url-pred-safe' 
+        : result?.prediction === 'PHISHING' ? 'url-pred-phishing' 
+        : 'url-pred-unknown';
+      html += `
+        <div class="url-item">
+          <span class="url-text">${url}</span>
+          <span class="url-pred ${predClass}">${result?.prediction || 'UNKNOWN'}</span>
+        </div>
+      `;
+    });
+    html += `</div>`;
+  }
+
+  // ============================================================
   // CONCLUSION
   // ============================================================
   if (scanData.conclusion) {
     html += `
       <div class="section">
-        <h2>📝 CONCLUSION</h2>
-        <p style="line-height: 1.8; color: #475569;">${scanData.conclusion}</p>
+        <h2><span>📝</span> ANALYSIS CONCLUSION</h2>
+        <p style="line-height: 1.8; color: #475569; font-size: 14px;">${scanData.conclusion}</p>
       </div>
     `;
   }
 
   // ============================================================
-  // RECOMMENDATION
+  // SECURITY RECOMMENDATION
   // ============================================================
+  let recommendationText = '';
+  if (riskScore > 70) {
+    if (type === 'message') {
+      recommendationText = '🚫 DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier.';
+    } else {
+      recommendationText = '🚫 DO NOT proceed to this website. Report this URL to security authorities immediately. This is a confirmed phishing attempt designed to steal your credentials.';
+    }
+  } else if (riskScore > 30) {
+    if (type === 'message') {
+      recommendationText = '⚠️ Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels.';
+    } else {
+      recommendationText = '⚠️ Exercise extreme caution. Verify the website\'s authenticity through official channels before entering any personal information or credentials.';
+    }
+  } else {
+    if (type === 'message') {
+      recommendationText = '✓ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.';
+    } else {
+      recommendationText = '✓ You can safely proceed. However, always verify the URL matches the official website before entering sensitive information.';
+    }
+  }
+
   html += `
-    <div class="section">
-      <h2>🛡️ SECURITY RECOMMENDATION</h2>
-      <div class="risk-box ${riskClass}">
-        ${riskScore > 70 
-          ? '🚫 DO NOT proceed. Report this immediately. This is a confirmed threat.'
-          : riskScore > 30
-          ? '⚠️ Exercise caution. Verify through official channels before proceeding.'
-          : '✅ You can safely proceed. Always remain vigilant.'}
-      </div>
+    <div class="section" style="border-color: ${riskInfo.color}40; background: ${riskScore > 70 ? '#fef2f2' : riskScore > 30 ? '#fffbeb' : '#f0fdf4'};">
+      <h2><span>🛡️</span> SECURITY RECOMMENDATION</h2>
+      <div class="risk-box ${riskClass}">${recommendationText}</div>
     </div>
   `;
 
@@ -433,8 +595,9 @@ const generatePDFHTML = (scanData, type) => {
   // ============================================================
   html += `
         <div class="footer">
-          <p>Generated by SecureShield Security System • ${new Date().toLocaleDateString()}</p>
-          <p>This is an automated security report. Please verify information independently.</p>
+          <p>Generated by <span>SecureShield</span> Security System</p>
+          <p>© ${new Date().getFullYear()} SecureShield • All Rights Reserved</p>
+          <p style="font-size: 10px; color: #cbd5e1; margin-top: 6px;">This is an automated security report. Please verify information independently.</p>
         </div>
       </div>
     </body>

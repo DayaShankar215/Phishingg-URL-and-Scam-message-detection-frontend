@@ -16,7 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useGuest } from '../context/GuestContext';
 import { getColors } from '../constants/colors';
-import { scanMessage, submitFeedback, getPrediction } from '../services/api';
+import { scanMessage, submitFeedbackMessage, submitAccuracy, getPrediction } from '../services/api';
 import { downloadPDF } from '../services/pdfGenerator';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AuthModal from '../components/AuthModal';
@@ -43,14 +43,68 @@ export default function MessageScannerScreen() {
   const [feedbackReply, setFeedbackReply] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-
-  // Commented out - will be used in future
-  // const [isAccurate, setIsAccurate] = useState(true);
-  // const [rating, setRating] = useState(0);
+  
+  // Accuracy feedback state
+  const [scanId, setScanId] = useState('');
+  const [accuracy, setAccuracy] = useState({ isAccurate: null });
+  const [accuracySubmitted, setAccuracySubmitted] = useState(false);
 
   const handleMessageChange = (text) => {
     setMessage(text);
     setCharCount(text.length);
+  };
+
+  const processScanResponse = (response, scannedMessage) => {
+    const rawPrediction = getPrediction(response);
+    const prediction = rawPrediction;
+    
+    let riskScore = 50;
+    let resultType = 'unknown';
+
+    const upperPrediction = prediction.toUpperCase().trim();
+    
+    switch (upperPrediction) {
+      case 'PHISHING':
+      case 'DANGEROUS':
+      case 'MALICIOUS':
+        riskScore = 85;
+        resultType = 'phishing';
+        break;
+      case 'SCAM':
+        riskScore = 85;
+        resultType = 'scam';
+        break;
+      case 'SUSPICIOUS':
+      case 'WARNING':
+        riskScore = 55;
+        resultType = 'suspicious';
+        break;
+      case 'SAFE':
+      case 'LEGITIMATE':
+        riskScore = 15;
+        resultType = 'safe';
+        break;
+      default:
+        riskScore = 50;
+        resultType = 'unknown';
+    }
+
+    return {
+      reference: response.reference,
+      message: scannedMessage || response.message || '',
+      content: scannedMessage || response.message || '',
+      prediction: prediction,
+      classification: prediction || 'UNKNOWN',
+      riskScore: riskScore,
+      explanation: response.conclusion || 'Analysis completed',
+      result: resultType,
+      scannedAt: response.scannedAt || new Date().toISOString(),
+      type: 'message',
+      conclusion: response.conclusion,
+      phishingReasons: response.phishingReasons || [],
+      legitimateReasons: response.legitimateReasons || [],
+      _raw: response,
+    };
   };
 
   const handleScan = async () => {
@@ -66,64 +120,24 @@ export default function MessageScannerScreen() {
     setShowFeedback(false);
     setFeedbackSubmitted(false);
     setFeedbackReply('');
+    setAccuracySubmitted(false);
+    setScanId('');
+    setAccuracy({ isAccurate: null });
 
     try {
       const response = await scanMessage(message);
       console.log('API Response:', response);
 
-      const prediction = getPrediction(response);
-      const upperPrediction = prediction.toUpperCase();
-
-      let riskScore = 50;
-      let resultType = 'unknown';
-
-      switch (upperPrediction) {
-        case 'PHISHING':
-        case 'DANGEROUS':
-        case 'MALICIOUS':
-        case 'SCAM':
-          riskScore = 85;
-          resultType = 'scam';
-          break;
-        case 'SUSPICIOUS':
-        case 'WARNING':
-          riskScore = 55;
-          resultType = 'suspicious';
-          break;
-        case 'SAFE':
-        case 'LEGITIMATE':
-          riskScore = 15;
-          resultType = 'safe';
-          break;
-        default:
-          riskScore = 50;
-          resultType = 'unknown';
-      }
-
-      const scanResult = {
-        reference: response.reference,
-        message: message,
-        content: message,
-        prediction: prediction,
-        classification: prediction || 'UNKNOWN',
-        riskScore: riskScore,
-        confidence: 0.85,
-        explanation: response.conclusion || 'Analysis completed',
-        result: resultType,
-        scannedAt: response.scannedAt || new Date().toISOString(),
-        type: 'message',
-        conclusion: response.conclusion,
-        phishingReasons: response.phishingReasons || [],
-        legitimateReasons: response.legitimateReasons || [],
-        features: extractMessageFeatures(message),
-        extractedUrls: extractUrlsFromMessage(message),
-      };
-
+      const scanResult = processScanResponse(response, message);
+      console.log('Processed Result:', scanResult);
       setResult(scanResult);
 
       if (!isAuthenticated) {
         addScan(scanResult);
       }
+
+      const reference = response.reference || '';
+      setScanId(reference);
 
       setShowFeedback(true);
       setFeedbackMessage('');
@@ -183,7 +197,25 @@ export default function MessageScannerScreen() {
 
     setDownloading(true);
     try {
-      await downloadPDF(result, 'message');
+      const pdfData = {
+        reference: result.reference,
+        scanType: result._raw?.scanType || "MESSAGE",
+        message: result.message || result.content,
+        prediction: result.prediction,
+        riskScore: result.riskScore,
+        conclusion: result.conclusion || result.explanation,
+        scannedAt: result.scannedAt,
+        phishingReasons: result._raw?.messagePhishingReasons || result.phishingReasons || [],
+        legitimateReasons: result._raw?.messageLegitimateReasons || result.legitimateReasons || [],
+        urlsFound: result._raw?.urlsFound || [],
+        urlResults: result._raw?.urlResults || [],
+        messagePhishingReasons: result._raw?.messagePhishingReasons || [],
+        messageLegitimateReasons: result._raw?.messageLegitimateReasons || [],
+        overallPrediction: result.prediction,
+        messagePrediction: result._raw?.messagePrediction || result.prediction,
+      };
+      
+      await downloadPDF(pdfData, 'message');
       showToast('Report downloaded successfully!', 'success');
     } catch (error) {
       console.error('Download error:', error);
@@ -193,6 +225,57 @@ export default function MessageScannerScreen() {
     }
   };
 
+  // ✅ FIXED: Accuracy feedback with better error handling
+  const handleAccuracySelect = async (isAccurate) => {
+    console.log('Scan ID:', scanId);
+    
+    if (!scanId || scanId.trim() === '') {
+      showToast('Scan ID not found. Please try scanning again.', 'error');
+      console.error('Scan ID is null or empty:', scanId);
+      return;
+    }
+
+    if (accuracySubmitted) {
+      showToast('Accuracy already submitted', 'error');
+      return;
+    }
+
+    setAccuracy({ isAccurate });
+    
+    try {
+      console.log('Submitting accuracy with:', {
+        reference: scanId,
+        accurate: isAccurate
+      });
+      
+      const response = await submitAccuracy({
+        reference: scanId,
+        accurate: isAccurate
+      });
+      
+      console.log('Accuracy Response:', response);
+      setAccuracySubmitted(true);
+      
+      if (response?.reply) {
+        showToast(response.reply, 'success');
+      } else {
+        showToast('Thank you for your feedback!', 'success');
+      }
+    } catch (error) {
+      console.error('Accuracy Submit Error:', error);
+      
+      // ✅ Better error handling for 403
+      if (error.status === 403 || error.isAuthError) {
+        showToast('Please log in to submit accuracy feedback.', 'warning');
+        setShowAuthModal(true);
+      } else {
+        showToast(error.message || 'Failed to submit accuracy', 'error');
+      }
+      setAccuracy({ isAccurate: null });
+    }
+  };
+
+  // ✅ FIXED: Feedback message submission with better error handling
   const handleSubmitFeedback = async () => {
     if (!feedbackMessage || feedbackMessage.trim() === '') {
       showToast('Please provide your feedback', 'error');
@@ -201,7 +284,7 @@ export default function MessageScannerScreen() {
 
     setSubmitting(true);
     try {
-      const response = await submitFeedback(feedbackMessage);
+      const response = await submitFeedbackMessage(feedbackMessage);
       console.log('Feedback Response:', response);
       
       if (response && response.reply) {
@@ -216,26 +299,19 @@ export default function MessageScannerScreen() {
         setFeedbackReply('');
       }, 5000);
     } catch (err) {
-      showToast(err.message || 'Failed to submit feedback', 'error');
+      console.error('Feedback Submit Error:', err);
+      
+      // ✅ Better error handling for 403
+      if (err.status === 403 || err.isAuthError) {
+        showToast('Please log in to submit feedback.', 'warning');
+        setShowAuthModal(true);
+      } else {
+        showToast(err.message || 'Failed to submit feedback', 'error');
+      }
     } finally {
       setSubmitting(false);
     }
   };
-
-  // Commented out - will be used in future
-  // const renderStars = () => (
-  //   <View style={styles.starsContainer}>
-  //     {[1, 2, 3, 4, 5].map((star) => (
-  //       <TouchableOpacity key={star} onPress={() => setRating(star)}>
-  //         <Ionicons
-  //           name={star <= rating ? 'star' : 'star-outline'}
-  //           size={32}
-  //           color={star <= rating ? '#ffc107' : colors.textMuted}
-  //         />
-  //       </TouchableOpacity>
-  //     ))}
-  //   </View>
-  // );
 
   const getRiskLevel = (score) => {
     if (score > 70) return { label: 'High Risk', color: '#ef4444', bg: '#fee2e2', icon: '🚨', badge: 'Scam' };
@@ -359,7 +435,6 @@ export default function MessageScannerScreen() {
                     {riskLevel.badge}
                   </Text>
                 </View>
-                  {/* <Text style={styles.riskLabel}>Scam Assessment</Text> */}
                 {result.reference && (
                   <Text style={[styles.riskRef, { color: colors.textMuted }]}>
                     Ref: {result.reference}
@@ -367,37 +442,6 @@ export default function MessageScannerScreen() {
                 )}
               </View>
             </View>
-
-            {/* <View style={styles.riskScoreRow}>
-              <Text style={[styles.riskScoreValue, { color: riskLevel.color }]}>
-                {Math.round(result.riskScore)}%
-              </Text>
-              <Text style={[styles.riskScoreLabel, { color: riskLevel.color }]}>
-                {riskLevel.label}
-              </Text>
-            </View> */}
-
-            {/* <View style={styles.progressContainer}>
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, {
-                  width: `${Math.min(result.riskScore, 100)}%`,
-                  backgroundColor: riskLevel.color,
-                }]} />
-              </View>
-              <View style={styles.progressLabels}>
-                <Text style={styles.progressLabel}>Safe</Text>
-                <Text style={styles.progressLabel}>Suspicious</Text>
-                <Text style={styles.progressLabel}>Dangerous</Text>
-              </View>
-            </View> */}
-
-            {/* <Text style={[styles.riskMessage, { color: riskLevel.color }]}>
-              {result.riskScore > 70
-                ? '🚨 HIGH RISK: This is likely a scam! Do not respond or click any links.'
-                : result.riskScore > 30
-                  ? '⚠️ MEDIUM RISK: This message shows scam indicators. Exercise caution.'
-                  : '✅ LOW RISK: This message appears legitimate.'}
-            </Text> */}
 
             <TouchableOpacity
               style={[styles.downloadButton, {
@@ -450,7 +494,7 @@ export default function MessageScannerScreen() {
           }]}>
             <View style={styles.infoHeader}>
               <View style={[styles.infoIcon, { backgroundColor: '#f093fb20' }]}>
-                <Ionicons name="chatbubble-ellipses-outline" size={22} color="#f5576c" />
+                <Ionicons name="information-circle-outline" size={22} color="#f5576c" />
               </View>
               <View>
                 <Text style={[styles.infoTitle, { color: colors.text }]}>Classification</Text>
@@ -462,15 +506,9 @@ export default function MessageScannerScreen() {
                 {result.prediction || result.classification}
               </Text>
             </View>
-            {/* <View style={styles.confidenceBadge}>
-              <Ionicons name="checkmark-circle" size={16} color={riskLevel.color} />
-              <Text style={[styles.confidenceText, { color: riskLevel.color }]}>
-                Confidence: {((result.confidence || 0.5) * 100).toFixed(1)}%
-              </Text>
-            </View> */}
           </View>
 
-          {/* Red Flags Card */}
+          {/* Analysis Details */}
           <View style={[styles.infoCard, {
             backgroundColor: 'white',
             borderColor: colors.border,
@@ -491,158 +529,58 @@ export default function MessageScannerScreen() {
             </View>
           </View>
 
-          {/* Message Features */}
-            {result.features && (
-              <View style={[styles.featuresCard, {
-                backgroundColor: 'white',
-                borderColor: colors.border,
-              }
-              ]}>
-                {/* <View style={styles.featuresHeader}> */}
-                  {/* <View style={[styles.featuresIcon, { backgroundColor: '#06b6d420' }]}>
-                    <Ionicons name="stats-chart-outline" size={22} color="#06b6d4" />
-                  </View> */}
-                  {/* <View>
-                    <Text style={[styles.featuresTitle, { color: colors.text }]}>Message Analysis Details</Text>
-                    <Text style={[styles.featuresSubtitle, { color: colors.textMuted }]}>Technical Message Features</Text>
-                  </View> */}
-                {/* </View> */}
+          {/* Message Phishing Reasons */}
+          {result._raw?.messagePhishingReasons && result._raw.messagePhishingReasons.length > 0 && (
+            <View style={[styles.warningCard, {
+              backgroundColor: '#fee2e2',
+              borderColor: '#fca5a5',
+            }]}>
+              <Text style={[styles.warningTitle, { color: '#dc2626' }]}>
+                🚨 Message Phishing Indicators
+              </Text>
+              {result._raw.messagePhishingReasons.map((reason, index) => (
+                <Text key={index} style={[styles.warningText, { color: '#475569' }]}>
+                  • {reason}
+                </Text>
+              ))}
+            </View>
+          )}
 
-                {/* <View style={styles.featuresGrid}> */}
-                    {/* <View style={[styles.featureItem, {
-                      backgroundColor: colors.backgroundInput,
-                      borderColor: colors.border,
-                    }]}>
-                      <View style={[styles.featureItemIcon, { backgroundColor: '#0ea5e920' }]}>
-                        <Ionicons name="text-outline" size={18} color="#0ea5e9" />
-                      </View>
-                      <View style={styles.featureItemContent}>
-                        <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Message Length</Text>
-                        <Text style={[styles.featureItemValue, { color: colors.text }]}>{result.features.length || 0} chars</Text>
-                      </View>
-                    </View> */}
-
-                  {/* <View style={[styles.featureItem, {
-                    backgroundColor: colors.backgroundInput,
-                    borderColor: colors.border,
-                  }]}> */}
-                    {/* <View style={[styles.featureItemIcon, { backgroundColor: '#f59e0b20' }]}>
-                      <Ionicons name="trending-up-outline" size={18} color="#f59e0b" />
-                    </View> */}
-                    {/* <View style={styles.featureItemContent}>
-                      <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Uppercase Ratio</Text>
-                      <Text style={[styles.featureItemValue, { color: colors.text }]}>
-                        {((result.features.uppercaseRatio || 0) * 100).toFixed(1)}%
-                      </Text>
-                    </View> */}
-                  {/* </View> */}
-
-                  {/* <View style={[styles.featureItem, {
-                    backgroundColor: colors.backgroundInput,
-                    borderColor: result.features.hasURL ? '#fca5a5' : '#6ee7b7',
-                  }]}>
-                    <View style={[styles.featureItemIcon, {
-                      backgroundColor: result.features.hasURL ? '#ef444420' : '#10b98120'
-                    }]}>
-                      <Ionicons name="link-outline" size={18} color={result.features.hasURL ? '#ef4444' : '#10b981'} />
-                    </View>
-                    <View style={styles.featureItemContent}>
-                      <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Contains URL</Text>
-                      <Text style={[styles.featureItemValue, {
-                        color: result.features.hasURL ? '#ef4444' : '#10b981'
-                      }]}>
-                        {result.features.hasURL ? '⚠️ Yes' : '✓ No'}
-                      </Text>
-                    </View>
-                  </View> */}
-
-                  {/* <View style={[styles.featureItem, {
-                    backgroundColor: colors.backgroundInput,
-                    borderColor: result.features.hasPhone ? '#fca5a5' : '#6ee7b7',
-                  }]}>
-                    <View style={[styles.featureItemIcon, {
-                      backgroundColor: result.features.hasPhone ? '#ef444420' : '#10b98120'
-                    }]}>
-                      <Ionicons name="call-outline" size={18} color={result.features.hasPhone ? '#ef4444' : '#10b981'} />
-                    </View>
-                    <View style={styles.featureItemContent}>
-                      <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Contains Phone</Text>
-                      <Text style={[styles.featureItemValue, {
-                        color: result.features.hasPhone ? '#ef4444' : '#10b981'
-                      }]}>
-                        {result.features.hasPhone ? '⚠️ Yes' : '✓ No'}
-                      </Text>
-                    </View>
-                  </View> */}
-
-                  {/* <View style={[styles.featureItem, {
-                    backgroundColor: colors.backgroundInput,
-                    borderColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#fca5a5' : '#6ee7b7',
-                  }]}>
-                    <View style={[styles.featureItemIcon, {
-                      backgroundColor: (result.features.suspiciousKeywordCount || 0) > 0 ? '#ef444420' : '#10b98120'
-                    }]}>
-                      <Ionicons name="warning-outline" size={18} color={(result.features.suspiciousKeywordCount || 0) > 0 ? '#ef4444' : '#10b981'} />
-                    </View>
-                    <View style={styles.featureItemContent}>
-                      <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Suspicious Keywords</Text>
-                      <Text style={[styles.featureItemValue, { color: colors.text }]}>
-                        {result.features.suspiciousKeywordCount || 0} found
-                      </Text>
-                    </View>
-                  </View> */}
-
-                  {/* <View style={[styles.featureItem, {
-                    backgroundColor: colors.backgroundInput,
-                    borderColor: colors.border,
-                  }]}>
-                    <View style={[styles.featureItemIcon, { backgroundColor: '#8b5cf620' }]}>
-                      <Ionicons name="at-outline" size={18} color="#8b5cf6" />
-                    </View>
-                    <View style={styles.featureItemContent}>
-                      <Text style={[styles.featureItemLabel, { color: colors.textMuted }]}>Special Symbols</Text>
-                      <Text style={[styles.featureItemValue, { color: colors.text }]}>
-                        {result.features.specialCharCount || 0}
-                      </Text>
-                    </View>
-                  </View> */}
-                </View>
-              // </View>
-            )}
-
-          {/* Extracted URLs */}
-          {/* {result.extractedUrls && result.extractedUrls.length > 0 && (
+          {/* URLs Found */}
+          {result._raw?.urlsFound && result._raw.urlsFound.length > 0 && (
             <View style={[styles.urlsCard, {
-              backgroundColor: 'white',
+              backgroundColor: '#fef3c7',
               borderColor: '#fcd34d',
             }]}>
-              <View style={styles.urlsHeader}>
-                <View style={[styles.urlsIcon, { backgroundColor: '#fef3c7' }]}>
-                  <Ionicons name="link-outline" size={22} color="#ed6c02" />
-                </View>
-                <View>
-                  <Text style={[styles.urlsTitle, { color: '#ed6c02' }]}>Suspicious URLs Detected</Text>
-                  <Text style={[styles.urlsSubtitle, { color: colors.textMuted }]}>
-                    {result.extractedUrls.length} suspicious link{result.extractedUrls.length > 1 ? 's' : ''} found
-                  </Text>
-                </View>
-              </View>
-              {result.extractedUrls.map((url, idx) => (
-                <View key={idx} style={[styles.urlItem, {
-                  backgroundColor: colors.backgroundInput,
-                  borderColor: colors.border,
-                }]}>
-                  <Ionicons name="warning" size={16} color="#ef4444" />
-                  <Text style={[styles.urlText, { color: colors.text }]} numberOfLines={1}>
-                    {url}
-                  </Text>
-                </View>
-              ))}
-              <Text style={[styles.urlNote, { color: '#ed6c02' }]}>
-                These URLs have been automatically analyzed and contributed to the risk score.
+              <Text style={[styles.urlsTitle, { color: '#d97706' }]}>
+                🔗 URLs Found in Message
               </Text>
+              {result._raw.urlsFound.map((url, index) => {
+                const urlResult = result._raw.urlResults?.[index];
+                return (
+                  <View key={index} style={[styles.urlItem, {
+                    backgroundColor: 'white',
+                    borderColor: '#e2e8f0',
+                  }]}>
+                    <Text style={[styles.urlText, { color: '#1e293b' }]} numberOfLines={1}>
+                      {url}
+                    </Text>
+                    {urlResult && (
+                      <View style={[styles.urlPredBadge, {
+                        backgroundColor: urlResult.prediction === 'LEGITIMATE' ? '#d1fae5' : '#fee2e2',
+                      }]}>
+                        <Text style={[styles.urlPredText, {
+                          color: urlResult.prediction === 'LEGITIMATE' ? '#065f46' : '#dc2626',
+                        }]}>
+                          {urlResult.prediction || 'UNKNOWN'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
             </View>
-          )} */}
+          )}
 
           {/* Recommendation */}
           <View style={[styles.recommendationCard, {
@@ -687,33 +625,52 @@ export default function MessageScannerScreen() {
                 </Text>
               </View>
 
-              {/* Commented out - Will be used in future */}
-              {/* <View style={styles.accuracyButtons}>
-                <TouchableOpacity
-                  style={[styles.accuracyBtn, isAccurate && styles.accuracyBtnActive, {
-                    backgroundColor: isAccurate ? colors.success + '20' : colors.backgroundInput,
-                    borderColor: isAccurate ? colors.success : colors.border,
-                  }]}
-                  onPress={() => setIsAccurate(true)}
-                >
-                  <Ionicons name="thumbs-up" size={20} color={isAccurate ? colors.success : colors.textMuted} />
-                  <Text style={[styles.accuracyBtnText, isAccurate && { color: colors.success }]}>Yes</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.accuracyBtn, !isAccurate && styles.accuracyBtnActive, {
-                    backgroundColor: !isAccurate ? colors.danger + '20' : colors.backgroundInput,
-                    borderColor: !isAccurate ? colors.danger : colors.border,
-                  }]}
-                  onPress={() => setIsAccurate(false)}
-                >
-                  <Ionicons name="thumbs-down" size={20} color={!isAccurate ? colors.danger : colors.textMuted} />
-                  <Text style={[styles.accuracyBtnText, !isAccurate && { color: colors.danger }]}>No</Text>
-                </TouchableOpacity>
-              </View> */}
+              {/* Scan ID */}
+              <Text style={[styles.scanIdText, { color: colors.textMuted }]}>
+                Scan ID: {scanId || 'Not set'}
+              </Text>
 
-              {/* Commented out - Will be used in future */}
-              {/* <Text style={[styles.ratingLabel, { color: colors.textMuted }]}>Rate the detection quality</Text>
-              {renderStars()} */}
+              {/* Accuracy Buttons */}
+              <View style={styles.accuracyButtons}>
+                <TouchableOpacity
+                  style={[styles.accuracyBtn, accuracy.isAccurate === true && styles.accuracyBtnActive, {
+                    backgroundColor: accuracy.isAccurate === true ? colors.success + '20' : colors.backgroundInput,
+                    borderColor: accuracy.isAccurate === true ? colors.success : colors.border,
+                  }]}
+                  onPress={() => handleAccuracySelect(true)}
+                  disabled={accuracySubmitted}
+                >
+                  <Ionicons name="thumbs-up" size={20} color={accuracy.isAccurate === true ? colors.success : colors.textMuted} />
+                  <Text style={[styles.accuracyBtnText, accuracy.isAccurate === true && { color: colors.success }]}>
+                    Yes, accurate
+                  </Text>
+                  {accuracySubmitted && accuracy.isAccurate === true && (
+                    <Text style={[styles.checkmark, { color: colors.success }]}>✓</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.accuracyBtn, accuracy.isAccurate === false && styles.accuracyBtnActive, {
+                    backgroundColor: accuracy.isAccurate === false ? colors.danger + '20' : colors.backgroundInput,
+                    borderColor: accuracy.isAccurate === false ? colors.danger : colors.border,
+                  }]}
+                  onPress={() => handleAccuracySelect(false)}
+                  disabled={accuracySubmitted}
+                >
+                  <Ionicons name="thumbs-down" size={20} color={accuracy.isAccurate === false ? colors.danger : colors.textMuted} />
+                  <Text style={[styles.accuracyBtnText, accuracy.isAccurate === false && { color: colors.danger }]}>
+                    No, inaccurate
+                  </Text>
+                  {accuracySubmitted && accuracy.isAccurate === false && (
+                    <Text style={[styles.checkmark, { color: colors.danger }]}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {accuracySubmitted && (
+                <Text style={[styles.accuracySubmittedText, { color: colors.success }]}>
+                  ✓ Accuracy feedback submitted successfully
+                </Text>
+              )}
 
               <View style={styles.feedbackInputContainer}>
                 <Text style={[styles.feedbackLabel, { color: colors.text }]}>Your Feedback *</Text>
@@ -948,57 +905,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  riskLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#94a3b8',
-  },
   riskRef: {
     fontSize: 11,
     fontWeight: '400',
     fontFamily: 'monospace',
-  },
-  riskScoreRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 16,
-    marginBottom: 16,
-  },
-  riskScoreValue: {
-    fontSize: 48,
-    fontWeight: '800',
-  },
-  riskScoreLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  progressContainer: {
-    marginBottom: 16,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 6,
-  },
-  progressLabel: {
-    fontSize: 10,
-    color: '#94a3b8',
-  },
-  riskMessage: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 16,
-    lineHeight: 20,
   },
   downloadButton: {
     flexDirection: 'row',
@@ -1084,72 +994,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  confidenceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
-  },
-  confidenceText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  featuresCard: {
+  warningCard: {
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
   },
-  featuresHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  featuresIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  featuresTitle: {
+  warningTitle: {
     fontSize: 16,
     fontWeight: '700',
+    marginBottom: 8,
   },
-  featuresSubtitle: {
-    fontSize: 12,
-  },
-  featuresGrid: {
-    gap: 10,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  featureItemIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  featureItemContent: {
-    flex: 1,
-  },
-  featureItemLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  featureItemValue: {
-    fontSize: 16,
-    fontWeight: '700',
+  warningText: {
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 4,
   },
   urlsCard: {
     borderRadius: 16,
@@ -1157,31 +1016,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
   },
-  urlsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  urlsIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   urlsTitle: {
     fontSize: 16,
     fontWeight: '700',
-  },
-  urlsSubtitle: {
-    fontSize: 12,
+    marginBottom: 12,
   },
   urlItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 10,
+    justifyContent: 'space-between',
+    padding: 12,
     borderRadius: 10,
     marginBottom: 8,
     borderWidth: 1,
@@ -1191,9 +1035,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'monospace',
   },
-  urlNote: {
-    fontSize: 12,
-    marginTop: 8,
+  urlPredBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  urlPredText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   recommendationCard: {
     borderRadius: 16,
@@ -1252,6 +1102,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
+  scanIdText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  accuracyButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  accuracyBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  accuracyBtnActive: {
+    borderWidth: 2,
+  },
+  accuracyBtnText: {
+    fontWeight: '600',
+  },
+  checkmark: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  accuracySubmittedText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
   feedbackInputContainer: {
     marginBottom: 16,
   },
@@ -1272,37 +1157,6 @@ const styles = StyleSheet.create({
   charCount: {
     fontSize: 11,
     textAlign: 'right',
-  },
-  accuracyButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 18,
-  },
-  accuracyBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  accuracyBtnActive: {
-    borderWidth: 2,
-  },
-  accuracyBtnText: {
-    fontWeight: '600',
-  },
-  ratingLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 10,
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 18,
   },
   submitBtn: {
     borderRadius: 12,
@@ -1347,4 +1201,4 @@ const styles = StyleSheet.create({
   },
 });
 
-// export default MessageScannerScreen;
+//export default MessageScannerScreen;

@@ -16,7 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useGuest } from '../context/GuestContext';
 import { getColors } from '../constants/colors';
-import { scanURL, submitFeedback, getPrediction } from '../services/api';
+import { scanURL, submitFeedbackMessage, submitAccuracy, getPrediction } from '../services/api';
 import { downloadPDF } from '../services/pdfGenerator';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AuthModal from '../components/AuthModal';
@@ -42,10 +42,60 @@ export default function URLScannerScreen() {
   const [feedbackReply, setFeedbackReply] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  
+  // Accuracy feedback state
+  const [scanId, setScanId] = useState('');
+  const [accuracy, setAccuracy] = useState({ isAccurate: null });
+  const [accuracySubmitted, setAccuracySubmitted] = useState(false);
 
-  // Commented out - will be used in future
-  // const [isAccurate, setIsAccurate] = useState(true);
-  // const [rating, setRating] = useState(0);
+  const processScanResponse = (response, scannedUrl) => {
+    const rawPrediction = getPrediction(response);
+    const prediction = rawPrediction;
+    
+    let riskScore = 50;
+    let resultType = 'unknown';
+
+    const upperPrediction = prediction.toUpperCase().trim();
+    
+    switch (upperPrediction) {
+      case 'PHISHING':
+      case 'DANGEROUS':
+      case 'MALICIOUS':
+        riskScore = 85;
+        resultType = 'phishing';
+        break;
+      case 'SUSPICIOUS':
+      case 'WARNING':
+        riskScore = 55;
+        resultType = 'suspicious';
+        break;
+      case 'SAFE':
+      case 'LEGITIMATE':
+        riskScore = 15;
+        resultType = 'safe';
+        break;
+      default:
+        riskScore = 50;
+        resultType = 'unknown';
+    }
+
+    return {
+      reference: response.reference,
+      url: scannedUrl || response.url || '',
+      content: scannedUrl || response.url || '',
+      prediction: prediction,
+      classification: prediction || 'UNKNOWN',
+      riskScore: riskScore,
+      explanation: response.conclusion || 'Analysis completed',
+      result: resultType,
+      scannedAt: response.scannedAt || new Date().toISOString(),
+      type: 'url',
+      conclusion: response.conclusion,
+      phishingReasons: response.phishingReasons || [],
+      legitimateReasons: response.legitimateReasons || [],
+      _raw: response,
+    };
+  };
 
   const handleScan = async () => {
     const validation = validateURL(url);
@@ -60,61 +110,24 @@ export default function URLScannerScreen() {
     setShowFeedback(false);
     setFeedbackSubmitted(false);
     setFeedbackReply('');
+    setAccuracySubmitted(false);
+    setScanId('');
+    setAccuracy({ isAccurate: null });
 
     try {
       const response = await scanURL(url);
       console.log('API Response:', response);
 
-      const prediction = getPrediction(response);
-      const upperPrediction = prediction.toUpperCase();
-
-      let riskScore = 50;
-      let resultType = 'unknown';
-
-      switch (upperPrediction) {
-        case 'PHISHING':
-        case 'DANGEROUS':
-        case 'MALICIOUS':
-          riskScore = 85;
-          resultType = 'phishing';
-          break;
-        case 'SUSPICIOUS':
-        case 'WARNING':
-          riskScore = 55;
-          resultType = 'suspicious';
-          break;
-        case 'SAFE':
-        case 'LEGITIMATE':
-          riskScore = 15;
-          resultType = 'safe';
-          break;
-        default:
-          riskScore = 50;
-          resultType = 'unknown';
-      }
-
-      const scanResult = {
-        reference: response.reference,
-        url: url,
-        prediction: prediction,
-        classification: prediction || 'UNKNOWN',
-        riskScore: riskScore,
-        // confidence: 0.85,
-        explanation: response.conclusion || 'Analysis completed',
-        result: resultType,
-        scannedAt: response.scannedAt || new Date().toISOString(),
-        type: 'url',
-        content: url,
-        conclusion: response.conclusion,
-        phishingReasons: response.phishingReasons || [],
-        legitimateReasons: response.legitimateReasons || [],
-      };
-
+      const scanResult = processScanResponse(response, url);
+      console.log('Processed Result:', scanResult);
       setResult(scanResult);
 
       if (!isAuthenticated) {
         addScan(scanResult);
       }
+
+      const reference = response.reference || '';
+      setScanId(reference);
 
       setShowFeedback(true);
       setFeedbackMessage('');
@@ -142,7 +155,19 @@ export default function URLScannerScreen() {
 
     setDownloading(true);
     try {
-      await downloadPDF(result, 'url');
+      const pdfData = {
+        reference: result.reference,
+        url: result.url || result.content,
+        prediction: result.prediction,
+        riskScore: result.riskScore,
+        conclusion: result.conclusion || result.explanation,
+        scannedAt: result.scannedAt,
+        phishingReasons: result.phishingReasons || [],
+        legitimateReasons: result.legitimateReasons || [],
+        overallPrediction: result.prediction,
+      };
+      
+      await downloadPDF(pdfData, 'url');
       showToast('Report downloaded successfully!', 'success');
     } catch (error) {
       console.error('Download error:', error);
@@ -152,6 +177,57 @@ export default function URLScannerScreen() {
     }
   };
 
+  // ✅ FIXED: Accuracy feedback with better error handling
+  const handleAccuracySelect = async (isAccurate) => {
+    console.log('Scan ID:', scanId);
+    
+    if (!scanId || scanId.trim() === '') {
+      showToast('Scan ID not found. Please try scanning again.', 'error');
+      console.error('Scan ID is null or empty:', scanId);
+      return;
+    }
+
+    if (accuracySubmitted) {
+      showToast('Accuracy already submitted', 'error');
+      return;
+    }
+
+    setAccuracy({ isAccurate });
+    
+    try {
+      console.log('Submitting accuracy with:', {
+        reference: scanId,
+        accurate: isAccurate
+      });
+      
+      const response = await submitAccuracy({
+        reference: scanId,
+        accurate: isAccurate
+      });
+      
+      console.log('Accuracy Response:', response);
+      setAccuracySubmitted(true);
+      
+      if (response?.reply) {
+        showToast(response.reply, 'success');
+      } else {
+        showToast('Thank you for your feedback!', 'success');
+      }
+    } catch (error) {
+      console.error('Accuracy Submit Error:', error);
+      
+      // ✅ Better error handling for 403
+      if (error.status === 403 || error.isAuthError) {
+        showToast('Please log in to submit accuracy feedback.', 'warning');
+        setShowAuthModal(true);
+      } else {
+        showToast(error.message || 'Failed to submit accuracy', 'error');
+      }
+      setAccuracy({ isAccurate: null });
+    }
+  };
+
+  // ✅ FIXED: Feedback message submission with better error handling
   const handleSubmitFeedback = async () => {
     if (!feedbackMessage || feedbackMessage.trim() === '') {
       showToast('Please provide your feedback', 'error');
@@ -160,7 +236,7 @@ export default function URLScannerScreen() {
 
     setSubmitting(true);
     try {
-      const response = await submitFeedback(feedbackMessage);
+      const response = await submitFeedbackMessage(feedbackMessage);
       console.log('Feedback Response:', response);
       
       if (response && response.reply) {
@@ -175,26 +251,19 @@ export default function URLScannerScreen() {
         setFeedbackReply('');
       }, 5000);
     } catch (err) {
-      showToast(err.message || 'Failed to submit feedback', 'error');
+      console.error('Feedback Submit Error:', err);
+      
+      // ✅ Better error handling for 403
+      if (err.status === 403 || err.isAuthError) {
+        showToast('Please log in to submit feedback.', 'warning');
+        setShowAuthModal(true);
+      } else {
+        showToast(err.message || 'Failed to submit feedback', 'error');
+      }
     } finally {
       setSubmitting(false);
     }
   };
-
-  // Commented out - will be used in future
-  // const renderStars = () => (
-  //   <View style={styles.starsContainer}>
-  //     {[1, 2, 3, 4, 5].map((star) => (
-  //       <TouchableOpacity key={star} onPress={() => setRating(star)}>
-  //         <Ionicons
-  //           name={star <= rating ? 'star' : 'star-outline'}
-  //           size={32}
-  //           color={star <= rating ? '#ffc107' : colors.textMuted}
-  //         />
-  //       </TouchableOpacity>
-  //     ))}
-  //   </View>
-  // );
 
   const getRiskLevel = (score) => {
     if (score > 70) return { label: 'High Risk', color: '#ef4444', bg: '#fee2e2', icon: '🚨', badge: 'Phishing' };
@@ -319,7 +388,6 @@ export default function URLScannerScreen() {
                     {riskLevel.badge}
                   </Text>
                 </View>
-                <Text style={styles.riskLabel}>Risk Assessment</Text>
                 {result.reference && (
                   <Text style={[styles.riskRef, { color: colors.textMuted }]}>
                     Ref: {result.reference}
@@ -327,37 +395,6 @@ export default function URLScannerScreen() {
                 )}
               </View>
             </View>
-
-            {/* <View style={styles.riskScoreRow}>
-              <Text style={[styles.riskScoreValue, { color: riskLevel.color }]}>
-                {Math.round(result.riskScore)}%
-              </Text>
-              <Text style={[styles.riskScoreLabel, { color: riskLevel.color }]}>
-                {riskLevel.label}
-              </Text>
-            </View> */}
-
-            {/* <View style={styles.progressContainer}> */}
-              {/* <View style={styles.progressBar}>
-                <View style={[styles.progressFill, {
-                  width: `${Math.min(result.riskScore, 100)}%`,
-                  backgroundColor: riskLevel.color,
-                }]} />
-              </View> */}
-              {/* <View style={styles.progressLabels}> */}
-                {/* <Text style={styles.progressLabel}>Low Risk (0%)</Text>
-                <Text style={styles.progressLabel}>Medium (50%)</Text>
-                <Text style={styles.progressLabel}>High Risk (100%)</Text> */}
-              {/* </View> */}
-            {/* </View> */}
-
-            {/* <Text style={[styles.riskMessage, { color: riskLevel.color }]}>
-              {result.riskScore > 70
-                ? '🚫 HIGH RISK: This website appears to be a phishing site! Do not proceed.'
-                : result.riskScore > 30
-                  ? '⚠️ MEDIUM RISK: This website shows suspicious characteristics. Exercise caution.'
-                  : '✅ LOW RISK: This website appears to be safe.'}
-            </Text> */}
 
             <TouchableOpacity
               style={[styles.downloadButton, {
@@ -398,12 +435,6 @@ export default function URLScannerScreen() {
                 {result.prediction || result.classification}
               </Text>
             </View>
-            {/* <View style={styles.confidenceBadge}>
-              <Ionicons name="checkmark-circle" size={16} color={riskLevel.color} />
-              <Text style={[styles.confidenceText, { color: riskLevel.color }]}>
-                Confidence: {((result.confidence || 0.5) * 100).toFixed(1)}%
-              </Text>
-            </View> */}
           </View>
 
           {/* Explanation Card */}
@@ -426,6 +457,23 @@ export default function URLScannerScreen() {
               </Text>
             </View>
           </View>
+
+          {/* Phishing Reasons */}
+          {result.phishingReasons && result.phishingReasons.length > 0 && (
+            <View style={[styles.warningCard, {
+              backgroundColor: '#fee2e2',
+              borderColor: '#fca5a5',
+            }]}>
+              <Text style={[styles.warningTitle, { color: '#dc2626' }]}>
+                🚨 Phishing Indicators
+              </Text>
+              {result.phishingReasons.map((reason, index) => (
+                <Text key={index} style={[styles.warningText, { color: '#475569' }]}>
+                  • {reason}
+                </Text>
+              ))}
+            </View>
+          )}
 
           {/* Recommendation */}
           <View style={[styles.recommendationCard, {
@@ -470,33 +518,52 @@ export default function URLScannerScreen() {
                 </Text>
               </View>
 
-              {/* Commented out - Will be used in future */}
-              {/* <View style={styles.accuracyButtons}>
-                <TouchableOpacity
-                  style={[styles.accuracyBtn, isAccurate && styles.accuracyBtnActive, {
-                    backgroundColor: isAccurate ? colors.success + '20' : colors.backgroundInput,
-                    borderColor: isAccurate ? colors.success : colors.border,
-                  }]}
-                  onPress={() => setIsAccurate(true)}
-                >
-                  <Ionicons name="thumbs-up" size={20} color={isAccurate ? colors.success : colors.textMuted} />
-                  <Text style={[styles.accuracyBtnText, isAccurate && { color: colors.success }]}>Yes</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.accuracyBtn, !isAccurate && styles.accuracyBtnActive, {
-                    backgroundColor: !isAccurate ? colors.danger + '20' : colors.backgroundInput,
-                    borderColor: !isAccurate ? colors.danger : colors.border,
-                  }]}
-                  onPress={() => setIsAccurate(false)}
-                >
-                  <Ionicons name="thumbs-down" size={20} color={!isAccurate ? colors.danger : colors.textMuted} />
-                  <Text style={[styles.accuracyBtnText, !isAccurate && { color: colors.danger }]}>No</Text>
-                </TouchableOpacity>
-              </View> */}
+              {/* Scan ID */}
+              <Text style={[styles.scanIdText, { color: colors.textMuted }]}>
+                Scan ID: {scanId || 'Not set'}
+              </Text>
 
-              {/* Commented out - Will be used in future */}
-              {/* <Text style={[styles.ratingLabel, { color: colors.textMuted }]}>Rate the detection quality</Text>
-              {renderStars()} */}
+              {/* Accuracy Buttons */}
+              <View style={styles.accuracyButtons}>
+                <TouchableOpacity
+                  style={[styles.accuracyBtn, accuracy.isAccurate === true && styles.accuracyBtnActive, {
+                    backgroundColor: accuracy.isAccurate === true ? colors.success + '20' : colors.backgroundInput,
+                    borderColor: accuracy.isAccurate === true ? colors.success : colors.border,
+                  }]}
+                  onPress={() => handleAccuracySelect(true)}
+                  disabled={accuracySubmitted}
+                >
+                  <Ionicons name="thumbs-up" size={20} color={accuracy.isAccurate === true ? colors.success : colors.textMuted} />
+                  <Text style={[styles.accuracyBtnText, accuracy.isAccurate === true && { color: colors.success }]}>
+                    Yes, accurate
+                  </Text>
+                  {accuracySubmitted && accuracy.isAccurate === true && (
+                    <Text style={[styles.checkmark, { color: colors.success }]}>✓</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.accuracyBtn, accuracy.isAccurate === false && styles.accuracyBtnActive, {
+                    backgroundColor: accuracy.isAccurate === false ? colors.danger + '20' : colors.backgroundInput,
+                    borderColor: accuracy.isAccurate === false ? colors.danger : colors.border,
+                  }]}
+                  onPress={() => handleAccuracySelect(false)}
+                  disabled={accuracySubmitted}
+                >
+                  <Ionicons name="thumbs-down" size={20} color={accuracy.isAccurate === false ? colors.danger : colors.textMuted} />
+                  <Text style={[styles.accuracyBtnText, accuracy.isAccurate === false && { color: colors.danger }]}>
+                    No, inaccurate
+                  </Text>
+                  {accuracySubmitted && accuracy.isAccurate === false && (
+                    <Text style={[styles.checkmark, { color: colors.danger }]}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {accuracySubmitted && (
+                <Text style={[styles.accuracySubmittedText, { color: colors.success }]}>
+                  ✓ Accuracy feedback submitted successfully
+                </Text>
+              )}
 
               <View style={styles.feedbackInputContainer}>
                 <Text style={[styles.feedbackLabel, { color: colors.text }]}>Your Feedback *</Text>
@@ -735,57 +802,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  riskLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#94a3b8',
-  },
   riskRef: {
     fontSize: 11,
     fontWeight: '400',
     fontFamily: 'monospace',
-  },
-  riskScoreRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 16,
-    marginBottom: 16,
-  },
-  riskScoreValue: {
-    fontSize: 48,
-    fontWeight: '800',
-  },
-  riskScoreLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  progressContainer: {
-    marginBottom: 16,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 6,
-  },
-  progressLabel: {
-    fontSize: 10,
-    color: '#94a3b8',
-  },
-  riskMessage: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 16,
-    lineHeight: 20,
   },
   downloadButton: {
     flexDirection: 'row',
@@ -835,15 +855,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  confidenceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
+  warningCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
   },
-  confidenceText: {
-    fontSize: 13,
-    fontWeight: '600',
+  warningTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  warningText: {
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 4,
   },
   recommendationCard: {
     borderRadius: 16,
@@ -902,6 +928,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
+  scanIdText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  accuracyButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  accuracyBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  accuracyBtnActive: {
+    borderWidth: 2,
+  },
+  accuracyBtnText: {
+    fontWeight: '600',
+  },
+  checkmark: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  accuracySubmittedText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
   feedbackInputContainer: {
     marginBottom: 16,
   },
@@ -922,37 +983,6 @@ const styles = StyleSheet.create({
   charCount: {
     fontSize: 11,
     textAlign: 'right',
-  },
-  accuracyButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 18,
-  },
-  accuracyBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  accuracyBtnActive: {
-    borderWidth: 2,
-  },
-  accuracyBtnText: {
-    fontWeight: '600',
-  },
-  ratingLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 10,
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 18,
   },
   submitBtn: {
     borderRadius: 12,
@@ -997,4 +1027,4 @@ const styles = StyleSheet.create({
   },
 });
 
-// export default URLScannerScreen;
+//export default URLScannerScreen;

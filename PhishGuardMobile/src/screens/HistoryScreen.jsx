@@ -123,6 +123,15 @@ const HistoryScreen = () => {
             scannedAt: scan.scannedAt,
             type: type,
             content: scan.url || scan.message || scan.content || scan.url || '',
+            scanType: scan.scanType,
+            message: scan.message,
+            messagePrediction: scan.messagePrediction,
+            messagePhishingReasons: scan.messagePhishingReasons || [],
+            messageLegitimateReasons: scan.messageLegitimateReasons || [],
+            urlsFound: scan.urlsFound || [],
+            urlResults: scan.urlResults || [],
+            phishingReasons: scan.phishingReasons || [],
+            legitimateReasons: scan.legitimateReasons || [],
             _raw: scan,
           };
         });
@@ -168,7 +177,7 @@ const HistoryScreen = () => {
 
     return scansList.filter((scan) => {
       const scanDate = new Date(
-        scan?.scannedAt || scan?.date || scan?.timestamp || scan?.createdAt
+        scan?.scannedAt || scan?.date || scan?.timestamp || scan?.createdAt || Date.now()
       );
 
       switch (dateFilter.preset) {
@@ -254,14 +263,27 @@ const HistoryScreen = () => {
       const response = await getScanByReference(reference);
       console.log('Scan Details Response:', response);
 
+      const isMessageScan = response.scanType === 'MESSAGE' || response.message;
+
       setSelectedScan({
         reference: response.reference,
-        url: response.url,
+        url: response.url || response.message || '',
         prediction: getPrediction(response),
-        legitimateReasons: response.legitimateReasons || [],
-        phishingReasons: response.phishingReasons || [],
+        legitimateReasons: response.legitimateReasons || response.messageLegitimateReasons || [],
+        phishingReasons: response.phishingReasons || response.messagePhishingReasons || [],
         conclusion: response.conclusion,
         scannedAt: response.scannedAt,
+        isMessageScan: isMessageScan,
+        message: response.message,
+        scanType: response.scanType,
+        messagePrediction: response.messagePrediction,
+        messagePhishingReasons: response.messagePhishingReasons || [],
+        messageLegitimateReasons: response.messageLegitimateReasons || [],
+        urlsFound: response.urlsFound || [],
+        urlResults: response.urlResults || [],
+        overallPrediction: response.overallPrediction,
+        phishingReasons: response.phishingReasons || [],
+        legitimateReasons: response.legitimateReasons || [],
       });
       setShowModal(true);
     } catch (error) {
@@ -279,23 +301,33 @@ const HistoryScreen = () => {
     if (downloadingId === reference) return;
 
     setDownloadingId(reference);
-    const toastId = showToast('Generating PDF report...', 'loading');
+    showToast('Generating PDF report...', 'loading');
 
     try {
       const scanDetails = await getScanByReference(reference);
       console.log('Scan Details:', scanDetails);
 
+      const isMessageScan = scanDetails.scanType === 'MESSAGE' || scanDetails.message;
+
       const pdfData = {
         reference: scanDetails.reference,
-        url: scanDetails.url,
+        url: scanDetails.url || scanDetails.message || '',
+        message: scanDetails.message || '',
         prediction: getPrediction(scanDetails),
-        conclusion: scanDetails.conclusion,
+        conclusion: scanDetails.conclusion || 'Analysis completed',
         scannedAt: scanDetails.scannedAt,
+        scanType: scanDetails.scanType || (isMessageScan ? 'MESSAGE' : 'URL'),
+        messagePrediction: scanDetails.messagePrediction,
+        messagePhishingReasons: scanDetails.messagePhishingReasons || [],
+        messageLegitimateReasons: scanDetails.messageLegitimateReasons || [],
+        urlsFound: scanDetails.urlsFound || [],
+        urlResults: scanDetails.urlResults || [],
         phishingReasons: scanDetails.phishingReasons || [],
         legitimateReasons: scanDetails.legitimateReasons || [],
+        overallPrediction: scanDetails.overallPrediction,
       };
 
-      await downloadPDF(pdfData, 'url');
+      await downloadPDF(pdfData, isMessageScan ? 'message' : 'url');
       showToast('PDF report downloaded successfully!', 'success');
     } catch (error) {
       console.error('Download Error:', error);
@@ -320,18 +352,18 @@ const HistoryScreen = () => {
         { 
           text: 'Cancel', 
           style: 'cancel',
-          onPress: () => console.log('Delete cancelled')
         },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             setDeletingId(reference);
-            const toastId = showToast('Deleting scan...', 'loading');
             
             try {
+              console.log(`[DELETE] Attempting to delete scan with reference: ${reference}`);
+              
               const response = await deleteScanByReference(reference);
-              console.log('Delete Response:', response);
+              console.log('[DELETE] Response:', response);
               
               showToast(response?.message || 'Scan deleted successfully!', 'success');
               
@@ -342,11 +374,15 @@ const HistoryScreen = () => {
               await fetchHistory();
               
             } catch (error) {
-              console.error('Delete Error:', error);
+              console.error('[DELETE] Error:', error);
               
               if (error?.status === 401 || error?.status === 403) {
                 showToast('Session expired. Please login again.', 'error');
                 setTimeout(() => logout(), 1500);
+              } else if (error?.status === 404) {
+                showToast('Scan already deleted.', 'success');
+                setScans((prevScans) => prevScans.filter((scan) => scan.reference !== reference));
+                await fetchHistory();
               } else {
                 showToast(error?.message || 'Failed to delete scan', 'error');
               }
@@ -751,7 +787,7 @@ const HistoryScreen = () => {
             )}
           </View>
         ) : (
-          filteredScans.map((scan) => {
+          filteredScans.map((scan, index) => {
             const reference = scan?.reference;
             const isDownloading = downloadingId === reference;
             const isDeleting = deletingId === reference;
@@ -762,7 +798,7 @@ const HistoryScreen = () => {
 
             return (
               <TouchableOpacity
-                key={reference || Math.random()}
+                key={reference || `scan_${index}`}
                 style={[styles.scanCard, {
                   backgroundColor: isGuest ? colors.backgroundSecondary : colors.backgroundCard,
                   borderColor: colors.borderLight,
@@ -772,6 +808,10 @@ const HistoryScreen = () => {
               >
                 <View style={styles.scanHeader}>
                   <View style={styles.scanIdContainer}>
+                    {/* ✅ S.No */}
+                    <Text style={[styles.scanSNo, { color: colors.textMuted }]}>
+                      #{index + 1}
+                    </Text>
                     <Ionicons name="pricetag-outline" size={12} color={colors.textMuted} />
                     <Text style={[styles.scanId, { color: colors.primary[600] }]}>
                       {reference ? truncateText(reference, 20) : 'N/A'}
@@ -881,22 +921,40 @@ const HistoryScreen = () => {
                   </View>
                 </View>
 
-                {/* URL */}
+                {/* Type */}
                 <View style={styles.modalSection}>
-                  <Text style={[styles.modalLabel, { color: colors.textMuted }]}>URL</Text>
+                  <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Scan Type</Text>
+                  <View style={[styles.modalValueBox, {
+                    backgroundColor: selectedScan.scanType === 'MESSAGE' ? '#fce7f3' : '#dbeafe',
+                    borderColor: selectedScan.scanType === 'MESSAGE' ? '#f9a8d4' : '#93c5fd',
+                  }]}>
+                    <Text style={[styles.modalText, {
+                      color: selectedScan.scanType === 'MESSAGE' ? '#be185d' : '#1d4ed8',
+                      fontWeight: '600',
+                    }]}>
+                      {selectedScan.scanType || (selectedScan.isMessageScan ? 'MESSAGE' : 'URL')}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Content */}
+                <View style={styles.modalSection}>
+                  <Text style={[styles.modalLabel, { color: colors.textMuted }]}>
+                    {selectedScan.isMessageScan ? 'Message' : 'URL'}
+                  </Text>
                   <View style={[styles.modalValueBox, {
                     backgroundColor: colors.backgroundInput,
                     borderColor: colors.border,
                   }]}>
                     <Text style={[styles.modalText, { color: colors.text }]}>
-                      {selectedScan.url}
+                      {selectedScan.isMessageScan ? selectedScan.message || selectedScan.url : selectedScan.url}
                     </Text>
                   </View>
                 </View>
 
                 {/* Prediction */}
                 <View style={styles.modalSection}>
-                  <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Prediction</Text>
+                  <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Overall Prediction</Text>
                   <View style={[styles.modalValueBox, {
                     backgroundColor: selectedScan.prediction === 'PHISHING' ? '#fee2e2' : '#d1fae5',
                     borderColor: selectedScan.prediction === 'PHISHING' ? '#fca5a5' : '#6ee7b7',
@@ -905,53 +963,86 @@ const HistoryScreen = () => {
                       color: selectedScan.prediction === 'PHISHING' ? '#dc2626' : '#065f46',
                       fontWeight: '600',
                     }]}>
-                      {selectedScan.prediction}
+                      {selectedScan.overallPrediction || selectedScan.prediction}
                     </Text>
                   </View>
                 </View>
 
-                {/* Phishing Reasons */}
-                {selectedScan.phishingReasons && selectedScan.phishingReasons.length > 0 && (
+                {/* Message Prediction */}
+                {selectedScan.isMessageScan && selectedScan.messagePrediction && (
                   <View style={styles.modalSection}>
-                    <Text style={[styles.modalLabel, { color: colors.textMuted }]}>🚨 Phishing Indicators</Text>
+                    <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Message Prediction</Text>
                     <View style={[styles.modalValueBox, {
-                      backgroundColor: '#fee2e2',
-                      borderColor: '#fca5a5',
+                      backgroundColor: selectedScan.messagePrediction === 'PHISHING' ? '#fee2e2' : '#d1fae5',
+                      borderColor: selectedScan.messagePrediction === 'PHISHING' ? '#fca5a5' : '#6ee7b7',
                     }]}>
-                      {Array.isArray(selectedScan.phishingReasons) ? (
-                        selectedScan.phishingReasons.map((reason, i) => (
-                          <Text key={i} style={[styles.modalListItem, { color: '#dc2626' }]}>
-                            • {reason}
-                          </Text>
-                        ))
-                      ) : (
-                        <Text style={[styles.modalText, { color: '#dc2626' }]}>
-                          {selectedScan.phishingReasons}
-                        </Text>
-                      )}
+                      <Text style={[styles.modalText, {
+                        color: selectedScan.messagePrediction === 'PHISHING' ? '#dc2626' : '#065f46',
+                        fontWeight: '600',
+                      }]}>
+                        {selectedScan.messagePrediction}
+                      </Text>
                     </View>
                   </View>
                 )}
 
-                {/* Legitimate Reasons */}
-                {selectedScan.legitimateReasons && selectedScan.legitimateReasons.length > 0 && (
+                {/* Message Phishing Reasons */}
+                {selectedScan.isMessageScan && selectedScan.messagePhishingReasons && selectedScan.messagePhishingReasons.length > 0 && (
                   <View style={styles.modalSection}>
-                    <Text style={[styles.modalLabel, { color: colors.textMuted }]}>✅ Legitimate Indicators</Text>
+                    <Text style={[styles.modalLabel, { color: '#dc2626' }]}>🚨 Message Phishing Indicators</Text>
                     <View style={[styles.modalValueBox, {
-                      backgroundColor: '#d1fae5',
-                      borderColor: '#6ee7b7',
+                      backgroundColor: '#fee2e2',
+                      borderColor: '#fca5a5',
                     }]}>
-                      {Array.isArray(selectedScan.legitimateReasons) ? (
-                        selectedScan.legitimateReasons.map((reason, i) => (
-                          <Text key={i} style={[styles.modalListItem, { color: '#065f46' }]}>
-                            • {reason}
-                          </Text>
-                        ))
-                      ) : (
-                        <Text style={[styles.modalText, { color: '#065f46' }]}>
-                          {selectedScan.legitimateReasons}
+                      {selectedScan.messagePhishingReasons.map((reason, i) => (
+                        <Text key={i} style={[styles.modalListItem, { color: '#dc2626' }]}>
+                          • {reason}
                         </Text>
-                      )}
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* URL Phishing Reasons */}
+                {!selectedScan.isMessageScan && selectedScan.phishingReasons && selectedScan.phishingReasons.length > 0 && (
+                  <View style={styles.modalSection}>
+                    <Text style={[styles.modalLabel, { color: '#dc2626' }]}>🚨 Phishing Indicators</Text>
+                    <View style={[styles.modalValueBox, {
+                      backgroundColor: '#fee2e2',
+                      borderColor: '#fca5a5',
+                    }]}>
+                      {selectedScan.phishingReasons.map((reason, i) => (
+                        <Text key={i} style={[styles.modalListItem, { color: '#dc2626' }]}>
+                          • {reason}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* URLs Found */}
+                {selectedScan.isMessageScan && selectedScan.urlsFound && selectedScan.urlsFound.length > 0 && (
+                  <View style={styles.modalSection}>
+                    <Text style={[styles.modalLabel, { color: '#d97706' }]}>🔗 URLs Found in Message</Text>
+                    <View style={[styles.modalValueBox, {
+                      backgroundColor: '#fef3c7',
+                      borderColor: '#fcd34d',
+                    }]}>
+                      {selectedScan.urlsFound.map((url, index) => {
+                        const urlResult = selectedScan.urlResults?.[index];
+                        return (
+                          <View key={index} style={styles.urlResultItem}>
+                            <Text style={[styles.modalText, { color: '#1e293b' }]}>{url}</Text>
+                            {urlResult && (
+                              <Text style={[styles.urlResultPred, {
+                                color: urlResult.prediction === 'LEGITIMATE' ? '#065f46' : '#dc2626',
+                              }]}>
+                                {urlResult.prediction || 'UNKNOWN'}
+                              </Text>
+                            )}
+                          </View>
+                        );
+                      })}
                     </View>
                   </View>
                 )}
@@ -1306,6 +1397,11 @@ const styles = StyleSheet.create({
     flex: 1,
     flexWrap: 'wrap',
   },
+  scanSNo: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginRight: 4,
+  },
   scanId: {
     fontSize: 13,
     fontWeight: '700',
@@ -1476,6 +1572,17 @@ const styles = StyleSheet.create({
   modalListItem: {
     fontSize: 14,
     lineHeight: 24,
+  },
+  urlResultItem: {
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  urlResultPred: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
   },
   modalDateContainer: {
     flexDirection: 'row',

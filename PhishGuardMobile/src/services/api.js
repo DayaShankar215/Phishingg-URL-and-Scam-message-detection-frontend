@@ -13,6 +13,7 @@ const api = axios.create({
   timeout: 60000,
 });
 
+// --- Request Interceptor ---
 api.interceptors.request.use(
   async (config) => {
     config.headers["ngrok-skip-browser-warning"] = "true";
@@ -24,14 +25,22 @@ api.interceptors.request.use(
     } catch (error) {
       console.error("Error getting token:", error);
     }
+    console.log(`[API] ${config.method.toUpperCase()} ${config.url}`, config);
     return config;
   },
   (error) => Promise.reject(error)
 );
 
+// --- Response Interceptor ---
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`[API Response] ${response.status}`, response);
+    return response;
+  },
   async (error) => {
+    console.error("[API Error]", error);
+    
+    // Network errors
     if (error.code === "ERR_NETWORK") {
       throw { 
         message: "Cannot connect to server. Please check your connection.",
@@ -39,27 +48,56 @@ api.interceptors.response.use(
         status: 0
       };
     }
-    if (error.response && error.response.status === 401) {
-      await AsyncStorage.removeItem("accessToken");
-      await AsyncStorage.removeItem("user");
-      throw { 
-        message: "Session expired. Please login again.",
-        status: 401,
-        isAuthError: true
-      };
-    }
-    if (error.response && error.response.status === 403) {
-      await AsyncStorage.removeItem("accessToken");
-      await AsyncStorage.removeItem("user");
-      throw { 
-        message: "Access denied. Please login again.",
-        status: 403,
-        isAuthError: true
-      };
-    }
+    
     if (error.response) {
-      throw error.response.data || { message: "Server error occurred" };
+      console.error(`[API] Status: ${error.response.status}`, error.response.data);
+      
+      // ✅ Check if it's a feedback endpoint
+      const isFeedbackEndpoint = error.config?.url?.includes('/feedback');
+      const isAccuracyEndpoint = error.config?.url?.includes('/feedback/accuracy');
+      
+      // ✅ For 401 Unauthorized - only logout for non-feedback endpoints
+      if (error.response.status === 401 && !isFeedbackEndpoint && !isAccuracyEndpoint) {
+        await AsyncStorage.removeItem("accessToken");
+        await AsyncStorage.removeItem("user");
+        throw { 
+          message: "Session expired. Please login again.",
+          status: 401,
+          isAuthError: true
+        };
+      }
+      
+      // ✅ For 403 on feedback - just throw without logging out
+      if (error.response.status === 403 && (isFeedbackEndpoint || isAccuracyEndpoint)) {
+        throw { 
+          message: "Please log in to submit feedback.",
+          status: 403,
+          isAuthError: false
+        };
+      }
+      
+      // ✅ For 403 on other endpoints
+      if (error.response.status === 403) {
+        throw { 
+          message: "Access denied. Please login again.",
+          status: 403,
+          isAuthError: true
+        };
+      }
+      
+      // ✅ For 404 Not Found
+      if (error.response.status === 404) {
+        throw { 
+          status: 404, 
+          message: "Resource not found. It may have been deleted." 
+        };
+      }
+      
+      const errorData = error.response.data || { message: "Server error occurred" };
+      errorData.status = error.response.status;
+      throw errorData;
     }
+    
     throw { message: error.message || "An error occurred" };
   }
 );
@@ -170,9 +208,10 @@ export const scanMessage = async (message) => {
 
 // ==================== HISTORY ENDPOINTS ====================
 
-export const getScanHistory = async () => {
+export const getScanHistory = async (type = null) => {
   try {
-    const response = await api.get("/scans");
+    const params = type ? { type } : {};
+    const response = await api.get("/scans", { params });
     return response.data;
   } catch (error) {
     if (error.status === 401 || error.status === 403 || error.isAuthError) {
@@ -197,12 +236,74 @@ export const getScanByReference = async (reference) => {
 
 export const deleteScanByReference = async (reference) => {
   try {
-    const response = await api.delete(`/scans/${reference}`, {
-      headers: { "Accept": "*/*" },
+    const ref = String(reference).trim();
+    if (!ref) {
+      throw new Error("Invalid reference ID");
+    }
+    
+    console.log(`[DELETE] Attempting to delete scan: ${ref}`);
+    
+    const response = await api.delete(`/scans/${ref}`, {
+      headers: { 
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+      },
     });
-    return response.data;
+    
+    console.log(`[DELETE] Response status: ${response.status}`, response);
+    
+    if (response.status === 204) {
+      return { message: "Scan deleted successfully", success: true };
+    }
+    
+    if (response.data) {
+      return response.data;
+    }
+    
+    return { message: "Scan deleted successfully", success: true };
   } catch (error) {
-    throw error.response?.data || { message: "Failed to delete scan" };
+    console.error("[DELETE] Error:", error);
+    
+    if (error.code === "ERR_NETWORK") {
+      throw { 
+        message: "Cannot connect to server. Please check your connection.",
+        isCorsError: true
+      };
+    }
+    
+    if (error.response) {
+      console.error(`[DELETE] Response status: ${error.response.status}`);
+      console.error(`[DELETE] Response data:`, error.response.data);
+      
+      if (error.response.status === 204) {
+        return { message: "Scan deleted successfully", success: true };
+      }
+      
+      if (error.response.status === 401) {
+        throw { 
+          status: 401, 
+          message: "Session expired. Please login again." 
+        };
+      }
+      
+      if (error.response.status === 403) {
+        throw { 
+          status: 403, 
+          message: "You don't have permission to delete this scan." 
+        };
+      }
+      
+      if (error.response.status === 404) {
+        throw { 
+          status: 404, 
+          message: "Scan not found. It may have already been deleted." 
+        };
+      }
+      
+      throw error.response.data || { message: "Failed to delete scan" };
+    }
+    
+    throw { message: error.message || "Failed to delete scan" };
   }
 };
 
@@ -239,13 +340,36 @@ export const getDashboardStats = async () => {
   }
 };
 
-export const submitFeedback = async (message) => {
+// ==================== FEEDBACK ENDPOINTS ====================
+
+export const submitFeedbackMessage = async (message) => {
   try {
-    const body = { message: message };
-    const response = await api.post("/feedback", body);
+    console.log("[Feedback] Submitting:", { message });
+    const response = await api.post("/feedback", { message });
+    console.log("[Feedback] Response:", response.data);
     return response.data;
   } catch (error) {
+    console.error("[Feedback] Error:", error);
     throw error.response?.data || { message: "Failed to submit feedback" };
+  }
+};
+
+export const submitAccuracy = async (data) => {
+  try {
+    if (!data.reference) {
+      throw new Error("Scan reference is required");
+    }
+    const payload = {
+      reference: data.reference,
+      accurate: data.accurate
+    };
+    console.log("[Accuracy] Submitting:", payload);
+    const response = await api.post("/feedback/accuracy", payload);
+    console.log("[Accuracy] Response:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("[Accuracy] Error:", error);
+    throw error.response?.data || { message: "Failed to submit accuracy" };
   }
 };
 
