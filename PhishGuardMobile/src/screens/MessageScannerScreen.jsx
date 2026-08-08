@@ -44,7 +44,6 @@ export default function MessageScannerScreen() {
   const [downloading, setDownloading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   
-  // ✅ Accuracy feedback state
   const [scanId, setScanId] = useState('');
   const [accuracy, setAccuracy] = useState({ isAccurate: null });
   const [accuracySubmitted, setAccuracySubmitted] = useState(false);
@@ -58,36 +57,40 @@ export default function MessageScannerScreen() {
     const rawPrediction = getPrediction(response);
     const prediction = rawPrediction;
     
-    let riskScore = 50;
     let resultType = 'unknown';
-
     const upperPrediction = prediction.toUpperCase().trim();
     
     switch (upperPrediction) {
       case 'PHISHING':
       case 'DANGEROUS':
       case 'MALICIOUS':
-        riskScore = 85;
         resultType = 'phishing';
         break;
       case 'SCAM':
-        riskScore = 85;
         resultType = 'scam';
         break;
       case 'SUSPICIOUS':
       case 'WARNING':
-        riskScore = 55;
         resultType = 'suspicious';
         break;
       case 'SAFE':
       case 'LEGITIMATE':
-        riskScore = 15;
         resultType = 'safe';
         break;
       default:
-        riskScore = 50;
         resultType = 'unknown';
     }
+
+    // IMPORTANT: Extract ALL data from response - same as history page
+    const phishingReasons = response.phishingReasons || response.messagePhishingReasons || [];
+    const legitimateReasons = response.legitimateReasons || response.messageLegitimateReasons || [];
+    const urlsFound = response.urlsFound || [];
+    const urlResults = response.urlResults || [];
+    const conclusion = response.conclusion || response.explanation || 'Analysis completed.';
+
+    console.log('[Message Scanner] Full Response:', JSON.stringify(response, null, 2));
+    console.log('[Message Scanner] Phishing Reasons:', phishingReasons);
+    console.log('[Message Scanner] Legitimate Reasons:', legitimateReasons);
 
     return {
       reference: response.reference,
@@ -95,14 +98,18 @@ export default function MessageScannerScreen() {
       content: scannedMessage || response.message || '',
       prediction: prediction,
       classification: prediction || 'UNKNOWN',
-      riskScore: riskScore,
-      explanation: response.conclusion || 'Analysis completed',
+      explanation: conclusion,
       result: resultType,
       scannedAt: response.scannedAt || new Date().toISOString(),
       type: 'message',
-      conclusion: response.conclusion,
-      phishingReasons: response.phishingReasons || [],
-      legitimateReasons: response.legitimateReasons || [],
+      conclusion: conclusion,
+      phishingReasons: phishingReasons,
+      legitimateReasons: legitimateReasons,
+      urlsFound: urlsFound,
+      urlResults: urlResults,
+      overallPrediction: response.overallPrediction || prediction,
+      messagePrediction: response.messagePrediction || prediction,
+      // Store the full response for PDF generation - this is critical
       _raw: response,
     };
   };
@@ -165,45 +172,46 @@ export default function MessageScannerScreen() {
 
     setDownloading(true);
     try {
+      // Prepare complete PDF data - matching history page format
       const pdfData = {
         reference: result.reference,
         scanType: result._raw?.scanType || "MESSAGE",
+        url: result.url && result.url !== result.message ? result.url : "",
         message: result.message || result.content,
         prediction: result.prediction,
-        riskScore: result.riskScore,
         conclusion: result.conclusion || result.explanation,
         scannedAt: result.scannedAt,
-        phishingReasons: result._raw?.messagePhishingReasons || result.phishingReasons || [],
-        legitimateReasons: result._raw?.messageLegitimateReasons || result.legitimateReasons || [],
-        urlsFound: result._raw?.urlsFound || [],
-        urlResults: result._raw?.urlResults || [],
-        messagePhishingReasons: result._raw?.messagePhishingReasons || [],
-        messageLegitimateReasons: result._raw?.messageLegitimateReasons || [],
-        overallPrediction: result.prediction,
-        messagePrediction: result._raw?.messagePrediction || result.prediction,
+        // These are the critical fields - must be passed
+        phishingReasons: result.phishingReasons || [],
+        legitimateReasons: result.legitimateReasons || [],
+        urlsFound: result.urlsFound || [],
+        urlResults: result.urlResults || [],
+        overallPrediction: result.overallPrediction || result.prediction,
+        messagePrediction: result.messagePrediction || result.prediction,
+        // Include the full raw response
+        _raw: result._raw || {},
       };
+      
+      console.log('[PDF Download] Data being sent:', JSON.stringify(pdfData, null, 2));
+      console.log('[PDF Download] Phishing Reasons:', pdfData.phishingReasons);
+      console.log('[PDF Download] Legitimate Reasons:', pdfData.legitimateReasons);
       
       await downloadPDF(pdfData, 'message');
       showToast('Report downloaded successfully!', 'success');
     } catch (error) {
       console.error('Download error:', error);
-      showToast('Failed to generate report', 'error');
+      showToast(error.message || 'Failed to generate report', 'error');
     } finally {
       setDownloading(false);
     }
   };
 
-  // ✅ FIXED: Accuracy feedback with toggle support
   const handleAccuracySelect = async (isAccurate) => {
-    console.log('Scan ID:', scanId);
-    
     if (!scanId || scanId.trim() === '') {
       showToast('Scan ID not found. Please try scanning again.', 'error');
-      console.error('Scan ID is null or empty:', scanId);
       return;
     }
 
-    // ✅ If user clicks the same option, deselect it (toggle off)
     if (accuracy.isAccurate === isAccurate) {
       setAccuracy({ isAccurate: null });
       setAccuracySubmitted(false);
@@ -213,17 +221,11 @@ export default function MessageScannerScreen() {
     setAccuracy({ isAccurate });
     
     try {
-      console.log('Submitting accuracy with:', {
-        reference: scanId,
-        accurate: isAccurate
-      });
-      
       const response = await submitAccuracy({
         reference: scanId,
         accurate: isAccurate
       });
       
-      console.log('Accuracy Response:', response);
       setAccuracySubmitted(true);
       
       if (response?.reply) {
@@ -245,7 +247,6 @@ export default function MessageScannerScreen() {
     }
   };
 
-  // ✅ FIXED: Feedback message submission with better error handling
   const handleSubmitFeedback = async () => {
     if (!feedbackMessage || feedbackMessage.trim() === '') {
       showToast('Please provide your feedback', 'error');
@@ -255,7 +256,6 @@ export default function MessageScannerScreen() {
     setSubmitting(true);
     try {
       const response = await submitFeedbackMessage(feedbackMessage);
-      console.log('Feedback Response:', response);
       
       if (response && response.reply) {
         setFeedbackReply(response.reply);
@@ -282,13 +282,21 @@ export default function MessageScannerScreen() {
     }
   };
 
-  const getRiskLevel = (score) => {
-    if (score > 70) return { label: 'High Risk', color: '#ef4444', bg: '#fee2e2', icon: '🚨', badge: 'Scam' };
-    if (score > 30) return { label: 'Medium Risk', color: '#f59e0b', bg: '#fef3c7', icon: '⚠️', badge: 'Suspicious' };
-    return { label: 'Low Risk', color: '#10b981', bg: '#d1fae5', icon: '✅', badge: 'Safe' };
+  const getResultInfo = (prediction) => {
+    const upperPred = String(prediction).toUpperCase().trim();
+    if (['PHISHING', 'DANGEROUS', 'MALICIOUS', 'SCAM'].includes(upperPred)) {
+      return { label: 'Scam', color: '#ef4444', bg: '#fee2e2', icon: '🚨', badge: 'Scam' };
+    }
+    if (['SUSPICIOUS', 'WARNING'].includes(upperPred)) {
+      return { label: 'Suspicious', color: '#f59e0b', bg: '#fef3c7', icon: '⚠️', badge: 'Suspicious' };
+    }
+    if (['SAFE', 'LEGITIMATE'].includes(upperPred)) {
+      return { label: 'Safe', color: '#10b981', bg: '#d1fae5', icon: '✅', badge: 'Safe' };
+    }
+    return { label: 'Unknown', color: '#64748b', bg: '#f1f5f9', icon: '❓', badge: 'Unknown' };
   };
 
-  const riskLevel = result ? getRiskLevel(result.riskScore) : null;
+  const resultInfo = result ? getResultInfo(result.prediction) : null;
 
   if (loading) {
     return <LoadingSpinner text="Analyzing message..." />;
@@ -391,21 +399,20 @@ export default function MessageScannerScreen() {
       {/* Results */}
       {result && (
         <View style={styles.resultsContainer}>
-          {/* Risk Score Card */}
-          <View style={[styles.riskCard, {
+          <View style={[styles.resultCard, {
             backgroundColor: 'white',
-            borderColor: riskLevel.color + '40',
+            borderColor: resultInfo.color + '40',
           }]}>
-            <View style={styles.riskHeader}>
-              <View style={styles.riskHeaderLeft}>
-                <Text style={styles.riskEmoji}>{riskLevel.icon}</Text>
-                <View style={[styles.riskBadge, { backgroundColor: riskLevel.bg }]}>
-                  <Text style={[styles.riskBadgeText, { color: riskLevel.color }]}>
-                    {riskLevel.badge}
+            <View style={styles.resultHeader}>
+              <View style={styles.resultHeaderLeft}>
+                <Text style={styles.resultEmoji}>{resultInfo.icon}</Text>
+                <View style={[styles.resultBadge, { backgroundColor: resultInfo.bg }]}>
+                  <Text style={[styles.resultBadgeText, { color: resultInfo.color }]}>
+                    {resultInfo.badge}
                   </Text>
                 </View>
                 {result.reference && (
-                  <Text style={[styles.riskRef, { color: colors.textMuted }]}>
+                  <Text style={[styles.resultRef, { color: colors.textMuted }]}>
                     Ref: {result.reference}
                   </Text>
                 )}
@@ -414,7 +421,7 @@ export default function MessageScannerScreen() {
 
             <TouchableOpacity
               style={[styles.downloadButton, {
-                backgroundColor: isAuthenticated ? riskLevel.color : colors.textMuted
+                backgroundColor: isAuthenticated ? resultInfo.color : colors.textMuted
               }]}
               onPress={handleDownloadPDF}
               disabled={downloading}
@@ -448,7 +455,7 @@ export default function MessageScannerScreen() {
             </View>
             <View style={[styles.messageContent, {
               backgroundColor: colors.backgroundInput,
-              borderLeftColor: riskLevel.color,
+              borderLeftColor: resultInfo.color,
             }]}>
               <Text style={[styles.messageText, { color: colors.text }]}>
                 "{result.message || result.content}"
@@ -498,8 +505,8 @@ export default function MessageScannerScreen() {
             </View>
           </View>
 
-          {/* Message Phishing Reasons */}
-          {result._raw?.messagePhishingReasons && result._raw.messagePhishingReasons.length > 0 && (
+          {/* Message Phishing Reasons - Same as History Page */}
+          {result.phishingReasons && result.phishingReasons.length > 0 && (
             <View style={[styles.warningCard, {
               backgroundColor: '#fee2e2',
               borderColor: '#fca5a5',
@@ -507,7 +514,7 @@ export default function MessageScannerScreen() {
               <Text style={[styles.warningTitle, { color: '#dc2626' }]}>
                 🚨 Message Phishing Indicators
               </Text>
-              {result._raw.messagePhishingReasons.map((reason, index) => (
+              {result.phishingReasons.map((reason, index) => (
                 <Text key={index} style={[styles.warningText, { color: '#475569' }]}>
                   • {reason}
                 </Text>
@@ -515,8 +522,25 @@ export default function MessageScannerScreen() {
             </View>
           )}
 
-          {/* URLs Found */}
-          {result._raw?.urlsFound && result._raw.urlsFound.length > 0 && (
+          {/* Message Legitimate Reasons - Same as History Page */}
+          {result.legitimateReasons && result.legitimateReasons.length > 0 && (
+            <View style={[styles.legitimateCard, {
+              backgroundColor: '#d1fae5',
+              borderColor: '#86efac',
+            }]}>
+              <Text style={[styles.legitimateTitle, { color: '#065f46' }]}>
+                ✅ Message Legitimate Indicators
+              </Text>
+              {result.legitimateReasons.map((reason, index) => (
+                <Text key={index} style={[styles.legitimateText, { color: '#475569' }]}>
+                  • {reason}
+                </Text>
+              ))}
+            </View>
+          )}
+
+          {/* URLs Found - Same as History Page */}
+          {result.urlsFound && result.urlsFound.length > 0 && (
             <View style={[styles.urlsCard, {
               backgroundColor: '#fef3c7',
               borderColor: '#fcd34d',
@@ -524,8 +548,8 @@ export default function MessageScannerScreen() {
               <Text style={[styles.urlsTitle, { color: '#d97706' }]}>
                 🔗 URLs Found in Message
               </Text>
-              {result._raw.urlsFound.map((url, index) => {
-                const urlResult = result._raw.urlResults?.[index];
+              {result.urlsFound.map((url, index) => {
+                const urlResult = result.urlResults?.[index];
                 return (
                   <View key={index} style={[styles.urlItem, {
                     backgroundColor: 'white',
@@ -553,15 +577,15 @@ export default function MessageScannerScreen() {
 
           {/* Recommendation */}
           <View style={[styles.recommendationCard, {
-            backgroundColor: riskLevel.bg,
-            borderColor: riskLevel.color,
+            backgroundColor: resultInfo.bg,
+            borderColor: resultInfo.color,
           }]}>
             <View style={styles.recommendationHeader}>
-              <View style={[styles.recommendationIcon, { backgroundColor: riskLevel.color + '20' }]}>
-                <Ionicons name="shield-checkmark-outline" size={22} color={riskLevel.color} />
+              <View style={[styles.recommendationIcon, { backgroundColor: resultInfo.color + '20' }]}>
+                <Ionicons name="shield-checkmark-outline" size={22} color={resultInfo.color} />
               </View>
               <View>
-                <Text style={[styles.recommendationTitle, { color: riskLevel.color }]}>
+                <Text style={[styles.recommendationTitle, { color: resultInfo.color }]}>
                   Security Recommendation
                 </Text>
                 <Text style={[styles.recommendationSubtitle, { color: colors.textMuted }]}>
@@ -570,15 +594,15 @@ export default function MessageScannerScreen() {
               </View>
             </View>
             <Text style={[styles.recommendationText, { color: colors.text }]}>
-              {result.riskScore > 70
+              {['PHISHING', 'DANGEROUS', 'MALICIOUS', 'SCAM'].includes(String(result.prediction).toUpperCase().trim())
                 ? '🚫 DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier.'
-                : result.riskScore > 30
+                : ['SUSPICIOUS', 'WARNING'].includes(String(result.prediction).toUpperCase().trim())
                   ? '⚠️ Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels.'
-                  : '✓ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.'}
+                  : '✅ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.'}
             </Text>
           </View>
 
-          {/* ✅ Feedback Section with Toggle Support */}
+          {/* Feedback Section */}
           {showFeedback && !feedbackSubmitted && (
             <View style={[styles.feedbackCard, {
               backgroundColor: colors.backgroundCard,
@@ -594,12 +618,10 @@ export default function MessageScannerScreen() {
                 </Text>
               </View>
 
-              {/* Scan ID */}
               <Text style={[styles.scanIdText, { color: colors.textMuted }]}>
                 Scan ID: {scanId || 'Not set'}
               </Text>
 
-              {/* ✅ Accuracy Buttons with Toggle */}
               <View style={styles.accuracyButtons}>
                 <TouchableOpacity
                   style={[
@@ -717,7 +739,6 @@ export default function MessageScannerScreen() {
         </View>
       )}
 
-      {/* Auth Modal */}
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => {
@@ -863,7 +884,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
-  riskCard: {
+  resultCard: {
     borderRadius: 24,
     padding: 24,
     marginBottom: 16,
@@ -871,31 +892,31 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  riskHeader: {
+  resultHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  riskHeaderLeft: {
+  resultHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     flexWrap: 'wrap',
   },
-  riskEmoji: {
+  resultEmoji: {
     fontSize: 28,
   },
-  riskBadge: {
+  resultBadge: {
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 100,
   },
-  riskBadgeText: {
+  resultBadgeText: {
     fontSize: 12,
     fontWeight: '600',
   },
-  riskRef: {
+  resultRef: {
     fontSize: 11,
     fontWeight: '400',
     fontFamily: 'monospace',
@@ -996,6 +1017,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   warningText: {
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  legitimateCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  legitimateTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  legitimateText: {
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 4,
@@ -1190,5 +1227,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
-//export default MessageScannerScreen;

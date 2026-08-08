@@ -311,7 +311,7 @@ const HistoryScreen = () => {
 
       const pdfData = {
         reference: scanDetails.reference,
-        url: scanDetails.url || scanDetails.message || '',
+        url: isMessageScan ? '' : scanDetails.url || '',
         message: scanDetails.message || '',
         prediction: getPrediction(scanDetails),
         conclusion: scanDetails.conclusion || 'Analysis completed',

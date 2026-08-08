@@ -228,9 +228,6 @@ const History = () => {
       case "month":
         return "Last 30 Days";
       case "custom":
-        if (tempStartDate && tempEndDate) {
-          return "Custom Range";
-        }
         return "Custom Range";
       default:
         return "All Time";
@@ -266,8 +263,6 @@ const History = () => {
         urlsFound: response.urlsFound || [],
         urlResults: response.urlResults || [],
         overallPrediction: response.overallPrediction,
-        phishingReasons: response.phishingReasons || [],
-        legitimateReasons: response.legitimateReasons || [],
       });
       setShowModal(true);
     } catch (error) {
@@ -295,7 +290,7 @@ const History = () => {
       
       const pdfData = {
         reference: scanDetails.reference,
-        url: scanDetails.url || scanDetails.message || "",
+        url: isMessageScan ? "" : scanDetails.url || "",
         message: scanDetails.message || "",
         prediction: getPrediction(scanDetails),
         conclusion: scanDetails.conclusion || "Analysis completed",
