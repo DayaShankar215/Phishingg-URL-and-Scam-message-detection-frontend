@@ -155,15 +155,11 @@ export default function URLScannerScreen() {
 
     setDownloading(true);
     try {
-      // IMPORTANT: Fetch full scan details using the reference ID
-      // This will give us all the detailed phishing and legitimate indicators
       const scanDetails = await getScanByReference(result.reference);
       console.log('[PDF Download] Full Scan Details:', JSON.stringify(scanDetails, null, 2));
 
-      // Determine if it's a message scan
       const isMessageScan = scanDetails.scanType === 'MESSAGE' || scanDetails.message;
 
-      // Prepare PDF data with all the detailed information from scanDetails
       const pdfData = {
         reference: scanDetails.reference,
         url: isMessageScan ? '' : scanDetails.url || result.url || '',
@@ -172,21 +168,14 @@ export default function URLScannerScreen() {
         conclusion: scanDetails.conclusion || result.conclusion || 'Analysis completed',
         scannedAt: scanDetails.scannedAt || result.scannedAt,
         scanType: scanDetails.scanType || (isMessageScan ? 'MESSAGE' : 'URL'),
-        // These are the critical fields - now we have them from scanDetails
-        phishingReasons: scanDetails.phishingReasons || scanDetails.messagePhishingReasons || [],
-        legitimateReasons: scanDetails.legitimateReasons || scanDetails.messageLegitimateReasons || [],
+        phishingReasons: scanDetails.phishingReasons || [],
+        legitimateReasons: scanDetails.legitimateReasons || [],
         urlsFound: scanDetails.urlsFound || [],
         urlResults: scanDetails.urlResults || [],
-        messagePhishingReasons: scanDetails.messagePhishingReasons || [],
-        messageLegitimateReasons: scanDetails.messageLegitimateReasons || [],
         overallPrediction: scanDetails.overallPrediction || result.overallPrediction || result.prediction,
-        messagePrediction: scanDetails.messagePrediction,
         _raw: scanDetails,
       };
 
-      console.log('[PDF Download] Phishing Reasons:', pdfData.phishingReasons);
-      console.log('[PDF Download] Legitimate Reasons:', pdfData.legitimateReasons);
-      
       await downloadPDF(pdfData, isMessageScan ? 'message' : 'url');
       showToast('Report downloaded successfully!', 'success');
     } catch (error) {
@@ -473,7 +462,7 @@ export default function URLScannerScreen() {
             </View>
           </View>
 
-          {/* Phishing Reasons - Show from result (may be empty) */}
+          {/* Phishing Reasons */}
           {result.phishingReasons && result.phishingReasons.length > 0 && (
             <View style={[styles.warningCard, {
               backgroundColor: '#fee2e2',
@@ -490,7 +479,7 @@ export default function URLScannerScreen() {
             </View>
           )}
 
-          {/* Legitimate Reasons - Show from result (may be empty) */}
+          {/* Legitimate Reasons */}
           {result.legitimateReasons && result.legitimateReasons.length > 0 && (
             <View style={[styles.legitimateCard, {
               backgroundColor: '#d1fae5',

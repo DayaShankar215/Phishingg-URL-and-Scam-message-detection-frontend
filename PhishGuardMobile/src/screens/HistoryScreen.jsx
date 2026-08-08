@@ -60,7 +60,6 @@ const HistoryScreen = () => {
   const [tempStartDate, setTempStartDate] = useState('');
   const [tempEndDate, setTempEndDate] = useState('');
 
-  // Helper function to detect scan type
   const getScanType = (scan) => {
     if (scan.type) {
       const type = scan.type.toLowerCase();
@@ -79,8 +78,7 @@ const HistoryScreen = () => {
       if (content.match(/^https?:\/\/[^\s]+/) || content.match(/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/)) {
         return 'url';
       }
-      if (content.length > 50) return 'message';
-      return content.length > 20 ? 'message' : 'url';
+      return 'message';
     }
     return 'url';
   };
@@ -247,9 +245,6 @@ const HistoryScreen = () => {
       case 'month':
         return 'Last 30 Days';
       case 'custom':
-        if (tempStartDate && tempEndDate) {
-          return 'Custom Range';
-        }
         return 'Custom Range';
       default:
         return 'All Time';
@@ -285,8 +280,8 @@ const HistoryScreen = () => {
         urlsFound: response.urlsFound || [],
         urlResults: response.urlResults || [],
         overallPrediction: response.overallPrediction,
-        phishingReasons: response.phishingReasons || [],
-        legitimateReasons: response.legitimateReasons || [],
+        explanation: response.explanation,
+        _raw: response,
       });
       setShowModal(true);
     } catch (error) {
@@ -328,6 +323,8 @@ const HistoryScreen = () => {
         phishingReasons: scanDetails.phishingReasons || [],
         legitimateReasons: scanDetails.legitimateReasons || [],
         overallPrediction: scanDetails.overallPrediction,
+        explanation: scanDetails.explanation,
+        _raw: scanDetails,
       };
 
       await downloadPDF(pdfData, isMessageScan ? 'message' : 'url');
@@ -370,10 +367,7 @@ const HistoryScreen = () => {
               
               showToast(response?.message || 'Scan deleted successfully!', 'success');
               
-              // Remove the scan from local state
               setScans((prevScans) => prevScans.filter((scan) => scan.reference !== reference));
-              
-              // Refresh history to update stats
               await fetchHistory();
               
             } catch (error) {
@@ -811,7 +805,6 @@ const HistoryScreen = () => {
               >
                 <View style={styles.scanHeader}>
                   <View style={styles.scanIdContainer}>
-                    {/* ✅ S.No */}
                     <Text style={[styles.scanSNo, { color: colors.textMuted }]}>
                       #{index + 1}
                     </Text>
@@ -989,7 +982,9 @@ const HistoryScreen = () => {
                   </View>
                 )}
 
-                {/* Message Phishing Reasons */}
+                {/* ============================================================ */}
+                {/* MESSAGE PHISHING REASONS */}
+                {/* ============================================================ */}
                 {selectedScan.isMessageScan && selectedScan.messagePhishingReasons && selectedScan.messagePhishingReasons.length > 0 && (
                   <View style={styles.modalSection}>
                     <Text style={[styles.modalLabel, { color: '#dc2626' }]}>🚨 Message Phishing Indicators</Text>
@@ -1006,10 +1001,31 @@ const HistoryScreen = () => {
                   </View>
                 )}
 
-                {/* URL Phishing Reasons */}
+                {/* ============================================================ */}
+                {/* MESSAGE LEGITIMATE REASONS */}
+                {/* ============================================================ */}
+                {selectedScan.isMessageScan && selectedScan.messageLegitimateReasons && selectedScan.messageLegitimateReasons.length > 0 && (
+                  <View style={styles.modalSection}>
+                    <Text style={[styles.modalLabel, { color: '#065f46' }]}>✅ Message Legitimate Indicators</Text>
+                    <View style={[styles.modalValueBox, {
+                      backgroundColor: '#d1fae5',
+                      borderColor: '#86efac',
+                    }]}>
+                      {selectedScan.messageLegitimateReasons.map((reason, i) => (
+                        <Text key={i} style={[styles.modalListItem, { color: '#065f46' }]}>
+                          • {reason}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* ============================================================ */}
+                {/* URL PHISHING REASONS (for URL scans) */}
+                {/* ============================================================ */}
                 {!selectedScan.isMessageScan && selectedScan.phishingReasons && selectedScan.phishingReasons.length > 0 && (
                   <View style={styles.modalSection}>
-                    <Text style={[styles.modalLabel, { color: '#dc2626' }]}>🚨 Phishing Indicators</Text>
+                    <Text style={[styles.modalLabel, { color: '#dc2626' }]}>🚨 URL Phishing Indicators</Text>
                     <View style={[styles.modalValueBox, {
                       backgroundColor: '#fee2e2',
                       borderColor: '#fca5a5',
@@ -1023,7 +1039,28 @@ const HistoryScreen = () => {
                   </View>
                 )}
 
-                {/* URLs Found */}
+                {/* ============================================================ */}
+                {/* URL LEGITIMATE REASONS (for URL scans) */}
+                {/* ============================================================ */}
+                {!selectedScan.isMessageScan && selectedScan.legitimateReasons && selectedScan.legitimateReasons.length > 0 && (
+                  <View style={styles.modalSection}>
+                    <Text style={[styles.modalLabel, { color: '#065f46' }]}>✅ URL Legitimate Indicators</Text>
+                    <View style={[styles.modalValueBox, {
+                      backgroundColor: '#d1fae5',
+                      borderColor: '#86efac',
+                    }]}>
+                      {selectedScan.legitimateReasons.map((reason, i) => (
+                        <Text key={i} style={[styles.modalListItem, { color: '#065f46' }]}>
+                          • {reason}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* ============================================================ */}
+                {/* URLS FOUND IN MESSAGE */}
+                {/* ============================================================ */}
                 {selectedScan.isMessageScan && selectedScan.urlsFound && selectedScan.urlsFound.length > 0 && (
                   <View style={styles.modalSection}>
                     <Text style={[styles.modalLabel, { color: '#d97706' }]}>🔗 URLs Found in Message</Text>
@@ -1035,13 +1072,52 @@ const HistoryScreen = () => {
                         const urlResult = selectedScan.urlResults?.[index];
                         return (
                           <View key={index} style={styles.urlResultItem}>
-                            <Text style={[styles.modalText, { color: '#1e293b' }]}>{url}</Text>
+                            <Text style={[styles.modalText, { color: '#1e293b', fontFamily: 'monospace', fontSize: 12 }]}>
+                              {url}
+                            </Text>
                             {urlResult && (
-                              <Text style={[styles.urlResultPred, {
-                                color: urlResult.prediction === 'LEGITIMATE' ? '#065f46' : '#dc2626',
-                              }]}>
-                                {urlResult.prediction || 'UNKNOWN'}
-                              </Text>
+                              <>
+                                <View style={styles.urlResultMeta}>
+                                  <Text style={[styles.urlResultPred, {
+                                    color: urlResult.prediction === 'LEGITIMATE' ? '#065f46' : '#dc2626',
+                                    fontWeight: '600',
+                                    fontSize: 12,
+                                  }]}>
+                                    Prediction: {urlResult.prediction || 'UNKNOWN'}
+                                  </Text>
+                                </View>
+                                {urlResult.legitimateReasons && urlResult.legitimateReasons.length > 0 && (
+                                  <View style={[styles.urlResultDetail, { borderLeftColor: '#16a34a' }]}>
+                                    <Text style={[styles.urlResultDetailText, { color: '#065f46' }]}>
+                                      ✅ {urlResult.legitimateReasons[0]}
+                                      {urlResult.legitimateReasons.length > 1 && (
+                                        <Text style={{ color: '#94a3b8', fontSize: 11 }}>
+                                          {' '}(+{urlResult.legitimateReasons.length - 1} more)
+                                        </Text>
+                                      )}
+                                    </Text>
+                                  </View>
+                                )}
+                                {urlResult.phishingReasons && urlResult.phishingReasons.length > 0 && (
+                                  <View style={[styles.urlResultDetail, { borderLeftColor: '#dc2626' }]}>
+                                    <Text style={[styles.urlResultDetailText, { color: '#dc2626' }]}>
+                                      🚨 {urlResult.phishingReasons[0]}
+                                      {urlResult.phishingReasons.length > 1 && (
+                                        <Text style={{ color: '#94a3b8', fontSize: 11 }}>
+                                          {' '}(+{urlResult.phishingReasons.length - 1} more)
+                                        </Text>
+                                      )}
+                                    </Text>
+                                  </View>
+                                )}
+                                {urlResult.conclusion && (
+                                  <View style={[styles.urlResultDetail, { borderLeftColor: '#667eea' }]}>
+                                    <Text style={[styles.urlResultDetailText, { color: '#475569', fontSize: 11 }]}>
+                                      <Text style={{ fontWeight: '600', color: '#1e293b' }}>Conclusion:</Text> {urlResult.conclusion}
+                                    </Text>
+                                  </View>
+                                )}
+                              </>
                             )}
                           </View>
                         );
@@ -1051,17 +1127,19 @@ const HistoryScreen = () => {
                 )}
 
                 {/* Conclusion */}
-                <View style={styles.modalSection}>
-                  <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Conclusion</Text>
-                  <View style={[styles.modalValueBox, {
-                    backgroundColor: colors.backgroundInput,
-                    borderColor: colors.border,
-                  }]}>
-                    <Text style={[styles.modalText, { color: colors.text, lineHeight: 24 }]}>
-                      {selectedScan.conclusion}
-                    </Text>
+                {selectedScan.conclusion && (
+                  <View style={styles.modalSection}>
+                    <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Conclusion</Text>
+                    <View style={[styles.modalValueBox, {
+                      backgroundColor: colors.backgroundInput,
+                      borderColor: colors.border,
+                    }]}>
+                      <Text style={[styles.modalText, { color: colors.text, lineHeight: 24 }]}>
+                        {selectedScan.conclusion}
+                      </Text>
+                    </View>
                   </View>
-                </View>
+                )}
 
                 {/* Scanned At */}
                 <View style={styles.modalSection}>
@@ -1105,7 +1183,6 @@ const HistoryScreen = () => {
         </Modal>
       )}
 
-      {/* Auth Modal */}
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => {
@@ -1577,15 +1654,32 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   urlResultItem: {
-    marginBottom: 8,
-    paddingBottom: 8,
+    marginBottom: 10,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
+  },
+  urlResultMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 4,
   },
   urlResultPred: {
     fontSize: 12,
     fontWeight: '600',
-    marginTop: 2,
+  },
+  urlResultDetail: {
+    padding: 8,
+    marginTop: 4,
+    marginBottom: 4,
+    backgroundColor: '#f8fafc',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+  },
+  urlResultDetailText: {
+    fontSize: 12,
+    lineHeight: 18,
   },
   modalDateContainer: {
     flexDirection: 'row',

@@ -17,9 +17,6 @@ const escapeHtml = (value = '') =>
 
 /**
  * Download / print PDF from scan data.
- *
- * - Web         => opens the browser print dialog with the report (real PDF via "Save as PDF").
- * - iOS/Android => renders the report with expo-print and shares the generated PDF.
  */
 export const downloadPDF = async (scanData, type) => {
   try {
@@ -48,7 +45,6 @@ export const downloadPDF = async (scanData, type) => {
       return { success: true, uri };
     } catch (printError) {
       console.error('Print Error:', printError);
-      // Last resort fallback only for native devices when printing unavailable
       const htmlUri = await saveAndShareHTML(html, scanData.reference);
       return { success: true, uri: htmlUri };
     }
@@ -59,8 +55,7 @@ export const downloadPDF = async (scanData, type) => {
 };
 
 /**
- * Web: open the print dialog with only the report content, so the user
- * can "Save as PDF". Produces a real PDF instead of a raw HTML download.
+ * Web: open the print dialog with only the report content
  */
 const printWeb = (html) => {
   if (typeof document === 'undefined') return;
@@ -83,7 +78,6 @@ const printWeb = (html) => {
   frame.contentWindow.focus();
   frame.contentWindow.print();
 
-  // Remove the frame once the user is done with the print dialog
   frame.contentWindow.addEventListener('afterprint', () => {
     if (frame.parentNode) frame.parentNode.removeChild(frame);
   });
@@ -93,27 +87,17 @@ const printWeb = (html) => {
 };
 
 /**
- * Save and share HTML using LEGACY FileSystem API (native fallback only)
+ * Save and share HTML (native fallback)
  */
 const saveAndShareHTML = async (html, reference) => {
   try {
     const fileName = `security_report_${reference || Date.now()}.html`;
-
     const directory = FileSystem.documentDirectory || FileSystem.cacheDirectory;
     const fileUri = `${directory}${fileName}`;
-
-    console.log('[PDF] Saving HTML to:', fileUri);
 
     await FileSystem.writeAsStringAsync(fileUri, html, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-
-    const fileInfo = await FileSystem.getInfoAsync(fileUri);
-    if (!fileInfo.exists) {
-      throw new Error('File was not created successfully');
-    }
-
-    console.log('[PDF] File saved, size:', fileInfo.size);
 
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(fileUri, {
@@ -130,7 +114,6 @@ const saveAndShareHTML = async (html, reference) => {
 
 /**
  * Extract phishing and legitimate indicators from conclusion text
- * This handles the case where the API returns scores embedded in the conclusion
  */
 const extractIndicatorsFromConclusion = (conclusion) => {
   const phishingIndicators = [];
@@ -151,20 +134,16 @@ const extractIndicatorsFromConclusion = (conclusion) => {
   }
   
   // Try to extract individual indicators from the conclusion
-  // The conclusion might contain bullet points or numbered lists
   const lines = conclusion.split(/[.\n\r]+/).filter(line => line.trim().length > 0);
   
   for (const line of lines) {
     const trimmed = line.trim();
-    // Skip lines that contain score information (already extracted)
     if (trimmed.match(/phishing influence score/i) || trimmed.match(/legitimate influence score/i)) {
       continue;
     }
-    // Skip the "In this explanation" line
     if (trimmed.match(/In this explanation/i)) {
       continue;
     }
-    // If line contains "phishing" or "legitimate" context, add it
     if (trimmed.length > 10) {
       if (trimmed.match(/phishing/i) && !trimmed.match(/legitimate/i)) {
         phishingIndicators.push(trimmed);
@@ -233,25 +212,15 @@ const generatePDFHTML = (scanData, type) => {
     const conclusion = scanData.conclusion || scanData.explanation || '';
     const extracted = extractIndicatorsFromConclusion(conclusion);
     
-    // Only use extracted indicators if we have some meaningful data
     if (extracted.phishingIndicators.length > 0 || extracted.legitimateIndicators.length > 0) {
       phishingReasons = extracted.phishingIndicators;
       legitimateReasons = extracted.legitimateIndicators;
-      console.log('[PDF] Extracted from conclusion - Phishing:', phishingReasons);
-      console.log('[PDF] Extracted from conclusion - Legitimate:', legitimateReasons);
     }
   }
 
-  console.log('[PDF] Final Phishing Reasons:', phishingReasons);
-  console.log('[PDF] Final Legitimate Reasons:', legitimateReasons);
-
-  // A message scan sometimes stored the message text into `url`
   const showUrl = Boolean(scanData.url) && scanData.url !== scanData.message;
   const showMessage = Boolean(scanData.message);
   const scanTypeLabel = isMessage ? 'Message Scan' : 'URL Scan';
-
-  const indicatorTitle = isMessage ? 'MESSAGE PHISHING INDICATORS' : 'PHISHING INDICATORS';
-  const legitTitle = isMessage ? 'MESSAGE LEGITIMATE INDICATORS' : 'LEGITIMATE INDICATORS';
 
   const reference = scanData.reference || 'N/A';
   const generatedAt = new Date().toLocaleString();
@@ -268,14 +237,14 @@ const generatePDFHTML = (scanData, type) => {
         html, body {
           background: #ffffff;
           color: #1e293b;
-          font-family: Helvetica, Arial, sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
-        body { padding: 24px; }
+        body { padding: 20px; }
         .container {
           max-width: 100%;
           width: 100%;
           background: white;
-          padding: 20px;
+          padding: 16px;
           border: 1px solid #e2e8f0;
           border-radius: 12px;
         }
@@ -284,31 +253,31 @@ const generatePDFHTML = (scanData, type) => {
         .header {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           color: white;
-          padding: 24px 20px;
+          padding: 20px 16px;
           border-radius: 10px;
-          margin-bottom: 20px;
+          margin-bottom: 16px;
         }
         .header-title {
-          font-size: 22px;
+          font-size: 20px;
           font-weight: 800;
           letter-spacing: 1px;
         }
         .header-subtitle {
-          font-size: 12px;
+          font-size: 11px;
           opacity: 0.85;
-          margin-top: 3px;
+          margin-top: 2px;
         }
         .header-meta {
-          margin-top: 12px;
-          font-size: 11px;
-          line-height: 1.7;
+          margin-top: 10px;
+          font-size: 10px;
+          line-height: 1.6;
           opacity: 0.9;
         }
 
         /* ===== SECTIONS ===== */
         .section {
-          margin: 14px 0;
-          padding: 14px 16px;
+          margin: 12px 0;
+          padding: 12px 14px;
           border: 1px solid #e2e8f0;
           border-radius: 10px;
           background: #fafbfc;
@@ -317,11 +286,11 @@ const generatePDFHTML = (scanData, type) => {
         }
         .section h2 {
           color: #1e293b;
-          font-size: 15px;
+          font-size: 14px;
           font-weight: 700;
-          padding-bottom: 10px;
+          padding-bottom: 8px;
           border-bottom: 2px solid #e2e8f0;
-          margin-bottom: 12px;
+          margin-bottom: 10px;
         }
 
         /* ===== FIELDS ===== */
@@ -329,33 +298,33 @@ const generatePDFHTML = (scanData, type) => {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          padding: 8px 0;
+          padding: 6px 0;
           border-bottom: 1px solid #f1f5f9;
         }
         .field:last-child { border-bottom: none; }
         .label {
           color: #64748b;
           font-weight: 600;
-          font-size: 13px;
+          font-size: 12px;
           flex-shrink: 0;
-          min-width: 120px;
+          min-width: 100px;
         }
         .value {
           font-weight: 600;
           color: #1e293b;
           word-break: break-all;
           text-align: right;
-          font-size: 13px;
+          font-size: 12px;
           flex: 1;
-          margin-left: 14px;
+          margin-left: 12px;
         }
 
         /* ===== BADGES ===== */
         .badge {
           display: inline-block;
-          padding: 3px 12px;
+          padding: 2px 10px;
           border-radius: 100px;
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 600;
         }
         .badge-high { background: #fef2f2; color: #dc2626; }
@@ -364,22 +333,22 @@ const generatePDFHTML = (scanData, type) => {
 
         /* ===== LISTS ===== */
         ul {
-          padding-left: 20px;
+          padding-left: 18px;
           color: #475569;
-          line-height: 1.8;
+          line-height: 1.7;
           margin: 4px 0;
         }
-        li { margin-bottom: 3px; font-size: 13px; }
+        li { margin-bottom: 2px; font-size: 12px; }
 
         /* ===== MESSAGE / URL BOXES ===== */
         .message-content {
           background: #f8fafc;
-          padding: 12px;
+          padding: 10px;
           border-radius: 8px;
           border-left: 4px solid #667eea;
           font-style: italic;
-          font-size: 13px;
-          line-height: 1.6;
+          font-size: 12px;
+          line-height: 1.5;
           color: #334155;
           margin-top: 4px;
         }
@@ -387,24 +356,24 @@ const generatePDFHTML = (scanData, type) => {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 8px 10px;
+          padding: 6px 10px;
           background: white;
           border-radius: 6px;
           border: 1px solid #e2e8f0;
-          margin-bottom: 6px;
+          margin-bottom: 4px;
         }
         .url-text {
           font-family: monospace;
-          font-size: 12px;
+          font-size: 11px;
           word-break: break-all;
           flex: 1;
         }
         .url-pred {
-          padding: 2px 10px;
+          padding: 2px 8px;
           border-radius: 100px;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 600;
-          margin-left: 10px;
+          margin-left: 8px;
           flex-shrink: 0;
         }
         .url-pred-safe { background: #dcfce7; color: #16a34a; }
@@ -413,32 +382,49 @@ const generatePDFHTML = (scanData, type) => {
 
         /* ===== RECOMMENDATION BOX ===== */
         .recommendation-box {
-          padding: 12px 16px;
+          padding: 10px 14px;
           border-radius: 8px;
-          margin: 10px 0 0;
+          margin: 8px 0 0;
           font-weight: 600;
-          font-size: 14px;
+          font-size: 13px;
           line-height: 1.6;
         }
         .recommendation-high { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
         .recommendation-medium { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
         .recommendation-low { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; }
 
+        /* ===== URL RESULT DETAILS ===== */
+        .url-details {
+          margin-top: 4px;
+          padding: 6px 10px;
+          background: #f8fafc;
+          border-radius: 6px;
+          border-left: 3px solid #94a3b8;
+        }
+        .url-details-text {
+          font-size: 11px;
+          line-height: 1.5;
+          color: #475569;
+        }
+        .url-details-text strong {
+          color: #1e293b;
+        }
+
         /* ===== FOOTER ===== */
         .footer {
           text-align: center;
-          margin-top: 24px;
-          padding-top: 16px;
+          margin-top: 20px;
+          padding-top: 14px;
           border-top: 1px solid #e2e8f0;
           color: #94a3b8;
-          font-size: 11px;
-          line-height: 1.8;
+          font-size: 10px;
+          line-height: 1.6;
         }
         .footer strong { color: #667eea; font-weight: 700; }
 
         @page {
           size: 210mm 297mm;
-          margin: 10mm;
+          margin: 8mm;
         }
 
         @media print {
@@ -472,8 +458,8 @@ const generatePDFHTML = (scanData, type) => {
             <span class="value"><span class="badge ${badgeClass}">${escapeHtml(prediction)}</span></span>
           </div>
           ${scanData.reference ? `<div class="field"><span class="label">Reference:</span><span class="value" style="font-family: monospace;">${escapeHtml(reference)}</span></div>` : ''}
-          ${showUrl ? `<div class="field"><span class="label">URL:</span><span class="value" style="font-family: monospace; font-size: 12px;">${escapeHtml(scanData.url)}</span></div>` : ''}
-          ${showMessage ? `<div class="field"><span class="label">Message:</span><span class="value" style="font-family: monospace; font-size: 12px;">${escapeHtml(scanData.message)}</span></div>` : ''}
+          ${showUrl ? `<div class="field"><span class="label">URL:</span><span class="value" style="font-family: monospace; font-size: 11px;">${escapeHtml(scanData.url)}</span></div>` : ''}
+          ${showMessage ? `<div class="field"><span class="label">Message:</span><span class="value" style="font-family: monospace; font-size: 11px;">${escapeHtml(scanData.message)}</span></div>` : ''}
           ${scanData.overallPrediction ? `<div class="field"><span class="label">Overall Prediction:</span><span class="value"><span class="badge ${badgeClass}">${escapeHtml(scanData.overallPrediction)}</span></span></div>` : ''}
           ${scanData.messagePrediction ? `<div class="field"><span class="label">Message Prediction:</span><span class="value"><span class="badge ${badgeClass}">${escapeHtml(scanData.messagePrediction)}</span></span></div>` : ''}
           ${scanData.scannedAt ? `<div class="field"><span class="label">Scanned At:</span><span class="value">${escapeHtml(new Date(scanData.scannedAt).toLocaleString())}</span></div>` : ''}
@@ -481,12 +467,12 @@ const generatePDFHTML = (scanData, type) => {
   `;
 
   // ============================================================
-  // PHISHING INDICATORS - ALWAYS SHOW IF AVAILABLE
+  // MESSAGE PHISHING INDICATORS
   // ============================================================
-  if (phishingReasons && phishingReasons.length > 0) {
+  if (isMessage && phishingReasons && phishingReasons.length > 0) {
     html += `
       <div class="section" style="border-color: #fca5a5; background: #fef2f2;">
-        <h2>${escapeHtml(indicatorTitle)}</h2>
+        <h2 style="color: #dc2626;">🚨 MESSAGE PHISHING INDICATORS</h2>
         <ul>
     `;
     phishingReasons.forEach((reason) => {
@@ -496,12 +482,42 @@ const generatePDFHTML = (scanData, type) => {
   }
 
   // ============================================================
-  // LEGITIMATE INDICATORS - ALWAYS SHOW IF AVAILABLE
+  // MESSAGE LEGITIMATE INDICATORS
   // ============================================================
-  if (legitimateReasons && legitimateReasons.length > 0) {
+  if (isMessage && legitimateReasons && legitimateReasons.length > 0) {
     html += `
       <div class="section" style="border-color: #86efac; background: #f0fdf4;">
-        <h2>${escapeHtml(legitTitle)}</h2>
+        <h2 style="color: #065f46;">✅ MESSAGE LEGITIMATE INDICATORS</h2>
+        <ul>
+    `;
+    legitimateReasons.forEach((reason) => {
+      html += `<li>${escapeHtml(reason)}</li>`;
+    });
+    html += `</ul></div>`;
+  }
+
+  // ============================================================
+  // URL PHISHING INDICATORS (for URL scans)
+  // ============================================================
+  if (!isMessage && phishingReasons && phishingReasons.length > 0) {
+    html += `
+      <div class="section" style="border-color: #fca5a5; background: #fef2f2;">
+        <h2 style="color: #dc2626;">🚨 URL PHISHING INDICATORS</h2>
+        <ul>
+    `;
+    phishingReasons.forEach((reason) => {
+      html += `<li>${escapeHtml(reason)}</li>`;
+    });
+    html += `</ul></div>`;
+  }
+
+  // ============================================================
+  // URL LEGITIMATE INDICATORS (for URL scans)
+  // ============================================================
+  if (!isMessage && legitimateReasons && legitimateReasons.length > 0) {
+    html += `
+      <div class="section" style="border-color: #86efac; background: #f0fdf4;">
+        <h2 style="color: #065f46;">✅ URL LEGITIMATE INDICATORS</h2>
         <ul>
     `;
     legitimateReasons.forEach((reason) => {
@@ -516,31 +532,88 @@ const generatePDFHTML = (scanData, type) => {
   if (isMessage && urlsFound && urlsFound.length > 0) {
     html += `
       <div class="section" style="border-color: #fcd34d; background: #fffbeb;">
-        <h2>URLS FOUND IN MESSAGE</h2>
+        <h2 style="color: #d97706;">🔗 URLS FOUND IN MESSAGE</h2>
     `;
     urlsFound.forEach((url, index) => {
       const result = urlResults && urlResults[index];
       const predClass = result?.prediction === 'LEGITIMATE' ? 'url-pred-safe'
         : result?.prediction === 'PHISHING' ? 'url-pred-phishing'
         : 'url-pred-unknown';
+      
       html += `
         <div class="url-item">
           <span class="url-text">${escapeHtml(url)}</span>
           <span class="url-pred ${predClass}">${escapeHtml(result?.prediction || 'UNKNOWN')}</span>
         </div>
       `;
+      
+      // Show URL details if available
+      if (result) {
+        if (result.legitimateReasons && result.legitimateReasons.length > 0) {
+          html += `
+            <div class="url-details" style="border-left-color: #16a34a; margin-top: 2px; margin-bottom: 4px;">
+              <div class="url-details-text">
+                <strong style="color: #065f46;">✅ Legitimate:</strong> ${escapeHtml(result.legitimateReasons[0])}
+                ${result.legitimateReasons.length > 1 ? ` <span style="color: #94a3b8;">(+${result.legitimateReasons.length - 1} more)</span>` : ''}
+              </div>
+            </div>
+          `;
+        }
+        if (result.phishingReasons && result.phishingReasons.length > 0) {
+          html += `
+            <div class="url-details" style="border-left-color: #dc2626; margin-top: 2px; margin-bottom: 4px;">
+              <div class="url-details-text">
+                <strong style="color: #dc2626;">🚨 Phishing:</strong> ${escapeHtml(result.phishingReasons[0])}
+                ${result.phishingReasons.length > 1 ? ` <span style="color: #94a3b8;">(+${result.phishingReasons.length - 1} more)</span>` : ''}
+              </div>
+            </div>
+          `;
+        }
+        if (result.conclusion) {
+          html += `
+            <div class="url-details" style="border-left-color: #667eea; margin-top: 2px; margin-bottom: 4px;">
+              <div class="url-details-text">
+                <strong>Conclusion:</strong> ${escapeHtml(result.conclusion)}
+              </div>
+            </div>
+          `;
+        }
+      }
     });
     html += `</div>`;
   }
 
   // ============================================================
-  // ANALYSIS CONCLUSION - ALWAYS SHOW
+  // URL RESULT DETAILS (for URL scans with urlResults)
+  // ============================================================
+  if (!isMessage && urlResults && urlResults.length > 0) {
+    html += `
+      <div class="section" style="border-color: #93c5fd; background: #eff6ff;">
+        <h2 style="color: #1d4ed8;">🔍 URL ANALYSIS DETAILS</h2>
+    `;
+    urlResults.forEach((result, index) => {
+      if (result.conclusion) {
+        html += `
+          <div style="margin-bottom: 8px; padding: 8px 10px; background: white; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div class="url-details-text">
+              <strong>URL ${index + 1} Conclusion:</strong><br />
+              ${escapeHtml(result.conclusion)}
+            </div>
+          </div>
+        `;
+      }
+    });
+    html += `</div>`;
+  }
+
+  // ============================================================
+  // ANALYSIS CONCLUSION
   // ============================================================
   const conclusionText = scanData.conclusion || scanData.explanation || 'Analysis completed.';
   html += `
     <div class="section">
       <h2>ANALYSIS CONCLUSION</h2>
-      <p style="line-height: 1.7; color: #475569; font-size: 13px;">${escapeHtml(conclusionText)}</p>
+      <p style="line-height: 1.7; color: #475569; font-size: 12px;">${escapeHtml(conclusionText)}</p>
     </div>
   `;
 
@@ -554,18 +627,18 @@ const generatePDFHTML = (scanData, type) => {
   if (['PHISHING', 'DANGEROUS', 'MALICIOUS', 'SCAM'].includes(upperPred)) {
     recClass = 'recommendation-high';
     recommendationText = isMessage
-      ? 'DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier.'
-      : 'DO NOT proceed to this website. Report this URL to security authorities immediately. This is a confirmed phishing attempt designed to steal your credentials.';
+      ? '🚫 DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier.'
+      : '🚫 DO NOT proceed to this website. Report this URL to security authorities immediately. This is a confirmed phishing attempt designed to steal your credentials.';
   } else if (['SUSPICIOUS', 'WARNING'].includes(upperPred)) {
     recClass = 'recommendation-medium';
     recommendationText = isMessage
-      ? 'Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels.'
-      : 'Exercise extreme caution. Verify the website\'s authenticity through official channels before entering any personal information or credentials.';
+      ? '⚠️ Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels.'
+      : '⚠️ Exercise extreme caution. Verify the website\'s authenticity through official channels before entering any personal information or credentials.';
   } else {
     recClass = 'recommendation-low';
     recommendationText = isMessage
-      ? 'This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.'
-      : 'You can safely proceed. However, always verify the URL matches the official website before entering sensitive information.';
+      ? '✅ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.'
+      : '✅ You can safely proceed. However, always verify the URL matches the official website before entering sensitive information.';
   }
 
   html += `

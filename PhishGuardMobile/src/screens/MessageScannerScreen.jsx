@@ -169,15 +169,11 @@ export default function MessageScannerScreen() {
 
     setDownloading(true);
     try {
-      // IMPORTANT: Fetch full scan details using the reference ID
-      // This will give us all the detailed phishing and legitimate indicators
       const scanDetails = await getScanByReference(result.reference);
       console.log('[PDF Download] Full Scan Details:', JSON.stringify(scanDetails, null, 2));
 
-      // Determine if it's a message scan
       const isMessageScan = scanDetails.scanType === 'MESSAGE' || scanDetails.message || result.type === 'message';
 
-      // Prepare PDF data with all the detailed information from scanDetails
       const pdfData = {
         reference: scanDetails.reference,
         scanType: scanDetails.scanType || (isMessageScan ? 'MESSAGE' : 'URL'),
@@ -186,7 +182,6 @@ export default function MessageScannerScreen() {
         prediction: getPrediction(scanDetails) || result.prediction,
         conclusion: scanDetails.conclusion || result.conclusion || 'Analysis completed',
         scannedAt: scanDetails.scannedAt || result.scannedAt,
-        // These are the critical fields - now we have them from scanDetails
         phishingReasons: scanDetails.phishingReasons || scanDetails.messagePhishingReasons || [],
         legitimateReasons: scanDetails.legitimateReasons || scanDetails.messageLegitimateReasons || [],
         urlsFound: scanDetails.urlsFound || [],
@@ -198,9 +193,6 @@ export default function MessageScannerScreen() {
         _raw: scanDetails,
       };
 
-      console.log('[PDF Download] Phishing Reasons:', pdfData.phishingReasons);
-      console.log('[PDF Download] Legitimate Reasons:', pdfData.legitimateReasons);
-      
       await downloadPDF(pdfData, isMessageScan ? 'message' : 'url');
       showToast('Report downloaded successfully!', 'success');
     } catch (error) {
@@ -510,7 +502,7 @@ export default function MessageScannerScreen() {
             </View>
           </View>
 
-          {/* Message Phishing Reasons - Show from result (may be empty) */}
+          {/* Message Phishing Reasons */}
           {result.phishingReasons && result.phishingReasons.length > 0 && (
             <View style={[styles.warningCard, {
               backgroundColor: '#fee2e2',
@@ -527,7 +519,7 @@ export default function MessageScannerScreen() {
             </View>
           )}
 
-          {/* Message Legitimate Reasons - Show from result (may be empty) */}
+          {/* Message Legitimate Reasons */}
           {result.legitimateReasons && result.legitimateReasons.length > 0 && (
             <View style={[styles.legitimateCard, {
               backgroundColor: '#d1fae5',
@@ -544,7 +536,7 @@ export default function MessageScannerScreen() {
             </View>
           )}
 
-          {/* URLs Found - Show from result (may be empty) */}
+          {/* URLs Found */}
           {result.urlsFound && result.urlsFound.length > 0 && (
             <View style={[styles.urlsCard, {
               backgroundColor: '#fef3c7',
