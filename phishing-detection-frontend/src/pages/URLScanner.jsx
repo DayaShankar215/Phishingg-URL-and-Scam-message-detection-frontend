@@ -108,12 +108,19 @@ const URLScanner = () => {
       explanation: response.conclusion || "Analysis completed",
       result: resultType,
       scannedAt: response.scannedAt || new Date().toISOString(),
+      type: "url", // ✅ Explicitly set type for consistency
+      content: scannedUrl,
       _raw: response,
     };
   };
 
   const handleScan = async (e) => {
     e.preventDefault();
+
+    if (!url || url.trim() === "") {
+      toast.error("Please enter a URL to scan");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -203,6 +210,7 @@ const URLScanner = () => {
         phishingReasons: scanDetails.phishingReasons || [],
         legitimateReasons: scanDetails.legitimateReasons || [],
         overallPrediction: scanDetails.overallPrediction || scanDetails.prediction,
+        scanType: scanDetails.scanType || "URL",
       };
       
       const { downloadPDF } = await import('../services/pdfGenerator');
@@ -224,7 +232,6 @@ const URLScanner = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ✅ FIXED: Allow toggling accuracy selection
   const handleAccuracySelect = async (isAccurate) => {
     console.log("Scan ID:", scanId);
     
@@ -234,7 +241,6 @@ const URLScanner = () => {
       return;
     }
 
-    // ✅ If user clicks the same option, deselect it (toggle off)
     if (feedback.isAccurate === isAccurate) {
       setFeedback({ ...feedback, isAccurate: null });
       setAccuracySubmitted(false);
@@ -811,58 +817,6 @@ const URLScanner = () => {
                 marginTop: "16px",
               }}
             >
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "8px",
-                  }}
-                >
-                  {/* <span style={{ fontSize: "28px" }}>{riskLevel.icon}</span> */}
-                  {/* <span
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: "600",
-                      color: riskLevel.color,
-                      background: riskLevel.bg,
-                      padding: "4px 16px",
-                      borderRadius: "100px",
-                    }}
-                  >
-                    {riskLevel.badge}
-                  </span> */}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: "16px",
-                  }}
-                >
-                  {/* <span
-                    style={{
-                      fontSize: "56px",
-                      fontWeight: "800",
-                      color: riskLevel.color,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {Math.round(result.riskScore)}%
-                  </span> */}
-                  {/* <span
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: "600",
-                      color: riskLevel.color,
-                    }}
-                  >
-                    {riskLevel.label}
-                  </span> */}
-                </div>
-              </div>
-
               <div style={{ display: "flex", justifyContent: "center", gap: "12px", flexWrap: "wrap", width: "100%" }}>
                 <button
                   onClick={handleDownloadReport}
@@ -921,52 +875,11 @@ const URLScanner = () => {
                 style={{
                   width: "100%",
                   height: "8px",
-                  // background: "#f1f5f9",
                   borderRadius: "4px",
                   overflow: "hidden",
                 }}
-              >
-                {/* <div
-                  style={{
-                    width: `${result.riskScore}%`,
-                    height: "100%",
-                    background: `linear-gradient(90deg, ${riskLevel.color}80, ${riskLevel.color})`,
-                    borderRadius: "4px",
-                    transition: "width 1s ease",
-                  }}
-                /> */}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginTop: "8px",
-                  fontSize: "12px",
-                  color: "#94a3b8",
-                }}
-              >
-                {/* <span>Low Risk (0%)</span>
-                <span>Medium (50%)</span>
-                <span>High Risk (100%)</span> */}
-              </div>
+              />
             </div>
-
-            {/* <p
-              style={{
-                marginTop: "16px",
-                fontSize: "15px",
-                color: riskLevel.color,
-                fontWeight: "500",
-                position: "relative",
-                zIndex: 1,
-              }}
-            >
-              {result.riskScore > 70
-                ? "🚫 HIGH RISK: This website appears to be a phishing site! Do not proceed."
-                : result.riskScore > 30
-                ? "⚠️ MEDIUM RISK: This website shows suspicious characteristics. Exercise caution."
-                : "✅ LOW RISK: This website appears to be safe."}
-            </p> */}
           </div>
 
           {/* Phishing Reasons */}
@@ -1062,7 +975,7 @@ const URLScanner = () => {
             </p>
           </div>
 
-          {/* ✅ FIXED: Feedback Section with Toggle */}
+          {/* Feedback Section */}
           {showFeedback && !feedbackSubmitted && (
             <div
               style={{
