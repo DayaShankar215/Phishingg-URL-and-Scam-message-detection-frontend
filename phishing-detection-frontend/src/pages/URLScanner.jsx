@@ -1,6 +1,11 @@
 // pages/URLScanner.jsx
 import React, { useState } from "react";
-import { scanURL, submitFeedbackMessage, submitAccuracy, getScanByReference } from "../services/api";
+import {
+  scanURL,
+  submitFeedbackMessage,
+  submitAccuracy,
+  getScanByReference,
+} from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { useGuest } from "../context/GuestContext";
 import AuthModal from "../components/common/AuthModal";
@@ -69,14 +74,15 @@ const URLScanner = () => {
   };
 
   const processScanResponse = (response, scannedUrl) => {
-    const rawPrediction = response.overallPrediction || response.prediction || "UNKNOWN";
+    const rawPrediction =
+      response.overallPrediction || response.prediction || "UNKNOWN";
     const prediction = rawPrediction;
-    
+
     let riskScore = 50;
     let resultType = "unknown";
 
     const upperPrediction = prediction.toUpperCase().trim();
-    
+
     switch (upperPrediction) {
       case "PHISHING":
       case "DANGEROUS":
@@ -155,19 +161,23 @@ const URLScanner = () => {
 
       const reference = response.reference || "";
       setScanId(reference);
-      
+
       setShowFeedback(true);
       setFeedback({
         type: "url",
         isAccurate: null,
         comments: "",
       });
-      
+
       toast.success("Scan completed successfully!");
     } catch (err) {
       console.error("Scan Error:", err);
-      
-      if (err.isCorsError || err.message?.includes("CORS") || err.message?.includes("Network")) {
+
+      if (
+        err.isCorsError ||
+        err.message?.includes("CORS") ||
+        err.message?.includes("Network")
+      ) {
         setConnectionError(true);
         setError("Cannot connect to the server. Please check your connection.");
         toast.error("Connection Error");
@@ -199,23 +209,28 @@ const URLScanner = () => {
     try {
       const scanDetails = await getScanByReference(reference);
       console.log("Scan Details for PDF:", scanDetails);
-      
+
       const pdfData = {
         reference: scanDetails.reference,
         url: scanDetails.url || result.url,
         prediction: scanDetails.overallPrediction || scanDetails.prediction,
-        riskScore: result.riskScore || getRiskScoreFromPrediction(scanDetails.overallPrediction || scanDetails.prediction),
+        riskScore:
+          result.riskScore ||
+          getRiskScoreFromPrediction(
+            scanDetails.overallPrediction || scanDetails.prediction,
+          ),
         conclusion: scanDetails.conclusion || "Analysis completed",
         scannedAt: scanDetails.scannedAt,
         phishingReasons: scanDetails.phishingReasons || [],
         legitimateReasons: scanDetails.legitimateReasons || [],
-        overallPrediction: scanDetails.overallPrediction || scanDetails.prediction,
+        overallPrediction:
+          scanDetails.overallPrediction || scanDetails.prediction,
         scanType: scanDetails.scanType || "URL",
       };
-      
-      const { downloadPDF } = await import('../services/pdfGenerator');
-      downloadPDF(pdfData, 'url');
-      
+
+      const { downloadPDF } = await import("../services/pdfGenerator");
+      downloadPDF(pdfData, "url");
+
       toast.success("Report downloaded successfully!");
     } catch (error) {
       console.error("Download Error:", error);
@@ -234,7 +249,7 @@ const URLScanner = () => {
 
   const handleAccuracySelect = async (isAccurate) => {
     console.log("Scan ID:", scanId);
-    
+
     if (!scanId || scanId.trim() === "") {
       toast.error("Scan ID not found. Please try scanning again.");
       console.error("Scan ID is null or empty:", scanId);
@@ -250,21 +265,21 @@ const URLScanner = () => {
 
     setFeedback({ ...feedback, isAccurate });
     setAccuracyError(null);
-    
+
     try {
       console.log("Submitting accuracy with:", {
         reference: scanId,
-        accurate: isAccurate
+        accurate: isAccurate,
       });
-      
+
       const response = await submitAccuracy({
         reference: scanId,
-        accurate: isAccurate
+        accurate: isAccurate,
       });
-      
+
       console.log("Accuracy Response:", response);
       setAccuracySubmitted(true);
-      
+
       if (response?.reply) {
         toast.success(response.reply);
       } else {
@@ -288,24 +303,23 @@ const URLScanner = () => {
     }
 
     setSubmitting(true);
-    
+
     try {
       const response = await submitFeedbackMessage(feedback.comments);
       console.log("Feedback Message Response:", response);
-      
+
       if (response?.reply) {
         setFeedbackReply(response.reply);
       }
-      
+
       setFeedbackSubmitted(true);
       toast.success("Thank you for your feedback! 🎉");
-      
+
       setTimeout(() => {
         setShowFeedback(false);
         setFeedbackSubmitted(false);
         setFeedbackReply("");
       }, 5000);
-
     } catch (error) {
       console.error("Feedback Submit Error:", error);
       toast.error(error.message || "Failed to submit feedback");
@@ -520,7 +534,9 @@ const URLScanner = () => {
                 )}
               </button>
             </div>
-            <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "12px" }}>
+            <p
+              style={{ fontSize: "12px", color: "#94a3b8", marginTop: "12px" }}
+            >
               Supports HTTP, HTTPS, and all standard URL formats
             </p>
           </div>
@@ -538,14 +554,36 @@ const URLScanner = () => {
             marginBottom: "24px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
-            <FaExclamationCircle style={{ color: "#dc2626", fontSize: "32px", flexShrink: 0, marginTop: "4px" }} />
+          <div
+            style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}
+          >
+            <FaExclamationCircle
+              style={{
+                color: "#dc2626",
+                fontSize: "32px",
+                flexShrink: 0,
+                marginTop: "4px",
+              }}
+            />
             <div style={{ flex: 1 }}>
-              <h3 style={{ color: "#dc2626", margin: "0 0 8px", fontSize: "18px" }}>
+              <h3
+                style={{
+                  color: "#dc2626",
+                  margin: "0 0 8px",
+                  fontSize: "18px",
+                }}
+              >
                 ⚠️ Connection Error
               </h3>
-              <p style={{ color: "#475569", margin: "0 0 12px", lineHeight: "1.6" }}>
-                {error || "Cannot connect to the server. Please check your connection."}
+              <p
+                style={{
+                  color: "#475569",
+                  margin: "0 0 12px",
+                  lineHeight: "1.6",
+                }}
+              >
+                {error ||
+                  "Cannot connect to the server. Please check your connection."}
               </p>
               <button
                 onClick={() => {
@@ -554,7 +592,8 @@ const URLScanner = () => {
                 }}
                 style={{
                   padding: "10px 24px",
-                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  background:
+                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                   color: "white",
                   border: "none",
                   borderRadius: "12px",
@@ -586,7 +625,9 @@ const URLScanner = () => {
             gap: "12px",
           }}
         >
-          <FaExclamationTriangle style={{ color: "#ef4444", fontSize: "20px" }} />
+          <FaExclamationTriangle
+            style={{ color: "#ef4444", fontSize: "20px" }}
+          />
           <p style={{ color: "#dc2626", margin: 0 }}>{error}</p>
         </div>
       )}
@@ -817,7 +858,15 @@ const URLScanner = () => {
                 marginTop: "16px",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "center", gap: "12px", flexWrap: "wrap", width: "100%" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                  width: "100%",
+                }}
+              >
                 <button
                   onClick={handleDownloadReport}
                   disabled={downloading}
@@ -883,26 +932,38 @@ const URLScanner = () => {
           </div>
 
           {/* Phishing Reasons */}
-          {result._raw?.phishingReasons && result._raw.phishingReasons.length > 0 && (
-            <div
-              style={{
-                background: "#fee2e2",
-                borderRadius: "16px",
-                padding: "20px",
-                marginBottom: "16px",
-                border: "1px solid #fca5a5",
-              }}
-            >
-              <h4 style={{ color: "#dc2626", marginBottom: "12px", fontSize: "16px", fontWeight: "700" }}>
-                🚨 Phishing Indicators
-              </h4>
-              <ul style={{ margin: 0, paddingLeft: "20px", color: "#475569" }}>
-                {result._raw.phishingReasons.map((reason, index) => (
-                  <li key={index} style={{ marginBottom: "6px" }}>{reason}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {result._raw?.phishingReasons &&
+            result._raw.phishingReasons.length > 0 && (
+              <div
+                style={{
+                  background: "#fee2e2",
+                  borderRadius: "16px",
+                  padding: "20px",
+                  marginBottom: "16px",
+                  border: "1px solid #fca5a5",
+                }}
+              >
+                <h4
+                  style={{
+                    color: "#dc2626",
+                    marginBottom: "12px",
+                    fontSize: "16px",
+                    fontWeight: "700",
+                  }}
+                >
+                  🚨 Phishing Indicators
+                </h4>
+                <ul
+                  style={{ margin: 0, paddingLeft: "20px", color: "#475569" }}
+                >
+                  {result._raw.phishingReasons.map((reason, index) => (
+                    <li key={index} style={{ marginBottom: "6px" }}>
+                      {reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
           {/* Recommendation */}
           <div
@@ -970,8 +1031,8 @@ const URLScanner = () => {
               {result.riskScore > 70
                 ? "🚫 DO NOT proceed to this website. Report this URL to security authorities immediately. This is a confirmed phishing attempt designed to steal your credentials."
                 : result.riskScore > 30
-                ? "⚠️ Exercise extreme caution. Verify the website's authenticity through official channels before entering any personal information or credentials."
-                : "✅ You can safely proceed. However, always verify the URL matches the official website before entering sensitive information."}
+                  ? "⚠️ Exercise extreme caution. Verify the website's authenticity through official channels before entering any personal information or credentials."
+                  : "✅ You can safely proceed. However, always verify the URL matches the official website before entering sensitive information."}
             </p>
           </div>
 
@@ -1019,7 +1080,13 @@ const URLScanner = () => {
                 </p>
               </div>
 
-              <div style={{ marginBottom: "12px", fontSize: "12px", color: "#94a3b8" }}>
+              <div
+                style={{
+                  marginBottom: "12px",
+                  fontSize: "12px",
+                  color: "#94a3b8",
+                }}
+              >
                 Scan ID: {scanId || "Not set"}
               </div>
 
@@ -1046,9 +1113,11 @@ const URLScanner = () => {
                       padding: "14px",
                       background:
                         feedback.isAccurate === true ? "#10b981" : "#f8fafc",
-                      color:
-                        feedback.isAccurate === true ? "white" : "#64748b",
-                      border: feedback.isAccurate === true ? "2px solid #10b981" : "2px solid #e2e8f0",
+                      color: feedback.isAccurate === true ? "white" : "#64748b",
+                      border:
+                        feedback.isAccurate === true
+                          ? "2px solid #10b981"
+                          : "2px solid #e2e8f0",
                       borderRadius: "14px",
                       cursor: "pointer",
                       fontWeight: "600",
@@ -1062,7 +1131,9 @@ const URLScanner = () => {
                     <FaThumbsUp />
                     Yes, accurate
                     {feedback.isAccurate === true && (
-                      <span style={{ marginLeft: "8px", fontSize: "12px" }}>✓</span>
+                      <span style={{ marginLeft: "8px", fontSize: "12px" }}>
+                        ✓
+                      </span>
                     )}
                   </button>
                   <button
@@ -1075,7 +1146,10 @@ const URLScanner = () => {
                         feedback.isAccurate === false ? "#ef4444" : "#f8fafc",
                       color:
                         feedback.isAccurate === false ? "white" : "#64748b",
-                      border: feedback.isAccurate === false ? "2px solid #ef4444" : "2px solid #e2e8f0",
+                      border:
+                        feedback.isAccurate === false
+                          ? "2px solid #ef4444"
+                          : "2px solid #e2e8f0",
                       borderRadius: "14px",
                       cursor: "pointer",
                       fontWeight: "600",
@@ -1089,17 +1163,33 @@ const URLScanner = () => {
                     <FaThumbsDown />
                     No, inaccurate
                     {feedback.isAccurate === false && (
-                      <span style={{ marginLeft: "8px", fontSize: "12px" }}>✓</span>
+                      <span style={{ marginLeft: "8px", fontSize: "12px" }}>
+                        ✓
+                      </span>
                     )}
                   </button>
                 </div>
                 {accuracyError && (
-                  <p style={{ fontSize: "12px", color: "#ef4444", marginTop: "8px", textAlign: "center" }}>
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#ef4444",
+                      marginTop: "8px",
+                      textAlign: "center",
+                    }}
+                  >
                     ❌ {accuracyError}
                   </p>
                 )}
                 {accuracySubmitted && feedback.isAccurate !== null && (
-                  <p style={{ fontSize: "12px", color: "#10b981", marginTop: "8px", textAlign: "center" }}>
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#10b981",
+                      marginTop: "8px",
+                      textAlign: "center",
+                    }}
+                  >
                     ✓ Accuracy feedback submitted successfully
                   </p>
                 )}

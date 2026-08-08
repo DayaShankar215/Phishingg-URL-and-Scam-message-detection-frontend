@@ -139,7 +139,9 @@ const Profile = () => {
             {user?.firstName ? user.firstName.charAt(0).toUpperCase() : "U"}
           </div>
           <div>
-            <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#1e293b" }}>
+            <h2
+              style={{ fontSize: "24px", fontWeight: "700", color: "#1e293b" }}
+            >
               {user?.firstName} {user?.lastName || ""}
             </h2>
             <p style={{ color: "#64748b" }}>{user?.email || ""}</p>
@@ -163,7 +165,13 @@ const Profile = () => {
         {/* Profile Form */}
         <form onSubmit={handleProfileUpdate}>
           <div style={{ display: "grid", gap: "20px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "16px",
+              }}
+            >
               <div>
                 <label
                   style={{
@@ -296,8 +304,8 @@ const Profile = () => {
                 background: loading
                   ? "#94a3b8"
                   : saved
-                  ? "#10b981"
-                  : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    ? "#10b981"
+                    : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                 color: "white",
                 border: "none",
                 borderRadius: "12px",
