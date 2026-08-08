@@ -1,7 +1,7 @@
 // context/GuestContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { v4 as uuidv4 } from 'uuid';
+import { uuidv4 } from '../utils/uuid';
 
 const GUEST_STORAGE_KEY = 'guest_data';
 
@@ -26,7 +26,7 @@ export const GuestProvider = ({ children }) => {
         const stored = await AsyncStorage.getItem(GUEST_STORAGE_KEY);
         if (stored) {
           const data = JSON.parse(stored);
-          setScans(data.scans || []);
+          setScans(Array.isArray(data.scans) ? data.scans : []);
           setSessionId(data.sessionId || uuidv4());
         } else {
           const newSessionId = uuidv4();
@@ -38,8 +38,7 @@ export const GuestProvider = ({ children }) => {
         }
       } catch (error) {
         console.error("Failed to load guest data:", error);
-        const newSessionId = uuidv4();
-        setSessionId(newSessionId);
+        setSessionId(uuidv4());
       }
       setIsInitialized(true);
     };

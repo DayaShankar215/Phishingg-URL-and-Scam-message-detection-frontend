@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useGuest } from '../context/GuestContext';
@@ -28,6 +28,7 @@ const DashboardScreen = () => {
   const { isDark } = useTheme();
   const colors = getColors(isDark);
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const { isAuthenticated, user, logout } = useAuth();
   const { getStats: getGuestStats, scans: guestScans } = useGuest();
 
@@ -45,8 +46,10 @@ const DashboardScreen = () => {
   const [authError, setAuthError] = useState(false);
 
   useEffect(() => {
-    fetchDashboardStats();
-  }, [isAuthenticated]);
+    if (isFocused) {
+      fetchDashboardStats();
+    }
+  }, [isAuthenticated, isFocused]);
 
   // Helper function to get prediction from API response
   const getPrediction = (scan) => {

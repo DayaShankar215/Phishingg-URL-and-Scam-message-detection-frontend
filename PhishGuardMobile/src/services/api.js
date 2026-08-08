@@ -1,8 +1,37 @@
 // services/api.js
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
-const API_BASE_URL = "https://mud-cable-passerby.ngrok-free.dev";
+// Default backend endpoint used by the release app.
+// IMPORTANT: Override this at build time so the APK does not depend on a
+// local ngrok tunnel. Use any of:
+//   1. EXPO_PUBLIC_API_URL environment variable (e.g. in EAS build / .env)
+//   2. app.json -> expo.extra.apiUrl
+//   3. This fallback value below.
+const DEFAULT_API_BASE_URL = "https://mud-cable-passerby.ngrok-free.dev";
+
+const normalizeBaseUrl = (url) => (url || '').replace(/\/+$/, '');
+
+export const getApiBaseUrl = () => {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) {
+    return normalizeBaseUrl(envUrl);
+  }
+
+  try {
+    const extraUrl = Constants.expoConfig?.extra?.apiUrl;
+    if (extraUrl) {
+      return normalizeBaseUrl(extraUrl);
+    }
+  } catch (error) {
+    console.warn("Unable to read apiUrl from Expo config:", error);
+  }
+
+  return normalizeBaseUrl(DEFAULT_API_BASE_URL);
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -12,6 +41,8 @@ const api = axios.create({
   },
   timeout: 60000,
 });
+
+console.log(`[API] Using base URL: ${API_BASE_URL}`);
 
 // --- Request Interceptor ---
 api.interceptors.request.use(

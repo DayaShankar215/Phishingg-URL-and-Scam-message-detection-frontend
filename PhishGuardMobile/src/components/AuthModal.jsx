@@ -108,17 +108,20 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onSuccess }) => {
       animationType="fade"
       transparent={true}
       visible={isOpen}
+      statusBarTranslucent={true}
       onRequestClose={handleClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={[styles.overlay, { backgroundColor: 'rgba(0, 0, 0, 0.7)' }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.overlay}
       >
-        <TouchableOpacity
-          style={styles.overlayTouch}
-          activeOpacity={1}
-          onPress={handleClose}
-        >
+        <View style={[styles.overlay, { backgroundColor: 'rgba(0, 0, 0, 0.7)' }]}>
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={handleClose}
+          />
+
           <View
             style={[
               styles.modalContainer,
@@ -128,21 +131,17 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onSuccess }) => {
             ]}
           >
             <TouchableOpacity
-              style={styles.overlayTouch}
-              activeOpacity={1}
-              onPress={(e) => e.stopPropagation()}
+              style={[styles.closeBtn, { backgroundColor: colors.backgroundInput }]}
+              onPress={handleClose}
             >
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-              >
-                <TouchableOpacity
-                  style={[styles.closeBtn, { backgroundColor: colors.backgroundInput }]}
-                  onPress={handleClose}
-                >
-                  <Ionicons name="close" size={20} color={colors.textMuted} />
-                </TouchableOpacity>
+              <Ionicons name="close" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
 
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
                 <View style={styles.logoContainer}>
                   <View
                     style={[
@@ -349,9 +348,8 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onSuccess }) => {
                   </TouchableOpacity>
                 </View>
               </ScrollView>
-            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -363,6 +361,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   overlayTouch: {
     flex: 1,
     width: '100%',
@@ -372,9 +377,10 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: '92%',
     maxWidth: 440,
-    maxHeight: '90%',
+    maxHeight: '88%',
     borderRadius: 32,
     padding: 28,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -382,6 +388,7 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingBottom: 8,
   },
   closeBtn: {

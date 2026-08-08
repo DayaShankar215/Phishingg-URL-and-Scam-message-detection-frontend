@@ -31,7 +31,7 @@ import {
 } from '../services/api';
 import { downloadPDF } from '../services/pdfGenerator';
 import { formatDate, truncateText } from '../utils/formatters';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -39,6 +39,7 @@ const HistoryScreen = () => {
   const { isDark } = useTheme();
   const colors = getColors(isDark);
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const { isAuthenticated, logout } = useAuth();
   const { scans: guestScans } = useGuest();
 
@@ -89,8 +90,10 @@ const HistoryScreen = () => {
       setLoading(false);
       return;
     }
-    fetchHistory();
-  }, [filter, isAuthenticated]);
+    if (isFocused) {
+      fetchHistory();
+    }
+  }, [filter, isAuthenticated, isFocused]);
 
   useEffect(() => {
     calculateStats();
@@ -837,7 +840,7 @@ const HistoryScreen = () => {
                   <View style={styles.actionButtons}>
                     <TouchableOpacity
                       onPress={() => handleDownloadReport(reference)}
-                      disabled={isDownloading || !isAuthenticated}
+                      disabled={isDownloading}
                       style={styles.actionBtn}
                     >
                       {isDownloading ? (
@@ -848,7 +851,7 @@ const HistoryScreen = () => {
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleDeleteScan(reference)}
-                      disabled={isDeleting || !isAuthenticated}
+                      disabled={isDeleting}
                       style={styles.actionBtn}
                     >
                       {isDeleting ? (

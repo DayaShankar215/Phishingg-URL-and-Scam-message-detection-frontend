@@ -49,25 +49,23 @@ export const ThemeProvider = ({ children }) => {
     setCurrentTheme(newTheme);
   };
 
+  const resolveThemeForSystem = () => (systemScheme === 'dark' ? 'dark' : 'light');
+
   const loadTheme = async () => {
     try {
       const saved = await AsyncStorage.getItem('appTheme');
-      if (saved) {
+      if (saved && (saved === 'system' || saved === 'light' || saved === 'dark')) {
         setTheme(saved);
-        if (saved === 'system') {
-          setCurrentTheme(systemScheme === 'dark' ? 'dark' : 'light');
-        } else {
-          setCurrentTheme(saved);
-        }
+        setCurrentTheme(saved === 'system' ? resolveThemeForSystem() : saved);
       } else {
         setTheme('system');
-        setCurrentTheme(systemScheme === 'dark' ? 'dark' : 'light');
+        setCurrentTheme(resolveThemeForSystem());
         await AsyncStorage.setItem('appTheme', 'system');
       }
     } catch (error) {
-      console.error('Failed to load theme:', error);
+      console.warn('Failed to load theme:', error);
       setTheme('system');
-      setCurrentTheme(systemScheme === 'dark' ? 'dark' : 'light');
+      setCurrentTheme(resolveThemeForSystem());
     } finally {
       setIsLoading(false);
     }
@@ -77,18 +75,14 @@ export const ThemeProvider = ({ children }) => {
     try {
       await AsyncStorage.setItem('appTheme', themeValue);
     } catch (error) {
-      console.error('Failed to save theme:', error);
+      console.warn('Failed to save theme:', error);
     }
   };
 
-  const toggleTheme = (mode) => {
+  const toggleTheme = async (mode) => {
     setTheme(mode);
-    saveTheme(mode);
-    if (mode === 'system') {
-      setCurrentTheme(systemScheme === 'dark' ? 'dark' : 'light');
-    } else {
-      setCurrentTheme(mode);
-    }
+    setCurrentTheme(mode === 'system' ? resolveThemeForSystem() : mode);
+    await saveTheme(mode);
   };
 
   const value = {
