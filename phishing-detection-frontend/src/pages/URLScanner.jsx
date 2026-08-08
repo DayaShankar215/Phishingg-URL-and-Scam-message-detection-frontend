@@ -74,8 +74,7 @@ const URLScanner = () => {
   };
 
   const processScanResponse = (response, scannedUrl) => {
-    const rawPrediction =
-      response.overallPrediction || response.prediction || "UNKNOWN";
+    const rawPrediction = response.overallPrediction || response.prediction || "UNKNOWN";
     const prediction = rawPrediction;
 
     let riskScore = 50;
@@ -114,8 +113,13 @@ const URLScanner = () => {
       explanation: response.conclusion || "Analysis completed",
       result: resultType,
       scannedAt: response.scannedAt || new Date().toISOString(),
-      type: "url", // ✅ Explicitly set type for consistency
+      type: "url",
       content: scannedUrl,
+      scanType: response.scanType || "URL",
+      phishingReasons: response.phishingReasons || [],
+      legitimateReasons: response.legitimateReasons || [],
+      conclusion: response.conclusion || response.explanation || "Analysis completed",
+      overallPrediction: response.overallPrediction || prediction,
       _raw: response,
     };
   };
@@ -213,19 +217,17 @@ const URLScanner = () => {
       const pdfData = {
         reference: scanDetails.reference,
         url: scanDetails.url || result.url,
-        prediction: scanDetails.overallPrediction || scanDetails.prediction,
-        riskScore:
-          result.riskScore ||
-          getRiskScoreFromPrediction(
-            scanDetails.overallPrediction || scanDetails.prediction,
-          ),
-        conclusion: scanDetails.conclusion || "Analysis completed",
-        scannedAt: scanDetails.scannedAt,
-        phishingReasons: scanDetails.phishingReasons || [],
-        legitimateReasons: scanDetails.legitimateReasons || [],
-        overallPrediction:
-          scanDetails.overallPrediction || scanDetails.prediction,
+        prediction: scanDetails.overallPrediction || scanDetails.prediction || result.prediction,
+        riskScore: result.riskScore || getRiskScoreFromPrediction(
+          scanDetails.overallPrediction || scanDetails.prediction
+        ),
+        conclusion: scanDetails.conclusion || result.conclusion || "Analysis completed",
+        scannedAt: scanDetails.scannedAt || result.scannedAt,
         scanType: scanDetails.scanType || "URL",
+        overallPrediction: scanDetails.overallPrediction || scanDetails.prediction || result.prediction,
+        phishingReasons: scanDetails.phishingReasons || result.phishingReasons || [],
+        legitimateReasons: scanDetails.legitimateReasons || result.legitimateReasons || [],
+        _raw: scanDetails,
       };
 
       const { downloadPDF } = await import("../services/pdfGenerator");
@@ -849,121 +851,131 @@ const URLScanner = () => {
             <div
               style={{
                 display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
+                justifyContent: "center",
+                gap: "12px",
                 flexWrap: "wrap",
-                gap: "20px",
                 position: "relative",
                 zIndex: 1,
                 marginTop: "16px",
               }}
             >
-              <div
+              <button
+                onClick={handleDownloadReport}
+                disabled={downloading}
                 style={{
+                  background: riskLevel.color,
+                  color: "white",
+                  padding: "14px 28px",
+                  border: "none",
+                  borderRadius: "14px",
+                  cursor: downloading ? "not-allowed" : "pointer",
                   display: "flex",
-                  justifyContent: "center",
-                  gap: "12px",
-                  flexWrap: "wrap",
-                  width: "100%",
+                  alignItems: "center",
+                  gap: "10px",
+                  fontWeight: "600",
+                  fontSize: "15px",
+                  transition: "all 0.3s ease",
+                  opacity: downloading ? 0.6 : 1,
+                  boxShadow: `0 4px 16px ${riskLevel.color}40`,
+                }}
+                onMouseEnter={(e) => {
+                  if (!downloading) {
+                    e.currentTarget.style.transform = "scale(1.02)";
+                    e.currentTarget.style.boxShadow = `0 6px 24px ${riskLevel.color}50`;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!downloading) {
+                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.boxShadow = `0 4px 16px ${riskLevel.color}40`;
+                  }
                 }}
               >
-                <button
-                  onClick={handleDownloadReport}
-                  disabled={downloading}
-                  style={{
-                    background: riskLevel.color,
-                    color: "white",
-                    padding: "14px 28px",
-                    border: "none",
-                    borderRadius: "14px",
-                    cursor: downloading ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    fontWeight: "600",
-                    fontSize: "15px",
-                    transition: "all 0.3s ease",
-                    opacity: downloading ? 0.6 : 1,
-                    boxShadow: `0 4px 16px ${riskLevel.color}40`,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!downloading) {
-                      e.currentTarget.style.transform = "scale(1.02)";
-                      e.currentTarget.style.boxShadow = `0 6px 24px ${riskLevel.color}50`;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!downloading) {
-                      e.currentTarget.style.transform = "scale(1)";
-                      e.currentTarget.style.boxShadow = `0 4px 16px ${riskLevel.color}40`;
-                    }
-                  }}
-                >
-                  {downloading ? (
-                    <>
-                      <FaSpinner className="spinning" />
-                      <span>Downloading...</span>
-                    </>
-                  ) : !isAuthenticated ? (
-                    <>
-                      <FaUserPlus />
-                      <span>Sign in to Download</span>
-                    </>
-                  ) : (
-                    <>
-                      <FaFilePdf />
-                      <span>Download Report</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div style={{ marginTop: "20px", position: "relative", zIndex: 1 }}>
-              <div
-                style={{
-                  width: "100%",
-                  height: "8px",
-                  borderRadius: "4px",
-                  overflow: "hidden",
-                }}
-              />
+                {downloading ? (
+                  <>
+                    <FaSpinner className="spinning" />
+                    <span>Downloading...</span>
+                  </>
+                ) : !isAuthenticated ? (
+                  <>
+                    <FaUserPlus />
+                    <span>Sign in to Download</span>
+                  </>
+                ) : (
+                  <>
+                    <FaFilePdf />
+                    <span>Download Report</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
           {/* Phishing Reasons */}
-          {result._raw?.phishingReasons &&
-            result._raw.phishingReasons.length > 0 && (
-              <div
+          {result.phishingReasons && result.phishingReasons.length > 0 && (
+            <div
+              style={{
+                background: "#fee2e2",
+                borderRadius: "16px",
+                padding: "20px",
+                marginBottom: "16px",
+                border: "1px solid #fca5a5",
+              }}
+            >
+              <h4
                 style={{
-                  background: "#fee2e2",
-                  borderRadius: "16px",
-                  padding: "20px",
-                  marginBottom: "16px",
-                  border: "1px solid #fca5a5",
+                  color: "#dc2626",
+                  marginBottom: "12px",
+                  fontSize: "16px",
+                  fontWeight: "700",
                 }}
               >
-                <h4
-                  style={{
-                    color: "#dc2626",
-                    marginBottom: "12px",
-                    fontSize: "16px",
-                    fontWeight: "700",
-                  }}
-                >
-                  🚨 Phishing Indicators
-                </h4>
-                <ul
-                  style={{ margin: 0, paddingLeft: "20px", color: "#475569" }}
-                >
-                  {result._raw.phishingReasons.map((reason, index) => (
-                    <li key={index} style={{ marginBottom: "6px" }}>
-                      {reason}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+                🚨 Phishing Indicators
+              </h4>
+              <ul
+                style={{ margin: 0, paddingLeft: "20px", color: "#475569" }}
+              >
+                {result.phishingReasons.map((reason, index) => (
+                  <li key={index} style={{ marginBottom: "6px" }}>
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Legitimate Reasons */}
+          {result.legitimateReasons && result.legitimateReasons.length > 0 && (
+            <div
+              style={{
+                background: "#d1fae5",
+                borderRadius: "16px",
+                padding: "20px",
+                marginBottom: "16px",
+                border: "1px solid #86efac",
+              }}
+            >
+              <h4
+                style={{
+                  color: "#065f46",
+                  marginBottom: "12px",
+                  fontSize: "16px",
+                  fontWeight: "700",
+                }}
+              >
+                ✅ Legitimate Indicators
+              </h4>
+              <ul
+                style={{ margin: 0, paddingLeft: "20px", color: "#475569" }}
+              >
+                {result.legitimateReasons.map((reason, index) => (
+                  <li key={index} style={{ marginBottom: "6px" }}>
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Recommendation */}
           <div

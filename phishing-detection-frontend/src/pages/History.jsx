@@ -28,6 +28,8 @@ import {
   FaFilePdf,
   FaComment,
   FaSortNumericDown,
+  FaChevronDown,
+  FaChevronUp,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 
@@ -41,6 +43,13 @@ const History = () => {
   const [downloadingId, setDownloadingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    phishing: true,
+    legitimate: true,
+    urls: true,
+    urlPhishing: true,
+    urlLegitimate: true,
+  });
   const [stats, setStats] = useState({
     total: 0,
     url: 0,
@@ -274,6 +283,8 @@ const History = () => {
         urlsFound: response.urlsFound || [],
         urlResults: response.urlResults || [],
         overallPrediction: response.overallPrediction,
+        explanation: response.explanation,
+        _raw: response,
       });
       setShowModal(true);
     } catch (error) {
@@ -316,6 +327,8 @@ const History = () => {
         phishingReasons: scanDetails.phishingReasons || [],
         legitimateReasons: scanDetails.legitimateReasons || [],
         overallPrediction: scanDetails.overallPrediction,
+        explanation: scanDetails.explanation,
+        _raw: scanDetails,
       };
 
       const { downloadPDF } = await import("../services/pdfGenerator");
@@ -332,9 +345,6 @@ const History = () => {
     }
   };
 
-  // ============================================================
-  // ✅ DELETE - Simple delete by reference
-  // ============================================================
   const handleDeleteScan = async (reference) => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
@@ -362,13 +372,11 @@ const History = () => {
 
       toast.success("Scan deleted successfully!", { id: toastId });
 
-      // Remove from UI
       setScans((prev) => prev.filter((scan) => scan.reference !== reference));
       calculateStats();
     } catch (error) {
       console.error("[DELETE] Error:", error);
 
-      // Handle errors
       if (error.status === 403) {
         toast.error(`🔒 ${error.message || "Permission denied"}`, {
           id: toastId,
@@ -478,6 +486,13 @@ const History = () => {
       };
     }
     return { bg: "#f1f5f9", color: "#64748b", icon: null, label: "Unknown" };
+  };
+
+  const toggleSection = (section) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
   };
 
   if (loading) {
@@ -1031,7 +1046,6 @@ const History = () => {
                   const predColor = getPredictionColor(prediction);
                   const typeBadge = getTypeBadge(scan?.type);
 
-                  // ✅ Show delete button for ALL authenticated users
                   const showDelete = isAuthenticated && !isGuest;
 
                   return (
@@ -1226,7 +1240,6 @@ const History = () => {
                             )}
                           </button>
 
-                          {/* ✅ DELETE BUTTON - Show for all authenticated users */}
                           {showDelete && (
                             <button
                               onClick={() => handleDeleteScan(reference)}
@@ -1286,7 +1299,7 @@ const History = () => {
             style={{
               background: "white",
               borderRadius: "32px",
-              maxWidth: "700px",
+              maxWidth: "800px",
               width: "100%",
               maxHeight: "85vh",
               overflow: "auto",
@@ -1304,6 +1317,7 @@ const History = () => {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                zIndex: 10,
               }}
             >
               <h2
@@ -1326,6 +1340,9 @@ const History = () => {
                   cursor: "pointer",
                   fontSize: "20px",
                   transition: "all 0.3s",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 ✕
@@ -1342,6 +1359,7 @@ const History = () => {
                     color: "#64748b",
                     marginBottom: "8px",
                     textTransform: "uppercase",
+                    letterSpacing: "0.5px",
                   }}
                 >
                   Reference
@@ -1369,6 +1387,7 @@ const History = () => {
                     color: "#64748b",
                     marginBottom: "8px",
                     textTransform: "uppercase",
+                    letterSpacing: "0.5px",
                   }}
                 >
                   Scan Type
@@ -1402,6 +1421,7 @@ const History = () => {
                     color: "#64748b",
                     marginBottom: "8px",
                     textTransform: "uppercase",
+                    letterSpacing: "0.5px",
                   }}
                 >
                   {selectedScan.isMessageScan ? "Message" : "URL"}
@@ -1413,6 +1433,8 @@ const History = () => {
                     borderRadius: "12px",
                     color: "#1e293b",
                     wordBreak: "break-all",
+                    maxHeight: "100px",
+                    overflow: "auto",
                   }}
                 >
                   {selectedScan.isMessageScan
@@ -1430,6 +1452,7 @@ const History = () => {
                     color: "#64748b",
                     marginBottom: "8px",
                     textTransform: "uppercase",
+                    letterSpacing: "0.5px",
                   }}
                 >
                   Overall Prediction
@@ -1439,12 +1462,24 @@ const History = () => {
                     padding: "12px 16px",
                     borderRadius: "12px",
                     background:
-                      selectedScan.prediction === "PHISHING"
+                      selectedScan.prediction === "PHISHING" ||
+                      selectedScan.prediction === "DANGEROUS" ||
+                      selectedScan.prediction === "MALICIOUS"
                         ? "#fee2e2"
+                        : selectedScan.prediction === "SUSPICIOUS" ||
+                          selectedScan.prediction === "WARNING" ||
+                          selectedScan.prediction === "SCAM"
+                        ? "#fef3c7"
                         : "#d1fae5",
                     color:
-                      selectedScan.prediction === "PHISHING"
+                      selectedScan.prediction === "PHISHING" ||
+                      selectedScan.prediction === "DANGEROUS" ||
+                      selectedScan.prediction === "MALICIOUS"
                         ? "#dc2626"
+                        : selectedScan.prediction === "SUSPICIOUS" ||
+                          selectedScan.prediction === "WARNING" ||
+                          selectedScan.prediction === "SCAM"
+                        ? "#d97706"
                         : "#065f46",
                     fontWeight: "600",
                   }}
@@ -1453,7 +1488,7 @@ const History = () => {
                 </div>
               </div>
 
-              {/* Message Prediction */}
+              {/* Message Prediction (for message scans) */}
               {selectedScan.isMessageScan && selectedScan.messagePrediction && (
                 <div style={{ marginBottom: "24px" }}>
                   <h3
@@ -1463,6 +1498,7 @@ const History = () => {
                       color: "#64748b",
                       marginBottom: "8px",
                       textTransform: "uppercase",
+                      letterSpacing: "0.5px",
                     }}
                   >
                     Message Prediction
@@ -1472,12 +1508,24 @@ const History = () => {
                       padding: "12px 16px",
                       borderRadius: "12px",
                       background:
-                        selectedScan.messagePrediction === "PHISHING"
+                        selectedScan.messagePrediction === "PHISHING" ||
+                        selectedScan.messagePrediction === "DANGEROUS" ||
+                        selectedScan.messagePrediction === "MALICIOUS"
                           ? "#fee2e2"
+                          : selectedScan.messagePrediction === "SUSPICIOUS" ||
+                            selectedScan.messagePrediction === "WARNING" ||
+                            selectedScan.messagePrediction === "SCAM"
+                          ? "#fef3c7"
                           : "#d1fae5",
                       color:
-                        selectedScan.messagePrediction === "PHISHING"
+                        selectedScan.messagePrediction === "PHISHING" ||
+                        selectedScan.messagePrediction === "DANGEROUS" ||
+                        selectedScan.messagePrediction === "MALICIOUS"
                           ? "#dc2626"
+                          : selectedScan.messagePrediction === "SUSPICIOUS" ||
+                            selectedScan.messagePrediction === "WARNING" ||
+                            selectedScan.messagePrediction === "SCAM"
+                          ? "#d97706"
                           : "#065f46",
                       fontWeight: "600",
                     }}
@@ -1487,180 +1535,446 @@ const History = () => {
                 </div>
               )}
 
-              {/* Phishing Reasons */}
-              {selectedScan.phishingReasons &&
-                selectedScan.phishingReasons.length > 0 && (
-                  <div style={{ marginBottom: "24px" }}>
-                    <h3
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        color: "#64748b",
-                        marginBottom: "8px",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      🚨 Phishing Indicators
-                    </h3>
-                    <div
-                      style={{
-                        padding: "16px",
-                        background: "#fee2e2",
-                        borderRadius: "12px",
-                        color: "#dc2626",
-                      }}
-                    >
-                      <ul style={{ margin: 0, paddingLeft: "20px" }}>
-                        {selectedScan.phishingReasons.map((reason, i) => (
-                          <li key={i} style={{ marginBottom: "4px" }}>
-                            {reason}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-
-              {/* Message Phishing Reasons */}
+              {/* ============================================================ */}
+              {/* MESSAGE PHISHING REASONS */}
+              {/* ============================================================ */}
               {selectedScan.isMessageScan &&
                 selectedScan.messagePhishingReasons &&
                 selectedScan.messagePhishingReasons.length > 0 && (
                   <div style={{ marginBottom: "24px" }}>
-                    <h3
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        color: "#64748b",
-                        marginBottom: "8px",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      🚨 Message Phishing Indicators
-                    </h3>
                     <div
                       style={{
-                        padding: "16px",
-                        background: "#fee2e2",
-                        borderRadius: "12px",
-                        color: "#dc2626",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        cursor: "pointer",
+                        marginBottom: "8px",
                       }}
+                      onClick={() => toggleSection("phishing")}
                     >
-                      <ul style={{ margin: 0, paddingLeft: "20px" }}>
-                        {selectedScan.messagePhishingReasons.map(
-                          (reason, i) => (
-                            <li key={i} style={{ marginBottom: "4px" }}>
-                              {reason}
-                            </li>
-                          ),
-                        )}
-                      </ul>
+                      <h3
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          color: "#64748b",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          margin: 0,
+                        }}
+                      >
+                        🚨 Message Phishing Indicators
+                      </h3>
+                      {expandedSections.phishing ? (
+                        <FaChevronUp size={14} color="#94a3b8" />
+                      ) : (
+                        <FaChevronDown size={14} color="#94a3b8" />
+                      )}
                     </div>
+                    {expandedSections.phishing && (
+                      <div
+                        style={{
+                          padding: "16px",
+                          background: "#fee2e2",
+                          borderRadius: "12px",
+                          border: "1px solid #fca5a5",
+                        }}
+                      >
+                        <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                          {selectedScan.messagePhishingReasons.map(
+                            (reason, i) => (
+                              <li
+                                key={i}
+                                style={{ marginBottom: "4px", color: "#dc2626" }}
+                              >
+                                {reason}
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
 
-              {/* URLs Found */}
+              {/* ============================================================ */}
+              {/* MESSAGE LEGITIMATE REASONS */}
+              {/* ============================================================ */}
+              {selectedScan.isMessageScan &&
+                selectedScan.messageLegitimateReasons &&
+                selectedScan.messageLegitimateReasons.length > 0 && (
+                  <div style={{ marginBottom: "24px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        cursor: "pointer",
+                        marginBottom: "8px",
+                      }}
+                      onClick={() => toggleSection("legitimate")}
+                    >
+                      <h3
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          color: "#64748b",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          margin: 0,
+                        }}
+                      >
+                        ✅ Message Legitimate Indicators
+                      </h3>
+                      {expandedSections.legitimate ? (
+                        <FaChevronUp size={14} color="#94a3b8" />
+                      ) : (
+                        <FaChevronDown size={14} color="#94a3b8" />
+                      )}
+                    </div>
+                    {expandedSections.legitimate && (
+                      <div
+                        style={{
+                          padding: "16px",
+                          background: "#d1fae5",
+                          borderRadius: "12px",
+                          border: "1px solid #86efac",
+                        }}
+                      >
+                        <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                          {selectedScan.messageLegitimateReasons.map(
+                            (reason, i) => (
+                              <li
+                                key={i}
+                                style={{ marginBottom: "4px", color: "#065f46" }}
+                              >
+                                {reason}
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* ============================================================ */}
+              {/* URL PHISHING REASONS (for URL scans) */}
+              {/* ============================================================ */}
+              {!selectedScan.isMessageScan &&
+                selectedScan.phishingReasons &&
+                selectedScan.phishingReasons.length > 0 && (
+                  <div style={{ marginBottom: "24px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        cursor: "pointer",
+                        marginBottom: "8px",
+                      }}
+                      onClick={() => toggleSection("urlPhishing")}
+                    >
+                      <h3
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          color: "#64748b",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          margin: 0,
+                        }}
+                      >
+                        🚨 URL Phishing Indicators
+                      </h3>
+                      {expandedSections.urlPhishing ? (
+                        <FaChevronUp size={14} color="#94a3b8" />
+                      ) : (
+                        <FaChevronDown size={14} color="#94a3b8" />
+                      )}
+                    </div>
+                    {expandedSections.urlPhishing && (
+                      <div
+                        style={{
+                          padding: "16px",
+                          background: "#fee2e2",
+                          borderRadius: "12px",
+                          border: "1px solid #fca5a5",
+                        }}
+                      >
+                        <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                          {selectedScan.phishingReasons.map((reason, i) => (
+                            <li
+                              key={i}
+                              style={{ marginBottom: "4px", color: "#dc2626" }}
+                            >
+                              {reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* ============================================================ */}
+              {/* URL LEGITIMATE REASONS (for URL scans) */}
+              {/* ============================================================ */}
+              {!selectedScan.isMessageScan &&
+                selectedScan.legitimateReasons &&
+                selectedScan.legitimateReasons.length > 0 && (
+                  <div style={{ marginBottom: "24px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        cursor: "pointer",
+                        marginBottom: "8px",
+                      }}
+                      onClick={() => toggleSection("urlLegitimate")}
+                    >
+                      <h3
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          color: "#64748b",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          margin: 0,
+                        }}
+                      >
+                        ✅ URL Legitimate Indicators
+                      </h3>
+                      {expandedSections.urlLegitimate ? (
+                        <FaChevronUp size={14} color="#94a3b8" />
+                      ) : (
+                        <FaChevronDown size={14} color="#94a3b8" />
+                      )}
+                    </div>
+                    {expandedSections.urlLegitimate && (
+                      <div
+                        style={{
+                          padding: "16px",
+                          background: "#d1fae5",
+                          borderRadius: "12px",
+                          border: "1px solid #86efac",
+                        }}
+                      >
+                        <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                          {selectedScan.legitimateReasons.map((reason, i) => (
+                            <li
+                              key={i}
+                              style={{ marginBottom: "4px", color: "#065f46" }}
+                            >
+                              {reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* ============================================================ */}
+              {/* URLS FOUND IN MESSAGE */}
+              {/* ============================================================ */}
               {selectedScan.isMessageScan &&
                 selectedScan.urlsFound &&
                 selectedScan.urlsFound.length > 0 && (
                   <div style={{ marginBottom: "24px" }}>
-                    <h3
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        color: "#64748b",
-                        marginBottom: "8px",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      🔗 URLs Found in Message
-                    </h3>
                     <div
                       style={{
-                        padding: "16px",
-                        background: "#fef3c7",
-                        borderRadius: "12px",
-                        border: "1px solid #fcd34d",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        cursor: "pointer",
+                        marginBottom: "8px",
                       }}
+                      onClick={() => toggleSection("urls")}
                     >
-                      {selectedScan.urlsFound.map((url, index) => {
-                        const urlResult = selectedScan.urlResults?.[index];
-                        return (
-                          <div
-                            key={index}
-                            style={{
-                              marginBottom: "8px",
-                              padding: "8px 12px",
-                              background: "white",
-                              borderRadius: "8px",
-                              border: "1px solid #e2e8f0",
-                            }}
-                          >
-                            <p
+                      <h3
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          color: "#64748b",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          margin: 0,
+                        }}
+                      >
+                        🔗 URLs Found in Message
+                      </h3>
+                      {expandedSections.urls ? (
+                        <FaChevronUp size={14} color="#94a3b8" />
+                      ) : (
+                        <FaChevronDown size={14} color="#94a3b8" />
+                      )}
+                    </div>
+                    {expandedSections.urls && (
+                      <div
+                        style={{
+                          padding: "16px",
+                          background: "#fef3c7",
+                          borderRadius: "12px",
+                          border: "1px solid #fcd34d",
+                        }}
+                      >
+                        {selectedScan.urlsFound.map((url, index) => {
+                          const urlResult = selectedScan.urlResults?.[index];
+                          return (
+                            <div
+                              key={index}
                               style={{
-                                fontWeight: "600",
-                                color: "#1e293b",
-                                wordBreak: "break-all",
-                                margin: 0,
+                                marginBottom: "8px",
+                                padding: "12px",
+                                background: "white",
+                                borderRadius: "8px",
+                                border: "1px solid #e2e8f0",
                               }}
                             >
-                              {url}
-                            </p>
-                            {urlResult && (
-                              <div style={{ marginTop: "4px" }}>
-                                <span
-                                  style={{
-                                    padding: "2px 10px",
-                                    borderRadius: "12px",
-                                    fontSize: "11px",
-                                    fontWeight: "600",
-                                    background:
-                                      urlResult.prediction === "LEGITIMATE"
-                                        ? "#d1fae5"
-                                        : "#fee2e2",
-                                    color:
-                                      urlResult.prediction === "LEGITIMATE"
-                                        ? "#065f46"
-                                        : "#dc2626",
-                                  }}
-                                >
-                                  {urlResult.prediction || "UNKNOWN"}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                              <p
+                                style={{
+                                  fontWeight: "600",
+                                  color: "#1e293b",
+                                  wordBreak: "break-all",
+                                  margin: 0,
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                {url}
+                              </p>
+                              {urlResult && (
+                                <div>
+                                  <div style={{ marginTop: "4px" }}>
+                                    <span
+                                      style={{
+                                        padding: "2px 10px",
+                                        borderRadius: "12px",
+                                        fontSize: "11px",
+                                        fontWeight: "600",
+                                        background:
+                                          urlResult.prediction === "LEGITIMATE"
+                                            ? "#d1fae5"
+                                            : "#fee2e2",
+                                        color:
+                                          urlResult.prediction === "LEGITIMATE"
+                                            ? "#065f46"
+                                            : "#dc2626",
+                                      }}
+                                    >
+                                      Prediction:{" "}
+                                      {urlResult.prediction || "UNKNOWN"}
+                                    </span>
+                                  </div>
+                                  {urlResult.legitimateReasons &&
+                                    urlResult.legitimateReasons.length > 0 && (
+                                      <div
+                                        style={{
+                                          marginTop: "6px",
+                                          fontSize: "12px",
+                                          color: "#065f46",
+                                        }}
+                                      >
+                                        ✅ Legitimate:{" "}
+                                        {urlResult.legitimateReasons[0]}
+                                        {urlResult.legitimateReasons.length >
+                                          1 && (
+                                          <span
+                                            style={{
+                                              color: "#94a3b8",
+                                              marginLeft: "4px",
+                                            }}
+                                          >
+                                            +{urlResult.legitimateReasons.length - 1}{" "}
+                                            more
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  {urlResult.phishingReasons &&
+                                    urlResult.phishingReasons.length > 0 && (
+                                      <div
+                                        style={{
+                                          marginTop: "4px",
+                                          fontSize: "12px",
+                                          color: "#dc2626",
+                                        }}
+                                      >
+                                        🚨 Phishing:{" "}
+                                        {urlResult.phishingReasons[0]}
+                                        {urlResult.phishingReasons.length > 1 && (
+                                          <span
+                                            style={{
+                                              color: "#94a3b8",
+                                              marginLeft: "4px",
+                                            }}
+                                          >
+                                            +{urlResult.phishingReasons.length - 1}{" "}
+                                            more
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  {urlResult.conclusion && (
+                                    <div
+                                      style={{
+                                        marginTop: "6px",
+                                        padding: "8px",
+                                        background: "#f8fafc",
+                                        borderRadius: "6px",
+                                        fontSize: "12px",
+                                        color: "#475569",
+                                        lineHeight: "1.5",
+                                      }}
+                                    >
+                                      <strong>Conclusion:</strong>{" "}
+                                      {urlResult.conclusion}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
-              {/* Conclusion */}
-              <div style={{ marginBottom: "24px" }}>
-                <h3
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    color: "#64748b",
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Conclusion
-                </h3>
-                <div
-                  style={{
-                    padding: "16px",
-                    background: "#f8fafc",
-                    borderRadius: "12px",
-                    color: "#475569",
-                    lineHeight: "1.7",
-                  }}
-                >
-                  {selectedScan.conclusion}
+              {/* ============================================================ */}
+              {/* CONCLUSION */}
+              {/* ============================================================ */}
+              {selectedScan.conclusion && (
+                <div style={{ marginBottom: "24px" }}>
+                  <h3
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: "#64748b",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Conclusion
+                  </h3>
+                  <div
+                    style={{
+                      padding: "16px",
+                      background: "#f8fafc",
+                      borderRadius: "12px",
+                      color: "#475569",
+                      lineHeight: "1.7",
+                    }}
+                  >
+                    {selectedScan.conclusion}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Scanned At */}
+              {/* ============================================================ */}
+              {/* SCANNED AT */}
+              {/* ============================================================ */}
               <div style={{ marginBottom: "24px" }}>
                 <h3
                   style={{
@@ -1669,6 +1983,7 @@ const History = () => {
                     color: "#64748b",
                     marginBottom: "8px",
                     textTransform: "uppercase",
+                    letterSpacing: "0.5px",
                   }}
                 >
                   Scanned At
@@ -1688,7 +2003,9 @@ const History = () => {
                 </div>
               </div>
 
-              {/* Download Button */}
+              {/* ============================================================ */}
+              {/* DOWNLOAD BUTTON */}
+              {/* ============================================================ */}
               <div>
                 <button
                   onClick={() => handleDownloadReport(selectedScan.reference)}
