@@ -30,10 +30,13 @@ export const GuestProvider = ({ children }) => {
         } else {
           const newSessionId = uuidv4();
           setSessionId(newSessionId);
-          localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({
-            sessionId: newSessionId,
-            scans: [],
-          }));
+          localStorage.setItem(
+            GUEST_STORAGE_KEY,
+            JSON.stringify({
+              sessionId: newSessionId,
+              scans: [],
+            }),
+          );
         }
       } catch (error) {
         console.error("Failed to load guest data:", error);
@@ -49,10 +52,13 @@ export const GuestProvider = ({ children }) => {
   useEffect(() => {
     if (isInitialized && sessionId !== null) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({
-          sessionId,
-          scans,
-        }));
+        localStorage.setItem(
+          GUEST_STORAGE_KEY,
+          JSON.stringify({
+            sessionId,
+            scans,
+          }),
+        );
       } catch (error) {
         console.error("Failed to save guest data:", error);
       }
@@ -62,7 +68,9 @@ export const GuestProvider = ({ children }) => {
   const addScan = (scan) => {
     const newScan = {
       ...scan,
-      id: scan.id || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id:
+        scan.id ||
+        `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       date: scan.date || new Date().toISOString(),
       isGuest: true,
     };
@@ -73,10 +81,13 @@ export const GuestProvider = ({ children }) => {
   const clearScans = () => {
     setScans([]);
     if (sessionId) {
-      localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({
-        sessionId,
-        scans: [],
-      }));
+      localStorage.setItem(
+        GUEST_STORAGE_KEY,
+        JSON.stringify({
+          sessionId,
+          scans: [],
+        }),
+      );
     }
   };
 
@@ -86,10 +97,19 @@ export const GuestProvider = ({ children }) => {
 
   const getStats = () => {
     const total = scans.length;
-    const phishing = scans.filter(s => s.result === "phishing" || s.result === "dangerous").length;
-    const scam = scans.filter(s => s.result === "scam" || s.result === "suspicious").length;
-    const safe = scans.filter(s => s.result === "safe" || s.result === "clean").length;
-    const avgRisk = total > 0 ? scans.reduce((sum, s) => sum + (s.riskScore || 0), 0) / total : 0;
+    const phishing = scans.filter(
+      (s) => s.result === "phishing" || s.result === "dangerous",
+    ).length;
+    const scam = scans.filter(
+      (s) => s.result === "scam" || s.result === "suspicious",
+    ).length;
+    const safe = scans.filter(
+      (s) => s.result === "safe" || s.result === "clean",
+    ).length;
+    const avgRisk =
+      total > 0
+        ? scans.reduce((sum, s) => sum + (s.riskScore || 0), 0) / total
+        : 0;
 
     return { total, phishing, scam, safe, avgRisk };
   };
@@ -113,8 +133,6 @@ export const GuestProvider = ({ children }) => {
   };
 
   return (
-    <GuestContext.Provider value={value}>
-      {children}
-    </GuestContext.Provider>
+    <GuestContext.Provider value={value}>{children}</GuestContext.Provider>
   );
 };

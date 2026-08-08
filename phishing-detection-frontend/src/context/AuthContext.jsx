@@ -1,11 +1,11 @@
 // context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { 
-  register as apiRegister, 
-  login as apiLogin, 
+import {
+  register as apiRegister,
+  login as apiLogin,
   logout as apiLogout,
   getCurrentUser,
-  isAuthenticated
+  isAuthenticated,
 } from "../services/api";
 import toast from "react-hot-toast";
 
