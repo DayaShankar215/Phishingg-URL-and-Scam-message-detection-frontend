@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 const URLInput = ({ value, onChange, onSubmit, loading, placeholder }) => {
   return (
@@ -12,7 +12,7 @@ const URLInput = ({ value, onChange, onSubmit, loading, placeholder }) => {
         className="url-input"
       />
       <button onClick={onSubmit} disabled={loading} className="scan-btn">
-        {loading ? 'Scanning...' : 'Scan URL'}
+        {loading ? "Scanning..." : "Scan URL"}
       </button>
     </div>
   );
