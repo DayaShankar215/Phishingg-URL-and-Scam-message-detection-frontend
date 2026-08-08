@@ -25,35 +25,7 @@ const Stack = createNativeStackNavigator();
 const AppContent = () => {
   const { isDark } = useTheme();
   const colors = getColors(isDark);
-  // 1. Add loading state for app initialization
-  const [isAppLoading, setIsAppLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate or execute your initial app load tasks (e.g., checking tokens, loading cache)
-    const prepareApp = async () => {
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 2000)); // Adjust time as needed
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsAppLoading(false);
-      }
-    };
-
-    prepareApp();
-  }, []);
-
-  // 2. Render proper loading spinner during startup (replaces the accidental toaster pop-up)
-  if (isAppLoading) {
-    return (
-      <View style={[styles.loaderContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary[600]} />
-        <Text style={[styles.loaderText, { color: colors.textMuted }]}>
-          SecureShield is starting...
-        </Text>
-      </View>
-    );
-  }
+ 
 
   return (
     <SafeAreaProvider>
@@ -138,16 +110,3 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  loaderText: {
-    marginTop: 20,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-});
