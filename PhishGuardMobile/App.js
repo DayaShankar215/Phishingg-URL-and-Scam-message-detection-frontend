@@ -91,7 +91,7 @@ const AppContent = () => {
               )}
             </Stack.Screen>
           </Stack.Navigator>
-          {/* <Toaster /> */}
+          <Toaster />
         </NavigationContainer>
       </SafeAreaView>
     </SafeAreaProvider>
