@@ -1,5 +1,5 @@
 // services/pdfGenerator.js
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 import { printToFileAsync } from 'expo-print';
@@ -43,7 +43,7 @@ export const downloadPDF = async (scanData, type) => {
       return { success: true, uri };
     } catch (printError) {
       console.error('Print Error:', printError);
-      // Fallback: Share as HTML
+      // Fallback: Save and share as HTML using legacy API
       const htmlUri = await saveAndShareHTML(html, scanData.reference);
       return { success: true, uri: htmlUri };
     }
@@ -53,14 +53,31 @@ export const downloadPDF = async (scanData, type) => {
   }
 };
 
+/**
+ * ✅ FIXED: Save and share HTML using LEGACY FileSystem API
+ */
 const saveAndShareHTML = async (html, reference) => {
   try {
     const fileName = `security_report_${reference || Date.now()}.html`;
-    const fileUri = FileSystem.documentDirectory + fileName;
     
+    // ✅ Use legacy API with proper file URI
+    const directory = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+    const fileUri = `${directory}${fileName}`;
+    
+    console.log('[PDF] Saving HTML to:', fileUri);
+    
+    // ✅ Write using legacy API
     await FileSystem.writeAsStringAsync(fileUri, html, {
       encoding: FileSystem.EncodingType.UTF8,
     });
+    
+    // Verify file exists
+    const fileInfo = await FileSystem.getInfoAsync(fileUri);
+    if (!fileInfo.exists) {
+      throw new Error('File was not created successfully');
+    }
+    
+    console.log('[PDF] File saved, size:', fileInfo.size);
     
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(fileUri, {
@@ -79,7 +96,7 @@ const saveAndShareHTML = async (html, reference) => {
  * Generate PDF HTML - Replicates web version style
  */
 const generatePDFHTML = (scanData, type) => {
-  const riskScore = getRiskScore(scanData.prediction);
+  const riskScore = getRiskScore(scanData.prediction || scanData.overallPrediction);
   const riskInfo = getRiskInfo(riskScore);
   
   const riskClass = riskScore > 70 ? 'risk-high' : riskScore > 30 ? 'risk-medium' : 'risk-low';
@@ -395,7 +412,7 @@ const generatePDFHTML = (scanData, type) => {
       </div>
       <div class="field">
         <span class="label">Classification:</span>
-        <span class="value"><span class="badge ${badgeClass}">${scanData.prediction || 'Unknown'}</span></span>
+        <span class="value"><span class="badge ${badgeClass}">${scanData.prediction || scanData.overallPrediction || 'Unknown'}</span></span>
       </div>
       <div class="field">
         <span class="label">Risk Score:</span>
@@ -474,15 +491,16 @@ const generatePDFHTML = (scanData, type) => {
   html += `</div>`;
 
   // ============================================================
-  // MESSAGE PHISHING REASONS (for message scans)
+  // MESSAGE PHISHING REASONS
   // ============================================================
-  if (scanData.messagePhishingReasons && scanData.messagePhishingReasons.length > 0) {
+  const messagePhishing = scanData.messagePhishingReasons || [];
+  if (messagePhishing.length > 0) {
     html += `
       <div class="section" style="border-color: #fca5a5; background: #fef2f2;">
         <h2><span>🚨</span> MESSAGE PHISHING INDICATORS</h2>
         <ul>
     `;
-    scanData.messagePhishingReasons.forEach(reason => {
+    messagePhishing.forEach(reason => {
       html += `<li>${reason}</li>`;
     });
     html += `</ul></div>`;
@@ -491,16 +509,14 @@ const generatePDFHTML = (scanData, type) => {
   // ============================================================
   // URL PHISHING REASONS
   // ============================================================
-  if (scanData.phishingReasons && scanData.phishingReasons.length > 0) {
+  const phishingReasons = scanData.phishingReasons || [];
+  if (phishingReasons.length > 0) {
     html += `
       <div class="section" style="border-color: #fca5a5; background: #fef2f2;">
         <h2><span>🚨</span> PHISHING INDICATORS</h2>
         <ul>
     `;
-    const reasons = Array.isArray(scanData.phishingReasons) 
-      ? scanData.phishingReasons 
-      : [scanData.phishingReasons];
-    reasons.forEach(reason => {
+    phishingReasons.forEach(reason => {
       html += `<li>${reason}</li>`;
     });
     html += `</ul></div>`;
@@ -509,16 +525,14 @@ const generatePDFHTML = (scanData, type) => {
   // ============================================================
   // LEGITIMATE REASONS
   // ============================================================
-  if (scanData.legitimateReasons && scanData.legitimateReasons.length > 0) {
+  const legitimateReasons = scanData.legitimateReasons || scanData.messageLegitimateReasons || [];
+  if (legitimateReasons.length > 0) {
     html += `
       <div class="section" style="border-color: #86efac; background: #f0fdf4;">
         <h2><span>✅</span> LEGITIMATE INDICATORS</h2>
         <ul>
     `;
-    const reasons = Array.isArray(scanData.legitimateReasons) 
-      ? scanData.legitimateReasons 
-      : [scanData.legitimateReasons];
-    reasons.forEach(reason => {
+    legitimateReasons.forEach(reason => {
       html += `<li>${reason}</li>`;
     });
     html += `</ul></div>`;
@@ -527,12 +541,13 @@ const generatePDFHTML = (scanData, type) => {
   // ============================================================
   // URLS FOUND (for message scans)
   // ============================================================
-  if (scanData.urlsFound && scanData.urlsFound.length > 0) {
+  const urlsFound = scanData.urlsFound || [];
+  if (urlsFound.length > 0) {
     html += `
       <div class="section" style="border-color: #fcd34d; background: #fffbeb;">
         <h2><span>🔗</span> URLS FOUND IN MESSAGE</h2>
     `;
-    scanData.urlsFound.forEach((url, index) => {
+    urlsFound.forEach((url, index) => {
       const result = scanData.urlResults?.[index];
       const predClass = result?.prediction === 'LEGITIMATE' ? 'url-pred-safe' 
         : result?.prediction === 'PHISHING' ? 'url-pred-phishing' 
@@ -611,7 +626,8 @@ const generatePDFHTML = (scanData, type) => {
  * Get risk score based on prediction
  */
 const getRiskScore = (prediction) => {
-  switch (prediction?.toUpperCase()) {
+  if (!prediction) return 50;
+  switch (prediction.toUpperCase()) {
     case 'PHISHING':
     case 'DANGEROUS':
     case 'MALICIOUS':

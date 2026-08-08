@@ -43,7 +43,7 @@ export default function URLScannerScreen() {
   const [downloading, setDownloading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   
-  // Accuracy feedback state
+  // ✅ Accuracy feedback state
   const [scanId, setScanId] = useState('');
   const [accuracy, setAccuracy] = useState({ isAccurate: null });
   const [accuracySubmitted, setAccuracySubmitted] = useState(false);
@@ -177,7 +177,7 @@ export default function URLScannerScreen() {
     }
   };
 
-  // ✅ FIXED: Accuracy feedback with better error handling
+  // ✅ FIXED: Accuracy feedback with toggle support
   const handleAccuracySelect = async (isAccurate) => {
     console.log('Scan ID:', scanId);
     
@@ -187,8 +187,10 @@ export default function URLScannerScreen() {
       return;
     }
 
-    if (accuracySubmitted) {
-      showToast('Accuracy already submitted', 'error');
+    // ✅ If user clicks the same option, deselect it (toggle off)
+    if (accuracy.isAccurate === isAccurate) {
+      setAccuracy({ isAccurate: null });
+      setAccuracySubmitted(false);
       return;
     }
 
@@ -216,7 +218,6 @@ export default function URLScannerScreen() {
     } catch (error) {
       console.error('Accuracy Submit Error:', error);
       
-      // ✅ Better error handling for 403
       if (error.status === 403 || error.isAuthError) {
         showToast('Please log in to submit accuracy feedback.', 'warning');
         setShowAuthModal(true);
@@ -224,6 +225,7 @@ export default function URLScannerScreen() {
         showToast(error.message || 'Failed to submit accuracy', 'error');
       }
       setAccuracy({ isAccurate: null });
+      setAccuracySubmitted(false);
     }
   };
 
@@ -253,7 +255,6 @@ export default function URLScannerScreen() {
     } catch (err) {
       console.error('Feedback Submit Error:', err);
       
-      // ✅ Better error handling for 403
       if (err.status === 403 || err.isAuthError) {
         showToast('Please log in to submit feedback.', 'warning');
         setShowAuthModal(true);
@@ -502,7 +503,7 @@ export default function URLScannerScreen() {
             </Text>
           </View>
 
-          {/* Feedback Section */}
+          {/* ✅ Feedback Section with Toggle Support */}
           {showFeedback && !feedbackSubmitted && (
             <View style={[styles.feedbackCard, {
               backgroundColor: colors.backgroundCard,
@@ -523,43 +524,64 @@ export default function URLScannerScreen() {
                 Scan ID: {scanId || 'Not set'}
               </Text>
 
-              {/* Accuracy Buttons */}
+              {/* ✅ Accuracy Buttons with Toggle */}
               <View style={styles.accuracyButtons}>
                 <TouchableOpacity
-                  style={[styles.accuracyBtn, accuracy.isAccurate === true && styles.accuracyBtnActive, {
-                    backgroundColor: accuracy.isAccurate === true ? colors.success + '20' : colors.backgroundInput,
-                    borderColor: accuracy.isAccurate === true ? colors.success : colors.border,
-                  }]}
+                  style={[
+                    styles.accuracyBtn,
+                    accuracy.isAccurate === true && styles.accuracyBtnActive,
+                    {
+                      backgroundColor: accuracy.isAccurate === true ? colors.success + '20' : colors.backgroundInput,
+                      borderColor: accuracy.isAccurate === true ? colors.success : colors.border,
+                    }
+                  ]}
                   onPress={() => handleAccuracySelect(true)}
-                  disabled={accuracySubmitted}
                 >
-                  <Ionicons name="thumbs-up" size={20} color={accuracy.isAccurate === true ? colors.success : colors.textMuted} />
-                  <Text style={[styles.accuracyBtnText, accuracy.isAccurate === true && { color: colors.success }]}>
+                  <Ionicons 
+                    name="thumbs-up" 
+                    size={20} 
+                    color={accuracy.isAccurate === true ? colors.success : colors.textMuted} 
+                  />
+                  <Text style={[
+                    styles.accuracyBtnText, 
+                    accuracy.isAccurate === true && { color: colors.success }
+                  ]}>
                     Yes, accurate
                   </Text>
-                  {accuracySubmitted && accuracy.isAccurate === true && (
+                  {accuracy.isAccurate === true && (
                     <Text style={[styles.checkmark, { color: colors.success }]}>✓</Text>
                   )}
                 </TouchableOpacity>
+                
                 <TouchableOpacity
-                  style={[styles.accuracyBtn, accuracy.isAccurate === false && styles.accuracyBtnActive, {
-                    backgroundColor: accuracy.isAccurate === false ? colors.danger + '20' : colors.backgroundInput,
-                    borderColor: accuracy.isAccurate === false ? colors.danger : colors.border,
-                  }]}
+                  style={[
+                    styles.accuracyBtn,
+                    accuracy.isAccurate === false && styles.accuracyBtnActive,
+                    {
+                      backgroundColor: accuracy.isAccurate === false ? colors.danger + '20' : colors.backgroundInput,
+                      borderColor: accuracy.isAccurate === false ? colors.danger : colors.border,
+                    }
+                  ]}
                   onPress={() => handleAccuracySelect(false)}
-                  disabled={accuracySubmitted}
                 >
-                  <Ionicons name="thumbs-down" size={20} color={accuracy.isAccurate === false ? colors.danger : colors.textMuted} />
-                  <Text style={[styles.accuracyBtnText, accuracy.isAccurate === false && { color: colors.danger }]}>
+                  <Ionicons 
+                    name="thumbs-down" 
+                    size={20} 
+                    color={accuracy.isAccurate === false ? colors.danger : colors.textMuted} 
+                  />
+                  <Text style={[
+                    styles.accuracyBtnText, 
+                    accuracy.isAccurate === false && { color: colors.danger }
+                  ]}>
                     No, inaccurate
                   </Text>
-                  {accuracySubmitted && accuracy.isAccurate === false && (
+                  {accuracy.isAccurate === false && (
                     <Text style={[styles.checkmark, { color: colors.danger }]}>✓</Text>
                   )}
                 </TouchableOpacity>
               </View>
 
-              {accuracySubmitted && (
+              {accuracySubmitted && accuracy.isAccurate !== null && (
                 <Text style={[styles.accuracySubmittedText, { color: colors.success }]}>
                   ✓ Accuracy feedback submitted successfully
                 </Text>

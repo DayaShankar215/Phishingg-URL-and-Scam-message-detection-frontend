@@ -245,8 +245,8 @@ export const deleteScanByReference = async (reference) => {
     
     const response = await api.delete(`/scans/${ref}`, {
       headers: { 
-        "Accept": "application/json",
-        "Content-Type": "application/json",
+        "Accept": "*/*",
+        "Content-Type": "*/*",
       },
     });
     
