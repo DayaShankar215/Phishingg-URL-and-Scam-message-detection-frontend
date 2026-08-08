@@ -1,6 +1,13 @@
 // components/common/AuthModal.jsx
 import React, { useState } from "react";
-import { FaTimes, FaEnvelope, FaLock, FaUser, FaGoogle, FaGithub } from "react-icons/fa";
+import {
+  FaTimes,
+  FaEnvelope,
+  FaLock,
+  FaUser,
+  FaGoogle,
+  FaGithub,
+} from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
@@ -63,8 +70,12 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
         response = await register({ firstName, lastName, email, password });
       }
 
-      toast.success(mode === "login" ? "Welcome back! 🎉" : "Account created successfully! 🎉");
-      
+      toast.success(
+        mode === "login"
+          ? "Welcome back! 🎉"
+          : "Account created successfully! 🎉",
+      );
+
       if (onSuccess) {
         onSuccess(response);
       }
@@ -340,7 +351,9 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={mode === "login" ? "Enter your password" : "Create a password"}
+                placeholder={
+                  mode === "login" ? "Enter your password" : "Create a password"
+                }
                 style={{
                   width: "100%",
                   padding: "12px 16px 12px 44px",
@@ -357,7 +370,9 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
               />
             </div>
             {mode === "register" && (
-              <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px" }}>
+              <p
+                style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px" }}
+              >
                 Minimum 6 characters
               </p>
             )}
@@ -409,7 +424,14 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
           )}
 
           {mode === "register" && (
-            <div style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
+            <div
+              style={{
+                marginBottom: "20px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
               <input
                 type="checkbox"
                 checked={acceptTerms}
@@ -423,11 +445,17 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
               />
               <span style={{ fontSize: "13px", color: "#64748b" }}>
                 I agree to the{" "}
-                <a href="#" style={{ color: "#667eea", textDecoration: "none" }}>
+                <a
+                  href="#"
+                  style={{ color: "#667eea", textDecoration: "none" }}
+                >
                   Terms of Service
                 </a>{" "}
                 and{" "}
-                <a href="#" style={{ color: "#667eea", textDecoration: "none" }}>
+                <a
+                  href="#"
+                  style={{ color: "#667eea", textDecoration: "none" }}
+                >
                   Privacy Policy
                 </a>
               </span>
@@ -458,16 +486,21 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
           >
             {loading ? (
               <>
-                <span className="spinner" style={{ 
-                  width: "20px", 
-                  height: "20px", 
-                  border: "3px solid rgba(255,255,255,0.3)",
-                  borderTop: "3px solid white",
-                  borderRadius: "50%",
-                  animation: "spin 0.8s linear infinite",
-                  display: "inline-block",
-                }} />
-                <span>{mode === "login" ? "Signing in..." : "Creating account..."}</span>
+                <span
+                  className="spinner"
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    border: "3px solid rgba(255,255,255,0.3)",
+                    borderTop: "3px solid white",
+                    borderRadius: "50%",
+                    animation: "spin 0.8s linear infinite",
+                    display: "inline-block",
+                  }}
+                />
+                <span>
+                  {mode === "login" ? "Signing in..." : "Creating account..."}
+                </span>
               </>
             ) : (
               <span>{mode === "login" ? "Sign In" : "Create Account"}</span>
@@ -485,7 +518,9 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
           }}
         >
           <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
-          <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: "500" }}>
+          <span
+            style={{ fontSize: "12px", color: "#94a3b8", fontWeight: "500" }}
+          >
             OR
           </span>
           <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
@@ -544,7 +579,9 @@ const AuthModal = ({ isOpen, onClose, initialMode = "login", onSuccess }) => {
         {/* Switch Mode */}
         <div style={{ textAlign: "center" }}>
           <p style={{ fontSize: "14px", color: "#64748b" }}>
-            {mode === "login" ? "Don't have an account?" : "Already have an account?"}
+            {mode === "login"
+              ? "Don't have an account?"
+              : "Already have an account?"}
             <button
               type="button"
               onClick={switchMode}

@@ -19,7 +19,6 @@ const Footer = () => {
         <div className="footer-glow" />
         <div className="footer-container">
           <div className="footer-content">
-            
             {/* Brand Logo & Name */}
             <div className="footer-brand">
               <div className="logo-box">
@@ -31,18 +30,22 @@ const Footer = () => {
             {/* Made with Love & Copyright */}
             <div className="footer-info">
               <p className="love-text">
-                Crafted with <FaHeart className="heart-icon" /> by <span className="team-name">Team SecureShield</span>
+                Crafted with <FaHeart className="heart-icon" /> by{" "}
+                <span className="team-name">Team SecureShield</span>
               </p>
               <span className="dot">•</span>
               <p className="copyright">© {currentYear}</p>
             </div>
-
           </div>
         </div>
       </footer>
 
       {showScrollTop && (
-        <button onClick={scrollToTop} className="scroll-top" aria-label="Scroll to top">
+        <button
+          onClick={scrollToTop}
+          className="scroll-top"
+          aria-label="Scroll to top"
+        >
           <FaArrowUp />
         </button>
       )}
