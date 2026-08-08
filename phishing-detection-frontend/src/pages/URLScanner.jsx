@@ -820,8 +820,8 @@ const URLScanner = () => {
                     marginBottom: "8px",
                   }}
                 >
-                  <span style={{ fontSize: "28px" }}>{riskLevel.icon}</span>
-                  <span
+                  {/* <span style={{ fontSize: "28px" }}>{riskLevel.icon}</span> */}
+                  {/* <span
                     style={{
                       fontSize: "14px",
                       fontWeight: "600",
@@ -832,7 +832,7 @@ const URLScanner = () => {
                     }}
                   >
                     {riskLevel.badge}
-                  </span>
+                  </span> */}
                 </div>
                 <div
                   style={{
@@ -841,7 +841,7 @@ const URLScanner = () => {
                     gap: "16px",
                   }}
                 >
-                  <span
+                  {/* <span
                     style={{
                       fontSize: "56px",
                       fontWeight: "800",
@@ -850,8 +850,8 @@ const URLScanner = () => {
                     }}
                   >
                     {Math.round(result.riskScore)}%
-                  </span>
-                  <span
+                  </span> */}
+                  {/* <span
                     style={{
                       fontSize: "18px",
                       fontWeight: "600",
@@ -859,11 +859,11 @@ const URLScanner = () => {
                     }}
                   >
                     {riskLevel.label}
-                  </span>
+                  </span> */}
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", justifyContent: "center", gap: "12px", flexWrap: "wrap", width: "100%" }}>
                 <button
                   onClick={handleDownloadReport}
                   disabled={downloading}
@@ -921,12 +921,12 @@ const URLScanner = () => {
                 style={{
                   width: "100%",
                   height: "8px",
-                  background: "#f1f5f9",
+                  // background: "#f1f5f9",
                   borderRadius: "4px",
                   overflow: "hidden",
                 }}
               >
-                <div
+                {/* <div
                   style={{
                     width: `${result.riskScore}%`,
                     height: "100%",
@@ -934,7 +934,7 @@ const URLScanner = () => {
                     borderRadius: "4px",
                     transition: "width 1s ease",
                   }}
-                />
+                /> */}
               </div>
               <div
                 style={{
@@ -945,13 +945,13 @@ const URLScanner = () => {
                   color: "#94a3b8",
                 }}
               >
-                <span>Low Risk (0%)</span>
+                {/* <span>Low Risk (0%)</span>
                 <span>Medium (50%)</span>
-                <span>High Risk (100%)</span>
+                <span>High Risk (100%)</span> */}
               </div>
             </div>
 
-            <p
+            {/* <p
               style={{
                 marginTop: "16px",
                 fontSize: "15px",
@@ -966,7 +966,7 @@ const URLScanner = () => {
                 : result.riskScore > 30
                 ? "⚠️ MEDIUM RISK: This website shows suspicious characteristics. Exercise caution."
                 : "✅ LOW RISK: This website appears to be safe."}
-            </p>
+            </p> */}
           </div>
 
           {/* Phishing Reasons */}
