@@ -847,7 +847,7 @@ const MessageScanner = () => {
                     marginBottom: "8px",
                   }}
                 >
-                  <span style={{ fontSize: "28px" }}>{riskLevel.icon}</span>
+                  {/* <span style={{ fontSize: "28px" }}>{riskLevel.icon}</span>
                   <span
                     style={{
                       fontSize: "14px",
@@ -859,7 +859,7 @@ const MessageScanner = () => {
                     }}
                   >
                     {riskLevel.badge}
-                  </span>
+                  </span> */}
                 </div>
                 <div
                   style={{
@@ -868,7 +868,7 @@ const MessageScanner = () => {
                     gap: "16px",
                   }}
                 >
-                  <span
+                  {/* <span
                     style={{
                       fontSize: "56px",
                       fontWeight: "800",
@@ -886,11 +886,11 @@ const MessageScanner = () => {
                     }}
                   >
                     {riskLevel.label}
-                  </span>
+                  </span> */}
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", justifyContent: "center", gap: "12px", flexWrap: "wrap", width: "100%" }}>
                 <button
                   onClick={handleDownloadReport}
                   disabled={downloading}
@@ -948,12 +948,12 @@ const MessageScanner = () => {
                 style={{
                   width: "100%",
                   height: "8px",
-                  background: "#f1f5f9",
+                  // background: "#f1f5f9",
                   borderRadius: "4px",
                   overflow: "hidden",
                 }}
               >
-                <div
+                {/* <div
                   style={{
                     width: `${result.riskScore}%`,
                     height: "100%",
@@ -961,7 +961,7 @@ const MessageScanner = () => {
                     borderRadius: "4px",
                     transition: "width 1s ease",
                   }}
-                />
+                /> */}
               </div>
               <div
                 style={{
@@ -972,13 +972,13 @@ const MessageScanner = () => {
                   color: "#94a3b8",
                 }}
               >
-                <span>Low Risk (0%)</span>
+                {/* <span>Low Risk (0%)</span>
                 <span>Medium (50%)</span>
-                <span>High Risk (100%)</span>
+                <span>High Risk (100%)</span> */}
               </div>
             </div>
 
-            <p
+            {/* <p
               style={{
                 marginTop: "16px",
                 fontSize: "15px",
@@ -993,7 +993,7 @@ const MessageScanner = () => {
                 : result.riskScore > 30
                 ? "⚠️ MEDIUM RISK: This message shows scam indicators. Exercise caution."
                 : "✅ LOW RISK: This message appears legitimate."}
-            </p>
+            </p> */}
           </div>
 
           {/* Message Phishing Reasons */}
