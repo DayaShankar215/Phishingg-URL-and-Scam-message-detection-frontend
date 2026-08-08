@@ -12,7 +12,6 @@ import { useGuest } from "../context/GuestContext";
 import AuthModal from "../components/common/AuthModal";
 import {
   FaSearch,
-  FaDownload,
   FaEye,
   FaChartLine,
   FaCalendar,
@@ -21,14 +20,12 @@ import {
   FaEnvelope,
   FaTrashAlt,
   FaSpinner,
-  FaExclamationTriangle,
   FaCalendarAlt,
   FaTimes,
   FaHashtag,
   FaUserPlus,
   FaInfoCircle,
   FaFilePdf,
-  FaGlobe,
   FaComment,
   FaSortNumericDown,
 } from "react-icons/fa";
@@ -50,7 +47,7 @@ const History = () => {
     message: 0,
   });
 
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { scans: guestScans } = useGuest();
 
   const [dateFilter, setDateFilter] = useState({
@@ -101,8 +98,6 @@ const History = () => {
           scansData = response.scans;
         } else if (Array.isArray(response)) {
           scansData = response;
-        } else if (response && response.response && Array.isArray(response.response)) {
-          scansData = response.response;
         }
 
         const formattedScans = scansData.map((scan) => {
@@ -201,7 +196,6 @@ const History = () => {
     if (preset !== "custom") {
       setTempStartDate("");
       setTempEndDate("");
-      toast.success(`Filter applied: ${getDateFilterLabel(preset)}`);
     }
   };
 
@@ -220,7 +214,6 @@ const History = () => {
     setTempStartDate("");
     setTempEndDate("");
     setShowDatePicker(false);
-    toast.success("Date filter cleared");
   };
 
   const getDateFilterLabel = (preset = null) => {
@@ -330,6 +323,9 @@ const History = () => {
     }
   };
 
+  // ============================================================
+  // ✅ DELETE - Simple delete by reference
+  // ============================================================
   const handleDeleteScan = async (reference) => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
@@ -346,30 +342,51 @@ const History = () => {
     const toastId = toast.loading("Deleting scan...");
 
     try {
-      console.log(`[DELETE] Attempting to delete scan with reference: ${reference}`);
+      console.log(`[DELETE] Deleting scan: ${reference}`);
       
       const response = await deleteScanByReference(reference);
-      console.log("[DELETE] Response:", response);
+      console.log("[DELETE] Success:", response);
       
-      toast.success(response?.message || "Scan deleted successfully!", { id: toastId });
-
+      toast.success("Scan deleted successfully!", { id: toastId });
+      
+      // Remove from UI
       setScans((prev) => prev.filter((scan) => scan.reference !== reference));
-      
-      await fetchHistory();
+      calculateStats();
       
     } catch (error) {
       console.error("[DELETE] Error:", error);
       
-      if (error?.status === 401 || error?.response?.status === 401) {
-        toast.error("Session expired. Please login again.", { id: toastId });
-        setTimeout(() => logout(), 1500);
-      } else if (error?.status === 404) {
+      // Handle errors
+      if (error.status === 403) {
+        toast.error(
+          `🔒 ${error.message || "Permission denied"}`,
+          { id: toastId, duration: 5000 }
+        );
+        return;
+      }
+      
+      if (error.status === 404) {
         toast.success("Scan already deleted.", { id: toastId });
         setScans((prev) => prev.filter((scan) => scan.reference !== reference));
-        await fetchHistory();
-      } else {
-        toast.error(error?.message || "Failed to delete scan", { id: toastId });
+        calculateStats();
+        return;
       }
+      
+      if (error.status === 401) {
+        toast.error("Session expired. Please login again.", { id: toastId });
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("user");
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      }
+      
+      if (error.isCorsError || error.status === 0) {
+        toast.error("Cannot connect to server. Please check your connection.", { id: toastId });
+        return;
+      }
+      
+      toast.error(error?.message || "Failed to delete scan", { id: toastId });
+      
     } finally {
       setDeletingId(null);
     }
@@ -437,64 +454,17 @@ const History = () => {
     return <LoadingSpinner text="Loading security history..." />;
   }
 
-  if (!isAuthenticated && scans.length === 0) {
-    return (
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "40px 24px" }}>
-        <div style={{ textAlign: "center", marginBottom: "48px" }}>
-          <h1 style={{ fontSize: "48px", fontWeight: "800", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", marginBottom: "12px" }}>
-            Security History
-          </h1>
-          <p style={{ fontSize: "18px", color: "#64748b" }}>Track and analyze all your security scans</p>
-        </div>
-
-        <div style={{ background: "white", borderRadius: "24px", padding: "60px 40px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.1)" }}>
-          <div style={{ width: "100px", height: "100px", borderRadius: "50%", background: "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
-            <FaShieldAlt style={{ fontSize: "48px", color: "#667eea" }} />
-          </div>
-          <h2 style={{ fontSize: "28px", fontWeight: "700", color: "#1e293b", marginBottom: "12px" }}>No Scans Yet</h2>
-          <p style={{ fontSize: "16px", color: "#64748b", maxWidth: "480px", margin: "0 auto 8px" }}>
-            You haven't performed any scans yet. Start scanning URLs and messages to see results here.
-          </p>
-          <p style={{ fontSize: "14px", color: "#94a3b8", marginBottom: "24px" }}>
-            Sign up to save your scan history permanently and access it from any device.
-          </p>
-          <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
-            <button onClick={() => (window.location.href = "/url-scan")} style={{ padding: "12px 28px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "white", border: "none", borderRadius: "12px", fontSize: "16px", fontWeight: "600", cursor: "pointer", transition: "all 0.3s ease", boxShadow: "0 4px 15px rgba(102,126,234,0.4)" }}>
-              Start Scanning
-            </button>
-            <button onClick={() => setShowAuthModal(true)} style={{ padding: "12px 28px", background: "white", color: "#667eea", border: "2px solid #667eea", borderRadius: "12px", fontSize: "16px", fontWeight: "600", cursor: "pointer", transition: "all 0.3s ease" }}>
-              <FaUserPlus style={{ marginRight: "8px" }} /> Sign Up to Save
-            </button>
-          </div>
-        </div>
-
-        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} initialMode="register" onSuccess={() => { setShowAuthModal(false); fetchHistory(); }} />
-      </div>
-    );
-  }
-
   return (
     <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "40px 24px" }}>
-      {/* Header Stats */}
+      {/* Header */}
       <div style={{ marginBottom: "48px" }}>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <h1 style={{ fontSize: "48px", fontWeight: "800", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", marginBottom: "12px" }}>
             Security History
           </h1>
           <p style={{ fontSize: "18px", color: "#64748b" }}>Track and analyze all your security scans</p>
-
-          {!isAuthenticated && scans.length > 0 && (
-            <div style={{ marginTop: "12px", display: "inline-flex", alignItems: "center", gap: "8px", padding: "8px 20px", background: "#fef3c7", borderRadius: "100px", border: "1px solid #fcd34d" }}>
-              <FaInfoCircle style={{ color: "#d97706" }} />
-              <span style={{ fontSize: "14px", color: "#92400e" }}>Guest Mode • History is temporary</span>
-              <button onClick={() => setShowAuthModal(true)} style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "white", border: "none", padding: "4px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: "600", cursor: "pointer", transition: "all 0.3s ease" }}>
-                Sign Up to Save
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Stats Cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
           <div style={{ background: "white", borderRadius: "20px", padding: "20px", textAlign: "center", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
             <FaChartLine style={{ fontSize: "32px", color: "#667eea", marginBottom: "12px" }} />
@@ -617,15 +587,6 @@ const History = () => {
               </button>
             </div>
           )}
-
-          <div style={{ marginTop: "12px", fontSize: "12px", color: "#94a3b8", display: "flex", justifyContent: "space-between" }}>
-            <span>Showing {filteredScans.length} scans</span>
-            {dateFilter.preset !== "all" && (
-              <button onClick={clearDateFilter} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontWeight: "500", fontSize: "12px" }}>
-                Clear Filter
-              </button>
-            )}
-          </div>
         </div>
       )}
 
@@ -646,7 +607,7 @@ const History = () => {
         )}
       </div>
 
-      {/* Scans Table with S.No Column */}
+      {/* Scans Table */}
       <div style={{ background: "white", borderRadius: "24px", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.1)" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -686,6 +647,9 @@ const History = () => {
                   const prediction = scan?.prediction || "UNKNOWN";
                   const predColor = getPredictionColor(prediction);
                   const typeBadge = getTypeBadge(scan?.type);
+                  
+                  // ✅ Show delete button for ALL authenticated users
+                  const showDelete = isAuthenticated && !isGuest;
 
                   return (
                     <tr
@@ -781,25 +745,29 @@ const History = () => {
                           >
                             {isDownloading ? <FaSpinner className="spinning" size={14} /> : <FaFilePdf />}
                           </button>
-                          <button
-                            onClick={() => handleDeleteScan(reference)}
-                            disabled={isDeleting || !isAuthenticated}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              color: isDeleting ? "#94a3b8" : isAuthenticated ? "#ef4444" : "#94a3b8",
-                              cursor: isDeleting || !isAuthenticated ? "not-allowed" : "pointer",
-                              padding: "6px",
-                              borderRadius: "8px",
-                              transition: "all 0.3s",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "4px",
-                            }}
-                            title={isAuthenticated ? "Delete scan" : "Sign in to delete"}
-                          >
-                            {isDeleting ? <FaSpinner className="spinning" size={14} /> : <FaTrashAlt />}
-                          </button>
+                          
+                          {/* ✅ DELETE BUTTON - Show for all authenticated users */}
+                          {showDelete && (
+                            <button
+                              onClick={() => handleDeleteScan(reference)}
+                              disabled={isDeleting}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                color: isDeleting ? "#94a3b8" : "#ef4444",
+                                cursor: isDeleting ? "not-allowed" : "pointer",
+                                padding: "6px",
+                                borderRadius: "8px",
+                                transition: "all 0.3s",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                              title="Delete scan"
+                            >
+                              {isDeleting ? <FaSpinner className="spinning" size={14} /> : <FaTrashAlt />}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -905,13 +873,13 @@ const History = () => {
                 </div>
               )}
 
-              {/* Message Phishing Reasons */}
-              {selectedScan.isMessageScan && selectedScan.messagePhishingReasons && selectedScan.messagePhishingReasons.length > 0 && (
+              {/* Phishing Reasons */}
+              {selectedScan.phishingReasons && selectedScan.phishingReasons.length > 0 && (
                 <div style={{ marginBottom: "24px" }}>
-                  <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>🚨 Message Phishing Indicators</h3>
+                  <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>🚨 Phishing Indicators</h3>
                   <div style={{ padding: "16px", background: "#fee2e2", borderRadius: "12px", color: "#dc2626" }}>
                     <ul style={{ margin: 0, paddingLeft: "20px" }}>
-                      {selectedScan.messagePhishingReasons.map((reason, i) => (
+                      {selectedScan.phishingReasons.map((reason, i) => (
                         <li key={i} style={{ marginBottom: "4px" }}>{reason}</li>
                       ))}
                     </ul>
@@ -919,13 +887,13 @@ const History = () => {
                 </div>
               )}
 
-              {/* URL Phishing Reasons */}
-              {!selectedScan.isMessageScan && selectedScan.phishingReasons && selectedScan.phishingReasons.length > 0 && (
+              {/* Message Phishing Reasons */}
+              {selectedScan.isMessageScan && selectedScan.messagePhishingReasons && selectedScan.messagePhishingReasons.length > 0 && (
                 <div style={{ marginBottom: "24px" }}>
-                  <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>🚨 Phishing Indicators</h3>
+                  <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>🚨 Message Phishing Indicators</h3>
                   <div style={{ padding: "16px", background: "#fee2e2", borderRadius: "12px", color: "#dc2626" }}>
                     <ul style={{ margin: 0, paddingLeft: "20px" }}>
-                      {selectedScan.phishingReasons.map((reason, i) => (
+                      {selectedScan.messagePhishingReasons.map((reason, i) => (
                         <li key={i} style={{ marginBottom: "4px" }}>{reason}</li>
                       ))}
                     </ul>

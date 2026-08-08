@@ -3,7 +3,7 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 
 /**
- * Download PDF from scan data (JSON format)
+ * Download PDF from scan data
  */
 export const downloadPDF = (scanData, type) => {
   const doc = generatePDFReport(scanData, type);
@@ -37,14 +37,10 @@ const generatePDFReport = (scanData, type) => {
   doc.setFont('helvetica', 'bold');
   doc.text('SECURESHIELD', margin, 25);
 
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(220, 230, 255);
-
-  const ref = scanData.reference || 'N/A';
-  const shortRef = ref.length > 30 ? ref.substring(0, 27) + '...' : ref;
   doc.setFontSize(7);
   doc.setTextColor(200, 215, 255);
+  const ref = scanData.reference || 'N/A';
+  const shortRef = ref.length > 30 ? ref.substring(0, 27) + '...' : ref;
   doc.text(`Report ID: ${shortRef}`, pageWidth - margin - 55, 18);
   doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - margin - 55, 26);
 
@@ -73,7 +69,7 @@ const generatePDFReport = (scanData, type) => {
   doc.roundedRect(margin, y, pageWidth - (margin * 2), 55, 4, 4, 'S');
 
   // Risk Score
-  const riskScore = getRiskScore(scanData.prediction);
+  const riskScore = getRiskScore(scanData.prediction || scanData.overallPrediction);
   const riskInfo = getRiskInfo(riskScore);
 
   doc.setFontSize(28);
@@ -89,7 +85,8 @@ const generatePDFReport = (scanData, type) => {
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 100);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Prediction: ${scanData.prediction || 'N/A'}`, margin + 55, y + 32);
+  const prediction = scanData.prediction || scanData.overallPrediction || 'N/A';
+  doc.text(`Prediction: ${prediction}`, margin + 55, y + 32);
 
   // Risk Bar
   const barX = margin + 12;
@@ -112,7 +109,7 @@ const generatePDFReport = (scanData, type) => {
   y = y + 55 + 10;
 
   // ============================================================
-  // SCAN DETAILS - Clean Table
+  // SCAN DETAILS
   // ============================================================
   doc.setFontSize(11);
   doc.setTextColor(60, 60, 80);
@@ -125,8 +122,9 @@ const generatePDFReport = (scanData, type) => {
   if (scanData.scanType) detailsData.push(['Scan Type', scanData.scanType]);
   if (scanData.url) detailsData.push(['URL', scanData.url]);
   if (scanData.message) detailsData.push(['Message', scanData.message]);
-  if (scanData.prediction) detailsData.push(['Overall Prediction', scanData.prediction]);
+  if (scanData.overallPrediction) detailsData.push(['Overall Prediction', scanData.overallPrediction]);
   if (scanData.messagePrediction) detailsData.push(['Message Prediction', scanData.messagePrediction]);
+  if (scanData.prediction && !scanData.overallPrediction) detailsData.push(['Prediction', scanData.prediction]);
   if (scanData.scannedAt) {
     detailsData.push(['Scanned At', new Date(scanData.scannedAt).toLocaleString()]);
   }
@@ -159,61 +157,21 @@ const generatePDFReport = (scanData, type) => {
   y = doc.lastAutoTable.finalY + 8;
 
   // ============================================================
-  // MESSAGE PHISHING REASONS (for message scans)
+  // PHISHING REASONS
   // ============================================================
-  if (scanData.messagePhishingReasons && scanData.messagePhishingReasons.length > 0) {
+  const phishingReasons = scanData.phishingReasons || scanData.messagePhishingReasons || [];
+  if (phishingReasons.length > 0) {
     doc.setFillColor(254, 242, 242);
     doc.roundedRect(margin, y, pageWidth - (margin * 2), 9, 4, 4, 'F');
     
     doc.setFontSize(10);
     doc.setTextColor(180, 40, 40);
     doc.setFont('helvetica', 'bold');
-    doc.text('MESSAGE PHISHING INDICATORS', margin + 8, y + 7);
+    const title = type === 'message' ? 'MESSAGE PHISHING INDICATORS' : 'PHISHING INDICATORS';
+    doc.text(title, margin + 8, y + 7);
     y = y + 9 + 4;
 
-    const phishingData = scanData.messagePhishingReasons.map((reason, i) => [i + 1, reason]);
-
-    doc.autoTable({
-      startY: y,
-      head: [['#', 'Reason']],
-      body: phishingData,
-      theme: 'plain',
-      headStyles: {
-        fillColor: [252, 235, 235],
-        textColor: [180, 40, 40],
-        fontSize: 8,
-        fontStyle: 'bold',
-      },
-      styles: {
-        fontSize: 7.5,
-        cellPadding: 4,
-        lineColor: [240, 220, 220],
-        lineWidth: 0.1,
-      },
-      columnStyles: {
-        0: { cellWidth: 12, halign: 'center' },
-        1: { cellWidth: 'auto' },
-      },
-      margin: { left: margin, right: margin },
-    });
-
-    y = doc.lastAutoTable.finalY + 8;
-  }
-
-  // ============================================================
-  // PHISHING REASONS (for URL scans or fallback)
-  // ============================================================
-  if (scanData.phishingReasons && scanData.phishingReasons.length > 0) {
-    doc.setFillColor(254, 242, 242);
-    doc.roundedRect(margin, y, pageWidth - (margin * 2), 9, 4, 4, 'F');
-    
-    doc.setFontSize(10);
-    doc.setTextColor(180, 40, 40);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PHISHING INDICATORS', margin + 8, y + 7);
-    y = y + 9 + 4;
-
-    const phishingData = scanData.phishingReasons.map((reason, i) => [i + 1, reason]);
+    const phishingData = phishingReasons.map((reason, i) => [i + 1, reason]);
 
     doc.autoTable({
       startY: y,
@@ -245,17 +203,19 @@ const generatePDFReport = (scanData, type) => {
   // ============================================================
   // LEGITIMATE REASONS
   // ============================================================
-  if (scanData.legitimateReasons && scanData.legitimateReasons.length > 0) {
+  const legitimateReasons = scanData.legitimateReasons || scanData.messageLegitimateReasons || [];
+  if (legitimateReasons.length > 0) {
     doc.setFillColor(240, 250, 245);
     doc.roundedRect(margin, y, pageWidth - (margin * 2), 9, 4, 4, 'F');
     
     doc.setFontSize(10);
     doc.setTextColor(30, 130, 70);
     doc.setFont('helvetica', 'bold');
-    doc.text('LEGITIMATE INDICATORS', margin + 8, y + 7);
+    const title = type === 'message' ? 'MESSAGE LEGITIMATE INDICATORS' : 'LEGITIMATE INDICATORS';
+    doc.text(title, margin + 8, y + 7);
     y = y + 9 + 4;
 
-    const legitData = scanData.legitimateReasons.map((reason, i) => [i + 1, reason]);
+    const legitData = legitimateReasons.map((reason, i) => [i + 1, reason]);
 
     doc.autoTable({
       startY: y,
@@ -288,6 +248,12 @@ const generatePDFReport = (scanData, type) => {
   // URLS FOUND (for message scans)
   // ============================================================
   if (scanData.urlsFound && scanData.urlsFound.length > 0) {
+    // Check if we need a new page
+    if (y > pageHeight - 60) {
+      doc.addPage();
+      y = margin;
+    }
+
     doc.setFillColor(255, 247, 235);
     doc.roundedRect(margin, y, pageWidth - (margin * 2), 9, 4, 4, 'F');
     
@@ -328,31 +294,12 @@ const generatePDFReport = (scanData, type) => {
     });
 
     y = doc.lastAutoTable.finalY + 8;
-
-    // URL Results Details
-    if (scanData.urlResults) {
-      scanData.urlResults.forEach((result, index) => {
-        if (result.conclusion) {
-          doc.setFontSize(8);
-          doc.setTextColor(60, 60, 80);
-          doc.setFont('helvetica', 'normal');
-          const urlText = scanData.urlsFound[index] || `URL ${index + 1}`;
-          doc.text(`URL ${index + 1} Conclusion:`, margin + 8, y + 4);
-          y += 5;
-          
-          const conclusionLines = doc.splitTextToSize(result.conclusion, pageWidth - (margin * 2) - 16);
-          doc.text(conclusionLines, margin + 8, y + 4);
-          y = y + (conclusionLines.length * 4) + 8;
-        }
-      });
-    }
   }
 
   // ============================================================
   // CONCLUSION
   // ============================================================
   if (scanData.conclusion) {
-    // Check if we need a new page
     if (y > pageHeight - 60) {
       doc.addPage();
       y = margin;
@@ -432,12 +379,10 @@ const generatePDFReport = (scanData, type) => {
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
 
-    // Footer line
     doc.setDrawColor(220, 220, 235);
     doc.setLineWidth(0.3);
     doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
 
-    // Footer text
     doc.setFontSize(7);
     doc.setTextColor(160, 160, 180);
     doc.setFont('helvetica', 'normal');
@@ -452,11 +397,10 @@ const generatePDFReport = (scanData, type) => {
   return doc;
 };
 
-/**
- * Get risk score based on prediction
- */
 const getRiskScore = (prediction) => {
-  switch (prediction?.toUpperCase()) {
+  if (!prediction) return 50;
+  const upper = prediction.toUpperCase().trim();
+  switch (upper) {
     case "PHISHING":
     case "DANGEROUS":
     case "MALICIOUS":
@@ -473,9 +417,6 @@ const getRiskScore = (prediction) => {
   }
 };
 
-/**
- * Get risk info based on score
- */
 const getRiskInfo = (score) => {
   if (score > 70) {
     return {

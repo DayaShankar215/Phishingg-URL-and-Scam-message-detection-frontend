@@ -49,6 +49,7 @@ const MessageScanner = () => {
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [feedbackReply, setFeedbackReply] = useState("");
   const [accuracySubmitted, setAccuracySubmitted] = useState(false);
+  const [accuracyError, setAccuracyError] = useState(null);
 
   const getRiskScoreFromPrediction = (prediction) => {
     if (!prediction) return 50;
@@ -107,7 +108,6 @@ const MessageScanner = () => {
 
     return {
       reference: response.reference,
-      // ✅ FIX: Use the scanned message directly since backend may return null
       message: scannedMessage || response.message || "",
       prediction: prediction,
       classification: prediction || "UNKNOWN",
@@ -129,6 +129,7 @@ const MessageScanner = () => {
     setFeedbackSubmitted(false);
     setFeedbackReply("");
     setAccuracySubmitted(false);
+    setAccuracyError(null);
     setScanId("");
     setFeedback({
       type: "message",
@@ -236,6 +237,7 @@ const MessageScanner = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // ✅ FIXED: Allow toggling accuracy selection
   const handleAccuracySelect = async (isAccurate) => {
     console.log("Scan ID:", scanId);
     
@@ -245,12 +247,16 @@ const MessageScanner = () => {
       return;
     }
 
-    if (accuracySubmitted) {
-      toast.error("Accuracy already submitted");
+    // ✅ If user clicks the same option, deselect it (toggle off)
+    if (feedback.isAccurate === isAccurate) {
+      setFeedback({ ...feedback, isAccurate: null });
+      setAccuracySubmitted(false);
+      setAccuracyError(null);
       return;
     }
 
     setFeedback({ ...feedback, isAccurate });
+    setAccuracyError(null);
     
     try {
       console.log("Submitting accuracy with:", {
@@ -273,8 +279,10 @@ const MessageScanner = () => {
       }
     } catch (error) {
       console.error("Accuracy Submit Error:", error);
+      setAccuracyError(error.message || "Failed to submit accuracy");
       toast.error(error.message || "Failed to submit accuracy");
       setFeedback({ ...feedback, isAccurate: null });
+      setAccuracySubmitted(false);
     }
   };
 
@@ -1135,7 +1143,7 @@ const MessageScanner = () => {
             </p>
           </div>
 
-          {/* Feedback Section */}
+          {/* ✅ FIXED: Feedback Section with Toggle */}
           {showFeedback && !feedbackSubmitted && (
             <div
               style={{
@@ -1201,7 +1209,6 @@ const MessageScanner = () => {
                   <button
                     type="button"
                     onClick={() => handleAccuracySelect(true)}
-                    disabled={accuracySubmitted}
                     style={{
                       flex: 1,
                       padding: "14px",
@@ -1211,26 +1218,24 @@ const MessageScanner = () => {
                         feedback.isAccurate === true ? "white" : "#64748b",
                       border: feedback.isAccurate === true ? "2px solid #10b981" : "2px solid #e2e8f0",
                       borderRadius: "14px",
-                      cursor: accuracySubmitted ? "not-allowed" : "pointer",
+                      cursor: "pointer",
                       fontWeight: "600",
                       transition: "all 0.3s ease",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       gap: "8px",
-                      opacity: accuracySubmitted ? 0.6 : 1,
                     }}
                   >
                     <FaThumbsUp />
                     Yes, accurate
-                    {accuracySubmitted && feedback.isAccurate === true && (
+                    {feedback.isAccurate === true && (
                       <span style={{ marginLeft: "8px", fontSize: "12px" }}>✓</span>
                     )}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleAccuracySelect(false)}
-                    disabled={accuracySubmitted}
                     style={{
                       flex: 1,
                       padding: "14px",
@@ -1240,24 +1245,28 @@ const MessageScanner = () => {
                         feedback.isAccurate === false ? "white" : "#64748b",
                       border: feedback.isAccurate === false ? "2px solid #ef4444" : "2px solid #e2e8f0",
                       borderRadius: "14px",
-                      cursor: accuracySubmitted ? "not-allowed" : "pointer",
+                      cursor: "pointer",
                       fontWeight: "600",
                       transition: "all 0.3s ease",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       gap: "8px",
-                      opacity: accuracySubmitted ? 0.6 : 1,
                     }}
                   >
                     <FaThumbsDown />
                     No, inaccurate
-                    {accuracySubmitted && feedback.isAccurate === false && (
+                    {feedback.isAccurate === false && (
                       <span style={{ marginLeft: "8px", fontSize: "12px" }}>✓</span>
                     )}
                   </button>
                 </div>
-                {accuracySubmitted && (
+                {accuracyError && (
+                  <p style={{ fontSize: "12px", color: "#ef4444", marginTop: "8px", textAlign: "center" }}>
+                    ❌ {accuracyError}
+                  </p>
+                )}
+                {accuracySubmitted && feedback.isAccurate !== null && (
                   <p style={{ fontSize: "12px", color: "#10b981", marginTop: "8px", textAlign: "center" }}>
                     ✓ Accuracy feedback submitted successfully
                   </p>
