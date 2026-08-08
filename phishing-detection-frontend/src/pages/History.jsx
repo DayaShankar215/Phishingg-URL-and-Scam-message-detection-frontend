@@ -122,7 +122,12 @@ const History = () => {
             _raw: scan,
           };
         });
-
+        //Sorting based on new scan
+        formattedScans.sort((a, b) => {
+          const dateA = new Date(a.scannedAt || a.date || a.timestamp || 0);
+          const dateB = new Date(b.scannedAt || b.date || b.timestamp || 0);
+          return dateB - dateA; // Descending: newest first
+        });
         setScans(formattedScans);
       } else {
         const guestFiltered =
