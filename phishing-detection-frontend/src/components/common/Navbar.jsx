@@ -67,14 +67,18 @@ const Navbar = () => {
 
   const themeColors = {
     background: isDark ? "#0f172a" : "rgba(255, 255, 255, 0.98)",
-    backgroundScrolled: isDark ? "rgba(15, 23, 42, 0.98)" : "rgba(255, 255, 255, 0.98)",
+    backgroundScrolled: isDark
+      ? "rgba(15, 23, 42, 0.98)"
+      : "rgba(255, 255, 255, 0.98)",
     backgroundMobile: isDark ? "#1e293b" : "white",
     text: isDark ? "#f1f5f9" : "#475569",
     textActive: isDark ? "#93c5fd" : "#667eea",
     textInactive: isDark ? "#94a3b8" : "#475569",
     border: isDark ? "#334155" : "#e2e8f0",
     hoverBg: isDark ? "#334155" : "#f1f5f9",
-    shadow: isDark ? "0 4px 20px rgba(0, 0, 0, 0.4)" : "0 4px 20px rgba(0, 0, 0, 0.1)",
+    shadow: isDark
+      ? "0 4px 20px rgba(0, 0, 0, 0.4)"
+      : "0 4px 20px rgba(0, 0, 0, 0.1)",
   };
 
   return (
@@ -132,7 +136,8 @@ const Navbar = () => {
                 style={{
                   fontSize: "20px",
                   fontWeight: "800",
-                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  background:
+                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                   WebkitBackgroundClip: "text",
                   backgroundClip: "text",
                   color: "transparent",
@@ -148,7 +153,9 @@ const Navbar = () => {
                   letterSpacing: "0.5px",
                 }}
               >
-                {isAuthenticated ? `Welcome, ${user?.firstName || "User"}` : "AI Security"}
+                {isAuthenticated
+                  ? `Welcome, ${user?.firstName || "User"}`
+                  : "AI Security"}
               </span>
             </div>
           </Link>
@@ -166,7 +173,9 @@ const Navbar = () => {
                   padding: "10px 20px",
                   borderRadius: "12px",
                   textDecoration: "none",
-                  color: isActive(item.path) ? "white" : themeColors.textInactive,
+                  color: isActive(item.path)
+                    ? "white"
+                    : themeColors.textInactive,
                   background: isActive(item.path)
                     ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
                     : "transparent",
@@ -209,15 +218,20 @@ const Navbar = () => {
                     color: themeColors.text,
                     transition: "all 0.3s ease",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = themeColors.hoverBg)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = themeColors.hoverBg)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
                 >
                   <div
                     style={{
                       width: "32px",
                       height: "32px",
                       borderRadius: "50%",
-                      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                      background:
+                        "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -226,7 +240,9 @@ const Navbar = () => {
                       fontSize: "14px",
                     }}
                   >
-                    {user?.firstName ? user.firstName.charAt(0).toUpperCase() : "U"}
+                    {user?.firstName
+                      ? user.firstName.charAt(0).toUpperCase()
+                      : "U"}
                   </div>
                   <span style={{ fontSize: "14px", fontWeight: "500" }}>
                     {user?.firstName || "User"}
@@ -261,8 +277,12 @@ const Navbar = () => {
                         color: themeColors.text,
                         transition: "all 0.2s ease",
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = themeColors.hoverBg)}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = themeColors.hoverBg)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
                     >
                       <FaUser size={16} />
                       <span>Profile</span>
@@ -282,8 +302,12 @@ const Navbar = () => {
                         cursor: "pointer",
                         transition: "all 0.2s ease",
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = "#fef2f2")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
                     >
                       <FaSignOutAlt size={16} />
                       <span>Logout</span>
@@ -308,8 +332,12 @@ const Navbar = () => {
                     alignItems: "center",
                     gap: "8px",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = themeColors.hoverBg)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = themeColors.hoverBg)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
                 >
                   <FaSignInAlt size={16} />
                   <span>Login</span>
@@ -318,7 +346,8 @@ const Navbar = () => {
                   onClick={() => handleAuthClick("register")}
                   style={{
                     padding: "10px 20px",
-                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    background:
+                      "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                     border: "none",
                     borderRadius: "12px",
                     cursor: "pointer",
@@ -331,7 +360,8 @@ const Navbar = () => {
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = "scale(1.02)";
-                    e.currentTarget.style.boxShadow = "0 4px 15px rgba(102,126,234,0.4)";
+                    e.currentTarget.style.boxShadow =
+                      "0 4px 15px rgba(102,126,234,0.4)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "scale(1)";
@@ -386,8 +416,12 @@ const Navbar = () => {
                   padding: "12px",
                   borderRadius: "12px",
                   textDecoration: "none",
-                  color: isActive(item.path) ? themeColors.textActive : themeColors.text,
-                  background: isActive(item.path) ? themeColors.hoverBg : "transparent",
+                  color: isActive(item.path)
+                    ? themeColors.textActive
+                    : themeColors.text,
+                  background: isActive(item.path)
+                    ? themeColors.hoverBg
+                    : "transparent",
                   fontWeight: "500",
                   marginBottom: "8px",
                 }}
@@ -422,7 +456,8 @@ const Navbar = () => {
                         width: "36px",
                         height: "36px",
                         borderRadius: "50%",
-                        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                        background:
+                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -431,13 +466,22 @@ const Navbar = () => {
                         fontSize: "16px",
                       }}
                     >
-                      {user?.firstName ? user.firstName.charAt(0).toUpperCase() : "U"}
+                      {user?.firstName
+                        ? user.firstName.charAt(0).toUpperCase()
+                        : "U"}
                     </div>
                     <div>
-                      <div style={{ fontWeight: "600", color: themeColors.text }}>
+                      <div
+                        style={{ fontWeight: "600", color: themeColors.text }}
+                      >
                         {user?.firstName} {user?.lastName || ""}
                       </div>
-                      <div style={{ fontSize: "12px", color: themeColors.textInactive }}>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: themeColors.textInactive,
+                        }}
+                      >
                         {user?.email || ""}
                       </div>
                     </div>
@@ -510,7 +554,8 @@ const Navbar = () => {
                       width: "100%",
                       borderRadius: "12px",
                       border: "none",
-                      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                      background:
+                        "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                       color: "white",
                       cursor: "pointer",
                       fontWeight: "500",

@@ -1,5 +1,5 @@
-import React from 'react';
-import RiskBadge from './RiskBadge';
+import React from "react";
+import RiskBadge from "./RiskBadge";
 
 const ResultCard = ({ result, type }) => {
   if (!result) return null;
@@ -11,10 +11,19 @@ const ResultCard = ({ result, type }) => {
         <RiskBadge score={result.riskScore} />
       </div>
       <div className="result-body">
-        <p><strong>Type:</strong> {type}</p>
-        <p><strong>Prediction:</strong> {result.prediction}</p>
-        <p><strong>Confidence:</strong> {((result.confidence || 0.5) * 100).toFixed(1)}%</p>
-        <p><strong>Explanation:</strong> {result.explanation}</p>
+        <p>
+          <strong>Type:</strong> {type}
+        </p>
+        <p>
+          <strong>Prediction:</strong> {result.prediction}
+        </p>
+        <p>
+          <strong>Confidence:</strong>{" "}
+          {((result.confidence || 0.5) * 100).toFixed(1)}%
+        </p>
+        <p>
+          <strong>Explanation:</strong> {result.explanation}
+        </p>
       </div>
     </div>
   );

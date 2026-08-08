@@ -47,7 +47,8 @@ const ProtectedRoute = ({ children, showAuthModal = true }) => {
               width: "80px",
               height: "80px",
               borderRadius: "50%",
-              background: "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)",
+              background:
+                "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -93,11 +94,13 @@ const ProtectedRoute = ({ children, showAuthModal = true }) => {
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 8px 25px rgba(102,126,234,0.5)";
+              e.currentTarget.style.boxShadow =
+                "0 8px 25px rgba(102,126,234,0.5)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 15px rgba(102,126,234,0.4)";
+              e.currentTarget.style.boxShadow =
+                "0 4px 15px rgba(102,126,234,0.4)";
             }}
           >
             Sign In / Register

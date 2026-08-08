@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 const MessageInput = ({ value, onChange, onSubmit, loading, placeholder }) => {
   return (
@@ -12,7 +12,7 @@ const MessageInput = ({ value, onChange, onSubmit, loading, placeholder }) => {
         rows={5}
       />
       <button onClick={onSubmit} disabled={loading} className="scan-btn">
-        {loading ? 'Scanning...' : 'Scan Message'}
+        {loading ? "Scanning..." : "Scan Message"}
       </button>
     </div>
   );
