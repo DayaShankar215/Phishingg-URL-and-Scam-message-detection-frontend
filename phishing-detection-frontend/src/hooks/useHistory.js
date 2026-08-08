@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 export const useHistory = () => {
   const [scans, setScans] = useState([]);
@@ -8,7 +8,7 @@ export const useHistory = () => {
   const fetchHistory = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/history');
+      const response = await fetch("/api/history");
       const data = await response.json();
       setScans(data);
       return data;

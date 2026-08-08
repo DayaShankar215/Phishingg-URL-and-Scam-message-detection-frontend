@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 export const useScan = () => {
   const [scanning, setScanning] = useState(false);
@@ -9,9 +9,9 @@ export const useScan = () => {
     setScanning(true);
     setError(null);
     try {
-      const response = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input, type }),
       });
       const data = await response.json();

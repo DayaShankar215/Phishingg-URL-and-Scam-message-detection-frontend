@@ -20,10 +20,13 @@ export const useGuestSession = () => {
         } else {
           const newSessionId = uuidv4();
           setSessionId(newSessionId);
-          localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({
-            sessionId: newSessionId,
-            scans: [],
-          }));
+          localStorage.setItem(
+            GUEST_STORAGE_KEY,
+            JSON.stringify({
+              sessionId: newSessionId,
+              scans: [],
+            }),
+          );
         }
       } catch (error) {
         console.error("Failed to load guest data:", error);
@@ -39,10 +42,13 @@ export const useGuestSession = () => {
   useEffect(() => {
     if (sessionId !== null) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({
-          sessionId,
-          scans,
-        }));
+        localStorage.setItem(
+          GUEST_STORAGE_KEY,
+          JSON.stringify({
+            sessionId,
+            scans,
+          }),
+        );
       } catch (error) {
         console.error("Failed to save guest data:", error);
       }
@@ -69,10 +75,13 @@ export const useGuestSession = () => {
 
   const getStats = () => {
     const total = scans.length;
-    const phishing = scans.filter(s => s.result === "phishing").length;
-    const scam = scans.filter(s => s.result === "scam").length;
-    const safe = scans.filter(s => s.result === "safe").length;
-    const avgRisk = total > 0 ? scans.reduce((sum, s) => sum + (s.riskScore || 0), 0) / total : 0;
+    const phishing = scans.filter((s) => s.result === "phishing").length;
+    const scam = scans.filter((s) => s.result === "scam").length;
+    const safe = scans.filter((s) => s.result === "safe").length;
+    const avgRisk =
+      total > 0
+        ? scans.reduce((sum, s) => sum + (s.riskScore || 0), 0) / total
+        : 0;
 
     return { total, phishing, scam, safe, avgRisk };
   };
