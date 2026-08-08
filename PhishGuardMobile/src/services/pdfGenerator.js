@@ -5,29 +5,34 @@ import { Platform } from 'react-native';
 import { printToFileAsync } from 'expo-print';
 
 /**
- * Download PDF from scan data
+ * Escape HTML special characters so dynamic values never break the layout.
+ */
+const escapeHtml = (value = '') =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/**
+ * Download / print PDF from scan data.
+ *
+ * - Web         => opens the browser print dialog with the report (real PDF via "Save as PDF").
+ * - iOS/Android => renders the report with expo-print and shares the generated PDF.
  */
 export const downloadPDF = async (scanData, type) => {
   try {
     const html = generatePDFHTML(scanData, type);
-    
+
     if (Platform.OS === 'web') {
-      // Web: Download as HTML file
-      const blob = new Blob([html], { type: 'text/html' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `security_report_${scanData.reference || Date.now()}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      printWeb(html);
       return { success: true };
     }
 
-    // Mobile: Use expo-print to generate PDF
     try {
       const { uri } = await printToFileAsync({
-        html: html,
+        html,
         base64: false,
         width: 595,
         height: 842,
@@ -43,7 +48,7 @@ export const downloadPDF = async (scanData, type) => {
       return { success: true, uri };
     } catch (printError) {
       console.error('Print Error:', printError);
-      // Fallback: Save and share as HTML using legacy API
+      // Last resort fallback only for native devices when printing unavailable
       const htmlUri = await saveAndShareHTML(html, scanData.reference);
       return { success: true, uri: htmlUri };
     }
@@ -54,31 +59,62 @@ export const downloadPDF = async (scanData, type) => {
 };
 
 /**
- * ✅ FIXED: Save and share HTML using LEGACY FileSystem API
+ * Web: open the print dialog with only the report content, so the user
+ * can "Save as PDF". Produces a real PDF instead of a raw HTML download.
+ */
+const printWeb = (html) => {
+  if (typeof document === 'undefined') return;
+
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.position = 'fixed';
+  frame.style.right = '0';
+  frame.style.bottom = '0';
+  frame.style.width = '0';
+  frame.style.height = '0';
+  frame.style.border = '0';
+  document.body.appendChild(frame);
+
+  const frameDoc = frame.contentWindow.document;
+  frameDoc.open();
+  frameDoc.write(html);
+  frameDoc.close();
+
+  frame.contentWindow.focus();
+  frame.contentWindow.print();
+
+  // Remove the frame once the user is done with the print dialog
+  frame.contentWindow.addEventListener('afterprint', () => {
+    if (frame.parentNode) frame.parentNode.removeChild(frame);
+  });
+  setTimeout(() => {
+    if (frame.parentNode) frame.parentNode.removeChild(frame);
+  }, 60000);
+};
+
+/**
+ * Save and share HTML using LEGACY FileSystem API (native fallback only)
  */
 const saveAndShareHTML = async (html, reference) => {
   try {
     const fileName = `security_report_${reference || Date.now()}.html`;
-    
-    // ✅ Use legacy API with proper file URI
+
     const directory = FileSystem.documentDirectory || FileSystem.cacheDirectory;
     const fileUri = `${directory}${fileName}`;
-    
+
     console.log('[PDF] Saving HTML to:', fileUri);
-    
-    // ✅ Write using legacy API
+
     await FileSystem.writeAsStringAsync(fileUri, html, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-    
-    // Verify file exists
+
     const fileInfo = await FileSystem.getInfoAsync(fileUri);
     if (!fileInfo.exists) {
       throw new Error('File was not created successfully');
     }
-    
+
     console.log('[PDF] File saved, size:', fileInfo.size);
-    
+
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(fileUri, {
         mimeType: 'text/html',
@@ -93,17 +129,92 @@ const saveAndShareHTML = async (html, reference) => {
 };
 
 /**
- * Generate PDF HTML - Replicates web version style
+ * Generate the report HTML — aligned with the web (jsPDF) layout and content.
  */
 const generatePDFHTML = (scanData, type) => {
-  const riskScore = getRiskScore(scanData.prediction || scanData.overallPrediction);
-  const riskInfo = getRiskInfo(riskScore);
-  
-  const riskClass = riskScore > 70 ? 'risk-high' : riskScore > 30 ? 'risk-medium' : 'risk-low';
-  const badgeClass = riskScore > 70 ? 'badge-high' : riskScore > 30 ? 'badge-medium' : 'badge-low';
+  const prediction = scanData.prediction || scanData.overallPrediction || 'UNKNOWN';
+  const isMessage = type === 'message';
 
-  let html = `
-    <!DOCTYPE html>
+  // Determine badge color based on prediction
+  const getBadgeClass = (pred) => {
+    const upperPred = String(pred).toUpperCase().trim();
+    if (['PHISHING', 'DANGEROUS', 'MALICIOUS', 'SCAM'].includes(upperPred)) {
+      return 'badge-high';
+    } else if (['SUSPICIOUS', 'WARNING'].includes(upperPred)) {
+      return 'badge-medium';
+    } else if (['SAFE', 'LEGITIMATE'].includes(upperPred)) {
+      return 'badge-low';
+    }
+    return 'badge-medium';
+  };
+
+  const badgeClass = getBadgeClass(prediction);
+
+  // Extract phishing and legitimate reasons - check all possible locations
+  // This is critical - we need to look in multiple places
+  let phishingReasons = [];
+  let legitimateReasons = [];
+  let urlsFound = [];
+  let urlResults = [];
+
+  // Try to get data from various possible locations
+  if (scanData._raw) {
+    // If we have raw data, extract from there
+    phishingReasons = scanData._raw.phishingReasons || 
+                      scanData._raw.messagePhishingReasons || 
+                      scanData.phishingReasons || 
+                      scanData.messagePhishingReasons || 
+                      [];
+    
+    legitimateReasons = scanData._raw.legitimateReasons || 
+                        scanData._raw.messageLegitimateReasons || 
+                        scanData.legitimateReasons || 
+                        scanData.messageLegitimateReasons || 
+                        [];
+    
+    urlsFound = scanData._raw.urlsFound || scanData.urlsFound || [];
+    urlResults = scanData._raw.urlResults || scanData.urlResults || [];
+  } else {
+    // Direct properties
+    phishingReasons = scanData.phishingReasons || scanData.messagePhishingReasons || [];
+    legitimateReasons = scanData.legitimateReasons || scanData.messageLegitimateReasons || [];
+    urlsFound = scanData.urlsFound || [];
+    urlResults = scanData.urlResults || [];
+  }
+
+  // If still empty, try to get from the conclusion text (fallback)
+  if (phishingReasons.length === 0 && scanData.conclusion) {
+    // Try to extract indicators from conclusion if available
+    const conclusion = scanData.conclusion || '';
+    const phishingMatch = conclusion.match(/phishing influence score was ([-\d.]+)/i);
+    const legitimateMatch = conclusion.match(/legitimate influence score was ([-\d.]+)/i);
+    
+    if (phishingMatch || legitimateMatch) {
+      // Add extracted info as reasons
+      if (phishingMatch) {
+        phishingReasons.push(`Phishing influence score: ${phishingMatch[1]}`);
+      }
+      if (legitimateMatch) {
+        legitimateReasons.push(`Legitimate influence score: ${legitimateMatch[1]}`);
+      }
+    }
+  }
+
+  console.log('[PDF] Final Phishing Reasons:', phishingReasons);
+  console.log('[PDF] Final Legitimate Reasons:', legitimateReasons);
+
+  // A message scan sometimes stored the message text into `url`
+  const showUrl = Boolean(scanData.url) && scanData.url !== scanData.message;
+  const showMessage = Boolean(scanData.message);
+  const scanTypeLabel = isMessage ? 'Message Scan' : 'URL Scan';
+
+  const indicatorTitle = isMessage ? 'MESSAGE PHISHING INDICATORS' : 'PHISHING INDICATORS';
+  const legitTitle = isMessage ? 'MESSAGE LEGITIMATE INDICATORS' : 'LEGITIMATE INDICATORS';
+
+  const reference = scanData.reference || 'N/A';
+  const generatedAt = new Date().toLocaleString();
+
+  let html = `<!DOCTYPE html>
     <html>
     <head>
       <meta charset="UTF-8">
@@ -112,273 +223,186 @@ const generatePDFHTML = (scanData, type) => {
       <style>
         /* ===== RESET ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, Helvetica, sans-serif; 
-          padding: 20px; 
-          max-width: 1000px; 
-          margin: 0 auto; 
-          background: #f1f5f9; 
+        html, body {
+          background: #ffffff;
           color: #1e293b;
+          font-family: Helvetica, Arial, sans-serif;
         }
-        .container { 
-          background: white; 
-          padding: 40px; 
-          border-radius: 16px; 
-          box-shadow: 0 4px 24px rgba(0,0,0,0.08); 
-        }
-        
-        /* ===== HEADER ===== */
-        .header { 
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-          color: white; 
-          padding: 32px 28px; 
-          border-radius: 12px; 
-          margin-bottom: 28px; 
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 12px;
-        }
-        .header-left {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-        .header-icon {
-          width: 48px;
-          height: 48px;
-          background: rgba(255,255,255,0.2);
+        body { padding: 24px; }
+        .container {
+          max-width: 100%;
+          width: 100%;
+          background: white;
+          padding: 20px;
+          border: 1px solid #e2e8f0;
           border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 24px;
         }
-        .header h1 { 
-          margin: 0; 
-          font-size: 24px; 
-          font-weight: 700;
-          letter-spacing: 0.5px;
+
+        /* ===== HEADER ===== */
+        .header {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 24px 20px;
+          border-radius: 10px;
+          margin-bottom: 20px;
+        }
+        .header-title {
+          font-size: 22px;
+          font-weight: 800;
+          letter-spacing: 1px;
         }
         .header-subtitle {
           font-size: 12px;
-          opacity: 0.8;
-          margin-top: 2px;
-        }
-        .header-right {
-          text-align: right;
-          font-size: 11px;
           opacity: 0.85;
-          line-height: 1.6;
+          margin-top: 3px;
         }
-        
+        .header-meta {
+          margin-top: 12px;
+          font-size: 11px;
+          line-height: 1.7;
+          opacity: 0.9;
+        }
+
         /* ===== SECTIONS ===== */
-        .section { 
-          margin: 20px 0; 
-          padding: 20px 24px; 
-          border: 1px solid #e2e8f0; 
-          border-radius: 12px; 
+        .section {
+          margin: 14px 0;
+          padding: 14px 16px;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
           background: #fafbfc;
+          page-break-inside: avoid;
+          break-inside: avoid;
         }
-        .section h2 { 
-          color: #1e293b; 
-          margin-top: 0; 
-          font-size: 17px; 
+        .section h2 {
+          color: #1e293b;
+          font-size: 15px;
           font-weight: 700;
-          border-bottom: 2px solid #e2e8f0; 
-          padding-bottom: 12px; 
-          margin-bottom: 16px; 
-          display: flex;
-          align-items: center;
-          gap: 8px;
+          padding-bottom: 10px;
+          border-bottom: 2px solid #e2e8f0;
+          margin-bottom: 12px;
         }
-        .section h2 span {
-          font-size: 20px;
-        }
-        
+
         /* ===== FIELDS ===== */
-        .field { 
-          display: flex; 
-          justify-content: space-between; 
-          padding: 10px 0; 
-          border-bottom: 1px solid #f1f5f9; 
+        .field {
+          display: flex;
+          justify-content: space-between;
           align-items: flex-start;
+          padding: 8px 0;
+          border-bottom: 1px solid #f1f5f9;
         }
         .field:last-child { border-bottom: none; }
-        .label { 
-          color: #64748b; 
-          font-weight: 500; 
-          font-size: 14px;
+        .label {
+          color: #64748b;
+          font-weight: 600;
+          font-size: 13px;
           flex-shrink: 0;
           min-width: 120px;
         }
-        .value { 
-          font-weight: 600; 
-          color: #1e293b; 
-          word-break: break-all; 
+        .value {
+          font-weight: 600;
+          color: #1e293b;
+          word-break: break-all;
           text-align: right;
-          font-size: 14px;
+          font-size: 13px;
           flex: 1;
-          margin-left: 16px;
+          margin-left: 14px;
         }
-        
-        /* ===== RISK BOX ===== */
-        .risk-box { 
-          padding: 16px 20px; 
-          border-radius: 10px; 
-          margin: 14px 0 0; 
-          text-align: center; 
-          font-weight: 600; 
-          font-size: 16px; 
-          line-height: 1.6;
-        }
-        .risk-high { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
-        .risk-medium { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
-        .risk-low { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; }
-        
+
         /* ===== BADGES ===== */
-        .badge { 
-          display: inline-block; 
-          padding: 4px 14px; 
-          border-radius: 100px; 
-          font-size: 12px; 
-          font-weight: 600; 
+        .badge {
+          display: inline-block;
+          padding: 3px 12px;
+          border-radius: 100px;
+          font-size: 11px;
+          font-weight: 600;
         }
         .badge-high { background: #fef2f2; color: #dc2626; }
         .badge-medium { background: #fffbeb; color: #d97706; }
         .badge-low { background: #f0fdf4; color: #16a34a; }
-        
-        /* ===== PROGRESS BAR ===== */
-        .progress-container {
-          margin: 12px 0 6px;
-        }
-        .progress-bar { 
-          width: 100%; 
-          height: 8px; 
-          background: #f1f5f9; 
-          border-radius: 4px; 
-          overflow: hidden; 
-        }
-        .progress-fill { 
-          height: 100%; 
-          border-radius: 4px; 
-          background: ${riskInfo.color}; 
-          width: ${Math.min(riskScore, 100)}%; 
-          transition: width 0.8s ease;
-        }
-        .progress-labels {
-          display: flex;
-          justify-content: space-between;
-          font-size: 10px;
-          color: #94a3b8;
-          margin-top: 4px;
-        }
-        
-        /* ===== RISK SCORE DISPLAY ===== */
-        .risk-score-row {
-          display: flex;
-          align-items: baseline;
-          gap: 16px;
-          margin: 4px 0 8px;
-          flex-wrap: wrap;
-        }
-        .risk-score-value {
-          font-size: 44px;
-          font-weight: 800;
-          line-height: 1;
-        }
-        .risk-score-label {
-          font-size: 18px;
-          font-weight: 600;
-        }
-        
+
         /* ===== LISTS ===== */
-        ul { 
-          padding-left: 24px; 
-          color: #475569; 
-          line-height: 1.9; 
+        ul {
+          padding-left: 20px;
+          color: #475569;
+          line-height: 1.8;
           margin: 4px 0;
         }
-        li { margin-bottom: 4px; font-size: 14px; }
-        
-        /* ===== MESSAGE CONTENT ===== */
+        li { margin-bottom: 3px; font-size: 13px; }
+
+        /* ===== MESSAGE / URL BOXES ===== */
         .message-content {
           background: #f8fafc;
-          padding: 16px;
-          border-radius: 10px;
-          border-left: 4px solid ${riskInfo.color};
+          padding: 12px;
+          border-radius: 8px;
+          border-left: 4px solid #667eea;
           font-style: italic;
-          font-size: 14px;
-          line-height: 1.7;
+          font-size: 13px;
+          line-height: 1.6;
           color: #334155;
           margin-top: 4px;
         }
-        
-        /* ===== URL ITEMS ===== */
         .url-item {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 10px 14px;
+          padding: 8px 10px;
           background: white;
-          border-radius: 8px;
+          border-radius: 6px;
           border: 1px solid #e2e8f0;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
         }
-        .url-item:last-child { margin-bottom: 0; }
         .url-text {
           font-family: monospace;
-          font-size: 13px;
+          font-size: 12px;
           word-break: break-all;
           flex: 1;
         }
         .url-pred {
-          padding: 2px 12px;
+          padding: 2px 10px;
           border-radius: 100px;
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 600;
-          margin-left: 12px;
+          margin-left: 10px;
           flex-shrink: 0;
         }
         .url-pred-safe { background: #dcfce7; color: #16a34a; }
         .url-pred-phishing { background: #fee2e2; color: #dc2626; }
         .url-pred-unknown { background: #f1f5f9; color: #64748b; }
-        
+
+        /* ===== RECOMMENDATION BOX ===== */
+        .recommendation-box {
+          padding: 12px 16px;
+          border-radius: 8px;
+          margin: 10px 0 0;
+          font-weight: 600;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+        .recommendation-high { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+        .recommendation-medium { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
+        .recommendation-low { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; }
+
         /* ===== FOOTER ===== */
-        .footer { 
-          text-align: center; 
-          margin-top: 32px; 
-          padding-top: 20px; 
-          border-top: 1px solid #e2e8f0; 
-          color: #94a3b8; 
-          font-size: 12px; 
+        .footer {
+          text-align: center;
+          margin-top: 24px;
+          padding-top: 16px;
+          border-top: 1px solid #e2e8f0;
+          color: #94a3b8;
+          font-size: 11px;
           line-height: 1.8;
         }
-        .footer span {
-          color: #667eea;
-          font-weight: 600;
+        .footer strong { color: #667eea; font-weight: 700; }
+
+        @page {
+          size: 210mm 297mm;
+          margin: 10mm;
         }
-        
-        /* ===== RESPONSIVE ===== */
+
         @media print {
-          body { padding: 12px; background: white; }
-          .container { box-shadow: none; padding: 24px; }
-          .section { break-inside: avoid; }
-        }
-        @media (max-width: 600px) {
-          body { padding: 12px; }
-          .container { padding: 16px; }
-          .header { flex-direction: column; text-align: center; }
-          .header-right { text-align: center; }
-          .header-left { flex-direction: column; }
-          .field { flex-direction: column; gap: 4px; align-items: flex-start; }
-          .value { text-align: left; margin-left: 0; max-width: 100%; }
-          .risk-score-row { flex-wrap: wrap; }
-          .risk-score-value { font-size: 32px; }
-          .section { padding: 16px; }
-          .url-item { flex-direction: column; gap: 6px; align-items: flex-start; }
-          .url-pred { margin-left: 0; }
+          body { padding: 0; background: white; }
+          .container { border: none; padding: 0; }
+          .section, .url-item { break-inside: avoid; }
         }
       </style>
     </head>
@@ -386,176 +410,81 @@ const generatePDFHTML = (scanData, type) => {
       <div class="container">
         <!-- HEADER -->
         <div class="header">
-          <div class="header-left">
-            <div class="header-icon">🛡️</div>
-            <div>
-              <h1>SECURESHIELD</h1>
-              <div class="header-subtitle">AI-Powered Security Report</div>
-            </div>
-          </div>
-          <div class="header-right">
-            <div>Report ID: ${scanData.reference || 'N/A'}</div>
-            <div>Generated: ${new Date().toLocaleString()}</div>
+          <div class="header-title">SECURESHIELD</div>
+          <div class="header-subtitle">AI-Powered Security Report</div>
+          <div class="header-meta">
+            Report ID: ${escapeHtml(reference)}<br />
+            Generated: ${escapeHtml(generatedAt)}
           </div>
         </div>
-  `;
 
-  // ============================================================
-  // SCAN SUMMARY
-  // ============================================================
-  html += `
-    <div class="section">
-      <h2><span>📊</span> SCAN SUMMARY</h2>
-      <div class="field">
-        <span class="label">Scan Type:</span>
-        <span class="value">${type === 'url' ? 'URL Scan' : 'Message Scan'}</span>
-      </div>
-      <div class="field">
-        <span class="label">Classification:</span>
-        <span class="value"><span class="badge ${badgeClass}">${scanData.prediction || scanData.overallPrediction || 'Unknown'}</span></span>
-      </div>
-      <div class="field">
-        <span class="label">Risk Score:</span>
-        <span class="value" style="color: ${riskInfo.color}; font-size: 20px; font-weight: 800;">${riskScore}%</span>
-      </div>
-      <div class="risk-score-row">
-        <span class="risk-score-value" style="color: ${riskInfo.color};">${riskScore}%</span>
-        <span class="risk-score-label" style="color: ${riskInfo.color};">${riskInfo.label}</span>
-      </div>
-      <div class="progress-container">
-        <div class="progress-bar">
-          <div class="progress-fill"></div>
+        <!-- SCAN SUMMARY -->
+        <div class="section">
+          <h2>SCAN SUMMARY</h2>
+          <div class="field">
+            <span class="label">Scan Type:</span>
+            <span class="value">${escapeHtml(scanTypeLabel)}</span>
+          </div>
+          <div class="field">
+            <span class="label">Classification:</span>
+            <span class="value"><span class="badge ${badgeClass}">${escapeHtml(prediction)}</span></span>
+          </div>
+          ${scanData.reference ? `<div class="field"><span class="label">Reference:</span><span class="value" style="font-family: monospace;">${escapeHtml(reference)}</span></div>` : ''}
+          ${showUrl ? `<div class="field"><span class="label">URL:</span><span class="value" style="font-family: monospace; font-size: 12px;">${escapeHtml(scanData.url)}</span></div>` : ''}
+          ${showMessage ? `<div class="field"><span class="label">Message:</span><span class="value" style="font-family: monospace; font-size: 12px;">${escapeHtml(scanData.message)}</span></div>` : ''}
+          ${scanData.overallPrediction ? `<div class="field"><span class="label">Overall Prediction:</span><span class="value"><span class="badge ${badgeClass}">${escapeHtml(scanData.overallPrediction)}</span></span></div>` : ''}
+          ${scanData.messagePrediction ? `<div class="field"><span class="label">Message Prediction:</span><span class="value"><span class="badge ${badgeClass}">${escapeHtml(scanData.messagePrediction)}</span></span></div>` : ''}
+          ${scanData.scannedAt ? `<div class="field"><span class="label">Scanned At:</span><span class="value">${escapeHtml(new Date(scanData.scannedAt).toLocaleString())}</span></div>` : ''}
         </div>
-        <div class="progress-labels">
-          <span>Low Risk (0%)</span>
-          <span>Medium (50%)</span>
-          <span>High Risk (100%)</span>
-        </div>
-      </div>
-      <div class="field">
-        <span class="label">Risk Level:</span>
-        <span class="value"><span class="badge ${badgeClass}">${riskInfo.label}</span></span>
-      </div>
-    </div>
   `;
 
   // ============================================================
-  // SCAN DETAILS
+  // PHISHING INDICATORS - ALWAYS SHOW IF AVAILABLE
   // ============================================================
-  html += `
-    <div class="section">
-      <h2><span>📋</span> SCAN DETAILS</h2>
-  `;
-  
-  if (scanData.url) {
-    html += `
-      <div class="field">
-        <span class="label">URL:</span>
-        <span class="value" style="font-family: monospace; font-size: 13px;">${scanData.url}</span>
-      </div>
-    `;
-  }
-  if (scanData.message) {
-    html += `
-      <div class="field">
-        <span class="label">Message:</span>
-        <span class="value" style="font-family: monospace; font-size: 13px;">${scanData.message}</span>
-      </div>
-    `;
-  }
-  if (scanData.overallPrediction) {
-    html += `
-      <div class="field">
-        <span class="label">Overall Prediction:</span>
-        <span class="value"><span class="badge ${badgeClass}">${scanData.overallPrediction}</span></span>
-      </div>
-    `;
-  }
-  if (scanData.messagePrediction) {
-    html += `
-      <div class="field">
-        <span class="label">Message Prediction:</span>
-        <span class="value"><span class="badge ${badgeClass}">${scanData.messagePrediction}</span></span>
-      </div>
-    `;
-  }
-  if (scanData.scannedAt) {
-    html += `
-      <div class="field">
-        <span class="label">Scanned At:</span>
-        <span class="value">${new Date(scanData.scannedAt).toLocaleString()}</span>
-      </div>
-    `;
-  }
-  
-  html += `</div>`;
-
-  // ============================================================
-  // MESSAGE PHISHING REASONS
-  // ============================================================
-  const messagePhishing = scanData.messagePhishingReasons || [];
-  if (messagePhishing.length > 0) {
+  if (phishingReasons && phishingReasons.length > 0) {
     html += `
       <div class="section" style="border-color: #fca5a5; background: #fef2f2;">
-        <h2><span>🚨</span> MESSAGE PHISHING INDICATORS</h2>
+        <h2>${escapeHtml(indicatorTitle)}</h2>
         <ul>
     `;
-    messagePhishing.forEach(reason => {
-      html += `<li>${reason}</li>`;
+    phishingReasons.forEach((reason) => {
+      html += `<li>${escapeHtml(reason)}</li>`;
     });
     html += `</ul></div>`;
   }
 
   // ============================================================
-  // URL PHISHING REASONS
+  // LEGITIMATE INDICATORS - ALWAYS SHOW IF AVAILABLE
   // ============================================================
-  const phishingReasons = scanData.phishingReasons || [];
-  if (phishingReasons.length > 0) {
-    html += `
-      <div class="section" style="border-color: #fca5a5; background: #fef2f2;">
-        <h2><span>🚨</span> PHISHING INDICATORS</h2>
-        <ul>
-    `;
-    phishingReasons.forEach(reason => {
-      html += `<li>${reason}</li>`;
-    });
-    html += `</ul></div>`;
-  }
-
-  // ============================================================
-  // LEGITIMATE REASONS
-  // ============================================================
-  const legitimateReasons = scanData.legitimateReasons || scanData.messageLegitimateReasons || [];
-  if (legitimateReasons.length > 0) {
+  if (legitimateReasons && legitimateReasons.length > 0) {
     html += `
       <div class="section" style="border-color: #86efac; background: #f0fdf4;">
-        <h2><span>✅</span> LEGITIMATE INDICATORS</h2>
+        <h2>${escapeHtml(legitTitle)}</h2>
         <ul>
     `;
-    legitimateReasons.forEach(reason => {
-      html += `<li>${reason}</li>`;
+    legitimateReasons.forEach((reason) => {
+      html += `<li>${escapeHtml(reason)}</li>`;
     });
     html += `</ul></div>`;
   }
 
   // ============================================================
-  // URLS FOUND (for message scans)
+  // URLS FOUND IN MESSAGE (message scans only)
   // ============================================================
-  const urlsFound = scanData.urlsFound || [];
-  if (urlsFound.length > 0) {
+  if (isMessage && urlsFound && urlsFound.length > 0) {
     html += `
       <div class="section" style="border-color: #fcd34d; background: #fffbeb;">
-        <h2><span>🔗</span> URLS FOUND IN MESSAGE</h2>
+        <h2>URLS FOUND IN MESSAGE</h2>
     `;
     urlsFound.forEach((url, index) => {
-      const result = scanData.urlResults?.[index];
-      const predClass = result?.prediction === 'LEGITIMATE' ? 'url-pred-safe' 
-        : result?.prediction === 'PHISHING' ? 'url-pred-phishing' 
+      const result = urlResults && urlResults[index];
+      const predClass = result?.prediction === 'LEGITIMATE' ? 'url-pred-safe'
+        : result?.prediction === 'PHISHING' ? 'url-pred-phishing'
         : 'url-pred-unknown';
       html += `
         <div class="url-item">
-          <span class="url-text">${url}</span>
-          <span class="url-pred ${predClass}">${result?.prediction || 'UNKNOWN'}</span>
+          <span class="url-text">${escapeHtml(url)}</span>
+          <span class="url-pred ${predClass}">${escapeHtml(result?.prediction || 'UNKNOWN')}</span>
         </div>
       `;
     });
@@ -563,45 +492,44 @@ const generatePDFHTML = (scanData, type) => {
   }
 
   // ============================================================
-  // CONCLUSION
+  // ANALYSIS CONCLUSION - ALWAYS SHOW
   // ============================================================
-  if (scanData.conclusion) {
-    html += `
-      <div class="section">
-        <h2><span>📝</span> ANALYSIS CONCLUSION</h2>
-        <p style="line-height: 1.8; color: #475569; font-size: 14px;">${scanData.conclusion}</p>
-      </div>
-    `;
-  }
+  const conclusionText = scanData.conclusion || scanData.explanation || 'Analysis completed.';
+  html += `
+    <div class="section">
+      <h2>ANALYSIS CONCLUSION</h2>
+      <p style="line-height: 1.7; color: #475569; font-size: 13px;">${escapeHtml(conclusionText)}</p>
+    </div>
+  `;
 
   // ============================================================
   // SECURITY RECOMMENDATION
   // ============================================================
+  const upperPred = String(prediction).toUpperCase().trim();
   let recommendationText = '';
-  if (riskScore > 70) {
-    if (type === 'message') {
-      recommendationText = '🚫 DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier.';
-    } else {
-      recommendationText = '🚫 DO NOT proceed to this website. Report this URL to security authorities immediately. This is a confirmed phishing attempt designed to steal your credentials.';
-    }
-  } else if (riskScore > 30) {
-    if (type === 'message') {
-      recommendationText = '⚠️ Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels.';
-    } else {
-      recommendationText = '⚠️ Exercise extreme caution. Verify the website\'s authenticity through official channels before entering any personal information or credentials.';
-    }
+  let recClass = 'recommendation-low';
+
+  if (['PHISHING', 'DANGEROUS', 'MALICIOUS', 'SCAM'].includes(upperPred)) {
+    recClass = 'recommendation-high';
+    recommendationText = isMessage
+      ? 'DO NOT engage with this message. Block the sender immediately. Never click links, reply, or call any numbers provided. Report this as spam to your carrier.'
+      : 'DO NOT proceed to this website. Report this URL to security authorities immediately. This is a confirmed phishing attempt designed to steal your credentials.';
+  } else if (['SUSPICIOUS', 'WARNING'].includes(upperPred)) {
+    recClass = 'recommendation-medium';
+    recommendationText = isMessage
+      ? 'Be cautious. Do not share personal information, click suspicious links, or call unknown numbers. Verify the sender through official channels.'
+      : 'Exercise extreme caution. Verify the website\'s authenticity through official channels before entering any personal information or credentials.';
   } else {
-    if (type === 'message') {
-      recommendationText = '✓ This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.';
-    } else {
-      recommendationText = '✓ You can safely proceed. However, always verify the URL matches the official website before entering sensitive information.';
-    }
+    recClass = 'recommendation-low';
+    recommendationText = isMessage
+      ? 'This message appears safe. However, always verify unexpected requests, especially those asking for personal information or money transfers.'
+      : 'You can safely proceed. However, always verify the URL matches the official website before entering sensitive information.';
   }
 
   html += `
-    <div class="section" style="border-color: ${riskInfo.color}40; background: ${riskScore > 70 ? '#fef2f2' : riskScore > 30 ? '#fffbeb' : '#f0fdf4'};">
-      <h2><span>🛡️</span> SECURITY RECOMMENDATION</h2>
-      <div class="risk-box ${riskClass}">${recommendationText}</div>
+    <div class="section" style="border-color: ${recClass === 'recommendation-high' ? '#fca5a5' : recClass === 'recommendation-medium' ? '#fcd34d' : '#86efac'}; background: ${recClass === 'recommendation-high' ? '#fef2f2' : recClass === 'recommendation-medium' ? '#fffbeb' : '#f0fdf4'};">
+      <h2>SECURITY RECOMMENDATION</h2>
+      <div class="recommendation-box ${recClass}">${escapeHtml(recommendationText)}</div>
     </div>
   `;
 
@@ -610,9 +538,8 @@ const generatePDFHTML = (scanData, type) => {
   // ============================================================
   html += `
         <div class="footer">
-          <p>Generated by <span>SecureShield</span> Security System</p>
-          <p>© ${new Date().getFullYear()} SecureShield • All Rights Reserved</p>
-          <p style="font-size: 10px; color: #cbd5e1; margin-top: 6px;">This is an automated security report. Please verify information independently.</p>
+          <p>Generated by <strong>SecureShield</strong> Security System</p>
+          <p>&copy; ${new Date().getFullYear()} SecureShield &bull; All Rights Reserved</p>
         </div>
       </div>
     </body>
@@ -620,53 +547,6 @@ const generatePDFHTML = (scanData, type) => {
   `;
 
   return html;
-};
-
-/**
- * Get risk score based on prediction
- */
-const getRiskScore = (prediction) => {
-  if (!prediction) return 50;
-  switch (prediction.toUpperCase()) {
-    case 'PHISHING':
-    case 'DANGEROUS':
-    case 'MALICIOUS':
-      return 85;
-    case 'SCAM':
-    case 'SUSPICIOUS':
-    case 'WARNING':
-      return 55;
-    case 'SAFE':
-    case 'LEGITIMATE':
-      return 15;
-    default:
-      return 50;
-  }
-};
-
-/**
- * Get risk info based on score
- */
-const getRiskInfo = (score) => {
-  if (score > 70) {
-    return {
-      label: 'HIGH RISK',
-      color: '#dc2626',
-      message: '🚫 HIGH RISK: This is a confirmed threat! Do not proceed.'
-    };
-  } else if (score > 30) {
-    return {
-      label: 'MEDIUM RISK',
-      color: '#d97706',
-      message: '⚠️ MEDIUM RISK: This shows suspicious characteristics. Exercise caution.'
-    };
-  } else {
-    return {
-      label: 'LOW RISK',
-      color: '#16a34a',
-      message: '✅ LOW RISK: This appears to be safe. Always remain vigilant.'
-    };
-  }
 };
 
 export default { downloadPDF };
