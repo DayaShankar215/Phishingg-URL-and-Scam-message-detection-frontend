@@ -1,313 +1,391 @@
-# SecureShield / PhishGuard — Project Guide
+﻿# SecureShield / PhishGuard — Project Guide
 
-## Overview
-
-SecureShield (also referred to as PhishGuard) is an **AI-powered phishing URL and scam message detection** application available as both a **web app** (React + Vite) and a **mobile app** (React Native + Expo). Users can scan URLs and text messages for malicious content, view dashboard analytics, track scan history, download PDF reports, and submit feedback to improve detection accuracy.
-
-The project contains only **frontend clients**. The backend ML service is a separate Java Spring Boot application (not included in this repository).
+> Updated for the current codebase (Aug 2026). This document describes everything about the
+> repository: overview, architecture, structure, tech stack, features, API, PDF reports,
+> scanning rules, conventions, setup, and build/verification steps.
 
 ---
 
-## Architecture
+## 1. Overview
 
-```
-┌─────────────────────────────────────────────┐
-│            Frontend Clients                  │
-│                                             │
-│  ┌─────────────────┐  ┌──────────────────┐  │
-│  │  Web App        │  │  Mobile App      │  │
-│  │  React + Vite   │  │  React Native    │  │
-│  │  localhost:5173 │  │  Expo managed    │  │
-│  └────────┬────────┘  └───────┬──────────┘  │
-│           │                   │              │
-└───────────┼───────────────────┼──────────────┘
-            │                   │
-            ▼                   ▼
-    ┌───────────────────────────────┐
-    │     Backend API (Spring Boot) │
-    │     http://localhost:8080/api  │
-    │     http://192.168.1.80/api   │
-    └───────────────────────────────┘
-```
+SecureShield (also shown as **PhishGuard** in some places) is an **AI-powered phishing detection &
+scam message scanner** available as a **web app** and a **mobile app**. Users can:
 
----
+- Scan a **URL** for phishing indicators.
+- Scan a **message** for scam content and embedded phishing links.
+- View **dashboard analytics**.
+- Manage **scan history** (search, filter, details, delete) and **download PDF reports**.
+- Submit **feedback** and an **accuracy vote** per scan.
+- Register/login, update the profile, and change the password.
+- Use the app in **guest mode** (scans kept in memory; sign-in required for history/PDF).
 
-## Tech Stack
+The repository currently contains **only the two client applications**. The backend (Spring Boot ML
+service) is a separate project, not included here.
 
-### Web App (`phishing-detection-frontend/`)
-
-| Dependency | Version | Purpose |
+| Folder | Type | Stack |
 |---|---|---|
-| React | ^18.2.0 | UI framework |
-| Vite | ^4.4.5 | Build tool & dev server |
-| React Router DOM | ^6.14.0 | Client-side routing |
-| Axios | ^1.4.0 | HTTP client |
-| Recharts | ^2.7.0 | Charts (area, pie, line) |
-| jsPDF + jspdf-autotable | ^2.5.1 | PDF report generation |
-| react-hot-toast | ^2.6.0 | Toast notifications |
-| react-icons | ^4.12.0 | Icon library |
-| react-loader-spinner | ^5.3.4 | Loading animations |
-| date-fns | ^2.30.0 | Date formatting |
-
-### Mobile App (`PhishGuardMobile/`)
-
-| Dependency | Version | Purpose |
-|---|---|---|
-| React Native | 0.74.5 | Mobile UI framework |
-| Expo | ~51.0.0 | Managed workflow & tooling |
-| React Navigation | 6.x | Navigation (bottom tabs, stacks) |
-| Axios | ^1.6.0 | HTTP client |
-| AsyncStorage | 1.23.1 | Persistent local storage (theme) |
-| @expo/vector-icons | ^14.0.3 | Icons (Ionicons) |
-| expo-font / expo-asset | ~12.x / ~10.x | Font and asset loading |
+| `phishing-detection-frontend/` | Web app | React 18 + Vite |
+| `PhishGuardMobile/` | Mobile app (Android/iOS/web) | React Native 0.86 + Expo SDK 57 |
 
 ---
 
-## Directory Structure
+## 2. Repository Structure
 
 ```
 .
-├── phishing-detection-frontend/   # Web React app
-│   ├── index.html                 # SPA entry point
-│   ├── vite.config.js             # Vite configuration
-│   ├── package.json               # Dependencies & scripts
-│   ├── public/                    # Static assets
-│   └── src/
-│       ├── main.jsx               # React entry point
-│       ├── App.jsx                # Root component (routing, theme, layout)
-│       ├── pages/
-│       │   ├── Dashboard.jsx      # Stats, charts, recent scans
-│       │   ├── URLScanner.jsx     # URL scanning page
-│       │   ├── MessageScanner.jsx # Message scanning page
-│       │   └── History.jsx        # Scan history list & details
-│       ├── components/
-│       │   ├── common/
-│       │   │   ├── Navbar.jsx     # Top navigation bar
-│       │   │   ├── Footer.jsx     # Site footer
-│       │   │   ├── ThemeToggle.jsx # Light/Dark/System toggle
-│       │   │   ├── RiskBadge.jsx  # Risk level badge
-│       │   │   ├── LoadingSpinner.jsx # Loading indicator
-│       │   │   └── ErrorBoundary.jsx # Error boundary component (fully implemented)
-│       │   ├── dashboard/
-│       │   │   ├── StatCard.jsx   # Stats display card
-│       │   │   ├── TrendChart.jsx # Detection trends line chart
-│       │   │   └── RecentScansTable.jsx # Recent scans table
-│       │   └── scanner/
-│       │       ├── URLInput.jsx      # Placeholder
-│       │       ├── MessageInput.jsx  # Placeholder
-│       │       └── ResultCard.jsx    # Placeholder
-│       ├── services/
-│       │   ├── api.js             # Axios API client
-│       │   └── pdfGenerator.js    # PDF report generation (jsPDF)
-│       ├── context/
-│       │   └── ThemeContext.jsx   # Theme provider (light/dark/system)
-│       ├── hooks/
-│       │   ├── useScan.js         # Placeholder
-│       │   └── useHistory.js      # Placeholder
-│       ├── utils/
-│       │   ├── constants.js       # Risk thresholds, endpoints, messages
-│       │   ├── validators.js      # URL & message validation
-│       │   └── formatters.js      # Date, score, risk level formatters
-│       └── styles/
-│           ├── theme.js           # Light & dark theme objects
-│           ├── globals.css        # Design system CSS variables
-│           ├── components.css     # Component-level styles
-│           └── mobile.css         # Responsive breakpoints
+├── package-lock.json                # Root lockfile
+├── guide.md                         # This document
 │
-└── PhishGuardMobile/              # Mobile React Native app
-    ├── App.js                     # Root component (navigation, theme)
-    ├── app.json                   # Expo configuration
-    ├── package.json               # Dependencies & scripts
-    ├── eas.json                   # EAS Build config
-    ├── babel.config.js            # Babel config
-    ├── generate-assets.js         # Icon/splash asset generator
-    ├── AGENTS.md                  # AI assistant notes
+├── phishing-detection-frontend/     # ── WEB APP ───────────────────────────
+│   ├── index.html                   # SPA entry
+│   ├── vite.config.js               # Vite config + /api dev proxy
+│   ├── package.json
+│   ├── public/
+│   └── src/
+│       ├── main.jsx                 # React entry
+│       ├── App.jsx                  # Providers + Router + Layout + Toaster
+│       ├── pages/
+│       │   ├── Dashboard.jsx        # Stats, charts, recent scans
+│       │   ├── URLScanner.jsx       # URL scanning
+│       │   ├── MessageScanner.jsx   # Message scanning
+│       │   ├── History.jsx          # History table, details, delete, PDF
+│       │   └── Profile.jsx          # Profile + change password
+│       ├── components/
+│       │   ├── common/AuthModal.jsx, Navbar.jsx, Footer.jsx,
+│       │   │        ThemeToggle.jsx, RiskBadge.jsx, LoadingSpinner.jsx,
+│       │   │        ErrorBoundary.jsx, ProtectedRoute.jsx
+│       │   ├── dashboard/StatCard.jsx, TrendChart.jsx, RecentScansTable.jsx
+│       │   └── scanner/URLInput.jsx, MessageInput.jsx, ResultCard.jsx  # light placeholders
+│       ├── services/
+│       │   ├── api.js               # Axios client, interceptors, endpoints
+│       │   └── pdfGenerator.js      # jsPDF report generation
+│       ├── context/
+│       │   ├── AuthContext.jsx      # Auth state, token in localStorage
+│       │   ├── GuestContext.jsx     # Guest scans (in-memory)
+│       │   └── ThemeContext.jsx     # Light/Dark/System
+│       ├── hooks/useScan.js, useHistory.js, useGuestSession.js
+│       ├── utils/constants.js, formatters.js, validators.js
+│       └── styles/theme.js
+│
+└── PhishGuardMobile/                # ── MOBILE APP ─────────────────────────
+    ├── App.js                       # Navigation (tabs + stack), providers
+    ├── app.json                     # Expo config (ids, splash, apiUrl)
+    ├── eas.json                     # EAS Build profiles
+    ├── babel.config.js, metro.config.js
+    ├── index.js, generate-assets.js
+    ├── AGENTS.md, CLAUDE.md         # AI-assistant notes
+    ├── android/                     # Generated native android project
+    ├── LICENSE
     └── src/
         ├── screens/
-        │   ├── DashboardScreen.jsx    # Stats, CTA buttons, recent scans
-        │   ├── URLScannerScreen.jsx   # URL scanning
-        │   ├── MessageScannerScreen.jsx # Message scanning
-        │   └── HistoryScreen.jsx      # Scan history
+        │   ├── DashboardScreen.jsx, URLScannerScreen.jsx,
+        │   ├── MessageScannerScreen.jsx, HistoryScreen.jsx, ProfileScreen.jsx
         ├── components/
-        │   ├── Navbar.jsx         # Slide-in navigation drawer
-        │   ├── ResultCard.jsx     # Scan result display
-        │   ├── RiskBadge.jsx      # Risk level inline badge
-        │   ├── ThemeToggle.jsx    # Modal theme selector
-        │   └── LoadingSpinner.jsx # Centered loading indicator
+        │   ├── Navbar.jsx, ResultCard.jsx, RiskBadge.jsx, ThemeToggle.jsx,
+        │   ├── LoadingSpinner.jsx, AuthModal.jsx, ProtectedRoute.jsx,
+        │   └── ErrorBoundary.jsx, Toaster.jsx
         ├── services/
-        │   └── api.js             # Axios API client
-        ├── context/
-        │   └── ThemeContext.jsx   # Theme provider (AsyncStorage-backed)
-        ├── constants/
-        │   └── colors.js          # Light/dark color palettes
-        └── utils/
-            └── validators.js      # Validation + formatting utilities
+        │   ├── api.js               # Axios client (token in AsyncStorage)
+        │   └── pdfGenerator.js      # expo-print HTML -> PDF
+        ├── context/AuthContext.jsx, GuestContext.jsx, ThemeContext.jsx
+        ├── constants/colors.js      # Light/dark palettes
+        └── utils/validators.js, formatters.js, uuid.js
 ```
 
----
-
-## Key Features
-
-### 1. URL Scanning
-- Input a URL and scan it against ML-based phishing detection
-- Results show: risk score (0–100%), classification, explanation, detailed features (e.g., has HTTPS, contains IP address, special characters, etc.)
-- Risk thresholds: 0–30 Low Risk, 31–70 Medium Risk, 71–100 High Risk
-
-### 2. Message Scanning
-- Input a text message (10–1000 characters) for scam detection
-- Results show: scam risk analysis, red flags detected, extracted embedded URLs, message analysis details
-
-### 3. Dashboard
-- Stats cards: Total Scans, Phishing URLs Found, Scam Messages Detected, Safe Detections
-- Area chart showing weekly detection trends (phishing, scam, safe lines)
-- Pie chart showing threat distribution
-- Recent scans table with type badges, risk bars, and dates
-
-### 4. Scan History
-- Filter by All / URLs / Messages
-- Search across scan content
-- Detailed view modal with full scan results
-- PDF report download per scan
-
-### 5. PDF Reports
-- Generated client-side with jsPDF
-- Includes: scan info table, analysis explanation, features grid, security recommendation
-- Auto-saved as `phishguard_report_<timestamp>.pdf`
-
-### 6. Feedback System
-- After each scan, users can submit feedback:
-  - Star rating (mobile)
-  - Thumbs up / thumbs down (web)
-  - Optional comments
-- Feedback sent to `/api/feedback` to help improve detection models
-
-### 7. Theme Support
-- Light, Dark, and System-preference themes
-- Persisted to localStorage (web) or AsyncStorage (mobile)
-
-### 8. Error Handling
-- Comprehensive error boundaries implemented for both web and mobile apps
-- User-friendly fallback UI with reset functionality
-- Detailed error information available with expandable sections
-- Graceful handling of API failures and unexpected errors
+> The former `phishing-detection-ml-system/` backend reference is **removed** — the ML service is
+> external.
 
 ---
 
-## API Reference
+## 3. Architecture
 
-Both clients communicate with the same backend API. The base URL differs:
+```
+ ┌─────────────────────────────────────────────────────┐
+ │                   Frontend Clients                  │
+ │                                                     │
+ │   phishing-detection-frontend      PhishGuardMobile │
+ │   React + Vite (port 5173)         Expo / React Native │
+ │        │                               │            │
+ └────────┼───────────────────────────────┼────────────┘
+          ▼                               ▼
+   ┌──────────────────────────────────────────────┐
+   │       Backend REST API (Spring Boot)         │
+   │   https://mud-cable-passerby.ngrok-free.dev    │
+   │   endpoints: /auth /scans /dashboard /feedback │
+   └──────────────────────────────────────────────┘
+```
 
-- **Web**: `http://localhost:8080/api`
-- **Mobile**: `http://192.168.1.80/api` (change to your server's IP)
+- **Web client**: Bearer token from `localStorage`; sends `ngrok-skip-browser-warning: true` for
+  ngrok tunnels; dev proxy `/api` -> tunnel (see `vite.config.js`).
+- **Mobile client**: token from `AsyncStorage`; API base resolved from
+  `EXPO_PUBLIC_API_URL` env -> `app.json` `expo.extra.apiUrl` -> default in `src/services/api.js`.
+- Both clients use the **same endpoints and response shapes**.
+
+---
+
+## 4. Tech Stack
+
+### 4.1 Web (`phishing-detection-frontend/`)
+
+| Dependency | Version | Purpose |
+|---|---|---|
+| React | ^18.2.0 | UI |
+| Vite | ^4.4.5 | Bundler / dev server |
+| react-router-dom | ^6.14.0 | Routing |
+| axios | ^1.4.0 | HTTP |
+| recharts | ^2.7.0 | Charts on the dashboard |
+| jspdf + jspdf-autotable | ^2.5.2 / ^3.8.4 | PDF reports |
+| html2pdf.js | ^0.14.0 | Installed (PDF flow uses jsPDF directly) |
+| react-hot-toast | ^2.6.0 | Toasts |
+| react-icons | ^4.12.0 | Icons (FontAwesome) |
+| react-loader-spinner | ^5.3.4 | Spinners |
+| date-fns | ^2.30.0 | Dates |
+
+Scripts: `npm run dev` · `npm run build` · `npm run preview`
+
+### 4.2 Mobile (`PhishGuardMobile/`)
+
+| Dependency | Version | Purpose |
+|---|---|---|
+| React Native | 0.86.0 | UI |
+| Expo SDK | ~57.0.4 | Tooling + native modules |
+| react / react-dom | 19.2.3 | Web target via `react-native-web` |
+| @react-navigation (bottom-tabs, native, native-stack) | 6.x | Navigation |
+| @react-native-async-storage/async-storage | 2.2.0 | Token + theme persistence |
+| expo-print | ~57.0.1 | Render HTML -> PDF |
+| expo-sharing | ~57.0.8 | Share the generated PDF |
+| expo-file-system | ~57.0.0 | Legacy file fallback |
+| expo-constants | ~57.0.3 | Read `expo.extra.apiUrl` |
+| expo-linear-gradient | ~57.0.0 | Gradients |
+| @expo/vector-icons | ^15.0.2 | Ionicons |
+| react-native-blob-util | ^0.19.11 | Installed blob helper |
+| uuid | ^14.0.1 | Guest scan IDs |
+
+Scripts: `npm start` · `npm run android` · `npm run ios` · `npm run web`
+
+---
+
+## 5. Key Features
+
+### 5.1 URL Scanning
+- Input a URL (schema optional). Must pass `validateURL`.
+- Calls `POST /scans/url`. Result shows risk score, prediction badge, classification, risk
+  level, phishing/legitimate indicators, and a download button.
+
+### 5.2 Message Scanning
+- Input a message 10-1000 chars (`validateMessage`).
+- Calls `POST /scans/messages`. Result shows overall + per-URL analysis, embedded URLs found,
+  phishing/legitimate indicators for the message.
+
+### 5.3 Dashboard
+- Calls `GET /dashboard/stats`. Web shows stat cards + Recharts; mobile shows summary cards.
+
+### 5.4 Scan History
+- `GET /scans`; filters by type, search text, and date presets (today/yesterday/week/month/custom).
+- Details modal, **Download PDF**, and **Delete** (authenticated users only; guests are read-only).
+- Delete handles 401/403/404 + network errors gracefully.
+
+### 5.5 PDF Reports
+- See **section 8** for the full layout.
+
+### 5.6 Feedback System
+- Accuracy vote `POST /feedback/accuracy { reference, accurate }` (toogles on re-click).
+- Comment `POST /feedback { message }`.
+
+### 5.7 Authentication & Profile
+- Register/login/logout (`/auth/*`), update profile and change password (protected).
+
+### 5.8 Guest Mode
+- Unauthenticated scans stored in memory (`GuestContext`). Guest entries are labelled "Guest";
+  details/download/delete/history require sign-in.
+
+### 5.9 Theming
+- Light/Dark/System, persisted via `theme.js` (web) / `colors.js` + AsyncStorage (mobile).
+
+### 5.10 Error Handling
+- Error boundaries with friendly reset UI; friendly messages for network failures and HTTP
+  errors.
+
+---
+
+## 6. API Reference
+
+Base URL: `https://mud-cable-passerby.ngrok-free.dev`
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/scan/url` | Scan a URL. Body: `{ url: string }` |
-| POST | `/scan/message` | Scan a message. Body: `{ message: string }` |
-| GET | `/scans?type=url\|message` | Get scan history (optional type filter) |
-| GET | `/scans/:type/:id` | Get single scan details |
-| GET | `/dashboard/stats` | Get dashboard statistics |
-| POST | `/feedback` | Submit feedback. Body: `{ scanId, type, isAccurate, comments, rating? }` |
-| GET | `/reports/:type/:id/pdf` | Download PDF report |
+| POST | `/auth/register` | Create account -> `{ accessToken, user }` |
+| POST | `/auth/login` | Login -> `{ accessToken, user }` |
+| POST | `/auth/logout` | Logout |
+| PUT | `/auth/profile` | Update profile -> `{ user }` |
+| PUT | `/auth/change-password` | Change password |
+| POST | `/scans/url` | Scan URL, body `{ url }` |
+| POST | `/scans/messages` | Scan message, body `{ message }` |
+| GET | `/scans?type=url\|message` | List history (optional type filter) |
+| GET | `/scans/{reference}` | Scan detail |
+| DELETE | `/scans/{reference}` | Delete scan |
+| GET | `/scans/{reference}/report` | Download report blob |
+| GET | `/dashboard/stats` | Dashboard stats |
+| POST | `/feedback` | Feedback comment, body `{ message }` |
+| POST | `/feedback/accuracy` | Accuracy vote, body `{ reference, accurate }` |
 
-**Expected scan result shape:**
+Headers: `Authorization: Bearer <token>` (interceptor). Errors throw objects like
+`{ message, status }`; 401/403/404 and network (ERR_NETWORK) handled per endpoint.
+
+Typical scan object:
 ```json
 {
-  "id": "string",
-  "content": "string",
-  "classification": "string",
-  "riskScore": 0-100,
-  "confidence": 0.0-1.0,
-  "explanation": "string",
-  "features": { "key": "value" },
-  "date": "ISO timestamp"
+  "reference": "uuid",
+  "url": "...",
+  "message": "...",
+  "type": "url | message",
+  "scanType": "URL | MESSAGE",
+  "prediction": "PHISHING | SCAM | SUSPICIOUS | SAFE | LEGITIMATE",
+  "overallPrediction": "...",
+  "messagePrediction": "...",
+  "riskScore": 85,
+  "phishingReasons": ["..."],
+  "messagePhishingReasons": ["..."],
+  "legitimateReasons": ["..."],
+  "messageLegitimateReasons": ["..."],
+  "urlsFound": ["..."],
+  "urlResults": [{ "prediction": "..." }],
+  "conclusion": "...",
+  "scannedAt": "..."
 }
 ```
 
 ---
 
-## Setup & Installation
+## 7. Risk Scoring & Validation
 
-### Prerequisites
-- Node.js >= 18
-- npm or yarn
-- Expo CLI (`npm install -g expo-cli`) for mobile
-- A running backend API server
+### 7.1 Risk score mapping (shared)
 
-### Web App
+| Prediction | Risk Score |
+|---|---|
+| PHISHING / DANGEROUS / MALICIOUS | 85 |
+| SCAM / SUSPICIOUS / WARNING | 55 |
+| SAFE / LEGITIMATE | 15 |
+| other / missing | 50 |
 
-```bash
-cd phishing-detection-frontend
-npm install
-npm run dev        # Starts dev server at http://localhost:5173
-```
+### 7.2 Risk level bands
 
-Other scripts:
-- `npm run build` — Production build to `dist/`
-- `npm run preview` — Preview the production build locally
-
-### Mobile App
-
-```bash
-cd PhishGuardMobile
-npm install
-npx expo start     # Starts Expo dev server
-```
-
-- Scan the QR code with Expo Go (Android/iOS)
-- Or press `a` for Android emulator / `i` for iOS simulator
-- **Important**: Update `API_BASE_URL` in `src/services/api.js` to match your backend server's local network IP
-
-**Building with EAS:**
-```bash
-npx eas build --profile development    # Dev build
-npx eas build --profile preview        # Internal preview
-npx eas build --profile production     # Production build
-```
-
----
-
-## Project Conventions
-
-### Code Style
-- No explanatory comments in source files
-- Functional components with hooks (no class components)
-- CSS custom properties for theming (web) or inline `StyleSheet.create` (mobile)
-- Consistent light/dark theme pattern across both platforms
-
-### Risk Scoring
-| Score Range | Label | Color |
+| Score | Label | Color |
 |---|---|---|
-| 0–30 | Low Risk / Safe | Green (`#10b981`) |
-| 31–70 | Medium Risk / Suspicious | Amber (`#f59e0b`) |
-| 71–100 | High Risk / Dangerous | Red (`#ef4444`) |
+| > 70 | High | Red |
+| > 30 | Medium | Amber |
+| else | Low | Green |
 
-### Scanning Validation
-- **URL**: Must match `^(https?://)?([\da-z\.-]+)\.([a-z\.]{2,6})([/\w \.-]*)*/?$`
-- **Message**: 10–1000 characters, non-empty
-
-### API Error Handling
-All API methods catch errors and return `error.response?.data` with a fallback message.
+### 7.3 Validation rules
+- `validateURL(url)`: regex `^(https?://)?([\da-z\.-]+)\.([a-z\.]{2,6})([/\w_]*)*/?$` (http optional).
+- `validateMessage(msg)`: non-empty, 10 <= length <= 1000.
 
 ---
 
-## Production Build
+## 8. PDF Report Generation
 
+The layout is **aligned between web and mobile** so the same scan produces a nearly identical report.
+
+### 8.1 Web (`src/services/pdfGenerator.js`)
+
+- A4 portrait, jsPDF + autotable, margin 18 mm.
+- Sections: header (brand + report ID + generated), SCAN SUMMARY card, SCAN DETAILS table,
+  PHISHING/MESSAGE PHISHING INDICATORS, LEGITIMATE INDICATORS, URLS FOUND IN MESSAGE,
+  ANALYSIS CONCLUSION, SECURITY RECOMMENDATION, footer with `Page i of n`.
+- Alignment fixes in the latest refactor:
+  - Conclusion and recommendation boxes auto-size (no overflow/overlap).
+  - `ensureSpace()` forces page breaks before a section that won't fit a table.
+  - Indicator tables combine `phishingReasons || messagePhishingReasons` into a single section.
+  - Message scans no longer emit a bogus `URL` row when `url === message`.
+  - `showHead: "everyPage"` keeps table headers on every page (no orphaned header).
+- Output file: `security_report_<reference-or-timestamp>.pdf`.
+
+### 8.2 Mobile (`PhishGuardMobile/src/services/pdfGenerator.js`)
+
+- Builds **HTML** with the same content/order, then:
+  - **Native**: `printToFileAsync({ html, width: 595, height: 842 })` -> `Sharing.shareAsync`
+    (application/pdf). HTML fallback only if printing itself fails.
+  - **Web**: hidden iframe + `contentWindow.print()` -> browser **Save as PDF** (no raw HTML).
+- All values HTML-escaped (`escapeHtml`); `@page { size: 210mm 297mm; margin: 10mm }` +
+  `page-break-inside: avoid`; single risk bar (no duplicate score).
+
+---
+
+## 9. Setup & Running
+
+### 9.1 Prerequisites
+- Node.js >= 18 and npm.
+- Expo tooling for the mobile app.
+- A running backend (for real scans). By default clients use the ngrok tunnel listed above.
+
+### 9.2 Web
 ```bash
 cd phishing-detection-frontend
-npm run build
-# Output in dist/ — deploy to any static hosting
-
-cd PhishGuardMobile
-npx eas build --profile production
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # production build -> dist/
+npm run preview    # serve production build
 ```
+
+### 9.3 Mobile
+```bash
+cd PhishGuardMobile
+npm install
+npx expo start --web    # or --android / --ios / --dev-client
+```
+
+Point the mobile app at your backend via `EXPO_PUBLIC_API_URL` or `expo.extra.apiUrl` in
+`app.json`; otherwise it falls back to the tunnel URL.
+
+### 9.4 EAS Build
+```bash
+cd PhishGuardMobile
+npx eas build --profile development
+npx eas build --profile preview
+npx eas build --profile production   # optional --platform android
+```
+(`eas.json` contains the three profiles.)
 
 ---
 
-## Known Notes
+## 10. Conventions
 
-- **NOTE: ErrorBoundary component is now fully implemented** (see ErrorBoundary.jsx, ErrorBoundary.jsx) - Unlike other placeholder components, this one has a complete error handling solution with user-facing fallback UI, error details, and reset functionality for both web and mobile.
-- Various component files are **empty placeholders** (URLInput, MessageInput, ResultCard, useScan, useHistory). Their logic was inlined directly into page components.
-- The `App.css` file contains legacy Vite template styles and is not actively used — the app uses `globals.css`, `components.css`, and `mobile.css`.
-- Contact info in the Footer (Balkumari, Lalitpur, +977) suggests the team is based in **Nepal**.
-- The mobile `AGENTS.md` file references Expo v56 docs — check the exact versioned docs before making changes.
+- Functional components with hooks; no class components.
+- No explanatory comments in source (by convention).
+- Web: inline styles + `theme.js`; Mobile: `StyleSheet.create` + `colors.js`.
+- Provider tree:  ThemeProvider -> AuthProvider -> GuestProvider -> content.
+- API error handling: `error.response?.data || { message }` with friendly fallbacks.
+- Dates via date-fns (web) / custom (mobile).
+
+### Quality / verification (used in this repo)
+- Web: `npm run build` (Vite) - builds clean.
+- Mobile: `npx expo export --platform web` and Babel transform of changed files - both pass.
+
+---
+
+## 11. Recent Updates (Aug 2026)
+
+- PDF generators fully aligned on both platforms (auto-sized boxes, margins, no duplicated
+  indicator messages, page-break logic, mobile web "Save as PDF" flow).
+- Accuracy feedback toggle (re-click deselects) + inline error display.
+- History: delete available for all authenticated users; guest scans read-only.
+- API delete now emits `Accept/Content-Type: */*` headers.
+- Guest mode across both apps.
+- `vite.config.js` dev proxy to the ngrok tunnel.
+
+---
+
+## 12. Contact / Origin
+
+- Based on the footer text (Balkumari, Lalitpur, +977), the team is based in **Nepal**.
+- Mobile package: `com.secureshield.app`; EAS project id in `app.json`.
+
+---
+
+## 13. Helpful Gotchas & Notes
+
+- PDF is generated **client-side**; no server round-trip for downloaded reports.
+- Mobile AGENTS.md references Expo SDK 56 docs but the app uses **SDK 57** — match doc version.
+- `android/` is a generated native project (expo prebuild); keep in sync when app.json changes.
+- The web PDF flow uses jsPDF directly; `html2pdf.js` remains installed but is not the active path.
+- Message scans historically stored the message text under `url`; the new generators filter that.
