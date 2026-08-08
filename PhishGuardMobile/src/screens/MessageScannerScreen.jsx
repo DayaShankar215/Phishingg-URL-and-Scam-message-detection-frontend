@@ -16,7 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useGuest } from '../context/GuestContext';
 import { getColors } from '../constants/colors';
-import { scanMessage, submitFeedbackMessage, submitAccuracy, getPrediction } from '../services/api';
+import { scanMessage, submitFeedbackMessage, submitAccuracy, getPrediction, getScanByReference } from '../services/api';
 import { downloadPDF } from '../services/pdfGenerator';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AuthModal from '../components/AuthModal';
@@ -81,7 +81,7 @@ export default function MessageScannerScreen() {
         resultType = 'unknown';
     }
 
-    // IMPORTANT: Extract ALL data from response - same as history page
+    // Extract data from response
     const phishingReasons = response.phishingReasons || response.messagePhishingReasons || [];
     const legitimateReasons = response.legitimateReasons || response.messageLegitimateReasons || [];
     const urlsFound = response.urlsFound || [];
@@ -89,8 +89,6 @@ export default function MessageScannerScreen() {
     const conclusion = response.conclusion || response.explanation || 'Analysis completed.';
 
     console.log('[Message Scanner] Full Response:', JSON.stringify(response, null, 2));
-    console.log('[Message Scanner] Phishing Reasons:', phishingReasons);
-    console.log('[Message Scanner] Legitimate Reasons:', legitimateReasons);
 
     return {
       reference: response.reference,
@@ -109,7 +107,6 @@ export default function MessageScannerScreen() {
       urlResults: urlResults,
       overallPrediction: response.overallPrediction || prediction,
       messagePrediction: response.messagePrediction || prediction,
-      // Store the full response for PDF generation - this is critical
       _raw: response,
     };
   };
@@ -172,31 +169,39 @@ export default function MessageScannerScreen() {
 
     setDownloading(true);
     try {
-      // Prepare complete PDF data - matching history page format
+      // IMPORTANT: Fetch full scan details using the reference ID
+      // This will give us all the detailed phishing and legitimate indicators
+      const scanDetails = await getScanByReference(result.reference);
+      console.log('[PDF Download] Full Scan Details:', JSON.stringify(scanDetails, null, 2));
+
+      // Determine if it's a message scan
+      const isMessageScan = scanDetails.scanType === 'MESSAGE' || scanDetails.message || result.type === 'message';
+
+      // Prepare PDF data with all the detailed information from scanDetails
       const pdfData = {
-        reference: result.reference,
-        scanType: result._raw?.scanType || "MESSAGE",
-        url: result.url && result.url !== result.message ? result.url : "",
-        message: result.message || result.content,
-        prediction: result.prediction,
-        conclusion: result.conclusion || result.explanation,
-        scannedAt: result.scannedAt,
-        // These are the critical fields - must be passed
-        phishingReasons: result.phishingReasons || [],
-        legitimateReasons: result.legitimateReasons || [],
-        urlsFound: result.urlsFound || [],
-        urlResults: result.urlResults || [],
-        overallPrediction: result.overallPrediction || result.prediction,
-        messagePrediction: result.messagePrediction || result.prediction,
-        // Include the full raw response
-        _raw: result._raw || {},
+        reference: scanDetails.reference,
+        scanType: scanDetails.scanType || (isMessageScan ? 'MESSAGE' : 'URL'),
+        url: isMessageScan ? '' : scanDetails.url || result.url || '',
+        message: scanDetails.message || result.message || '',
+        prediction: getPrediction(scanDetails) || result.prediction,
+        conclusion: scanDetails.conclusion || result.conclusion || 'Analysis completed',
+        scannedAt: scanDetails.scannedAt || result.scannedAt,
+        // These are the critical fields - now we have them from scanDetails
+        phishingReasons: scanDetails.phishingReasons || scanDetails.messagePhishingReasons || [],
+        legitimateReasons: scanDetails.legitimateReasons || scanDetails.messageLegitimateReasons || [],
+        urlsFound: scanDetails.urlsFound || [],
+        urlResults: scanDetails.urlResults || [],
+        messagePhishingReasons: scanDetails.messagePhishingReasons || [],
+        messageLegitimateReasons: scanDetails.messageLegitimateReasons || [],
+        overallPrediction: scanDetails.overallPrediction || result.overallPrediction || result.prediction,
+        messagePrediction: scanDetails.messagePrediction || result.messagePrediction,
+        _raw: scanDetails,
       };
-      
-      console.log('[PDF Download] Data being sent:', JSON.stringify(pdfData, null, 2));
+
       console.log('[PDF Download] Phishing Reasons:', pdfData.phishingReasons);
       console.log('[PDF Download] Legitimate Reasons:', pdfData.legitimateReasons);
       
-      await downloadPDF(pdfData, 'message');
+      await downloadPDF(pdfData, isMessageScan ? 'message' : 'url');
       showToast('Report downloaded successfully!', 'success');
     } catch (error) {
       console.error('Download error:', error);
@@ -505,7 +510,7 @@ export default function MessageScannerScreen() {
             </View>
           </View>
 
-          {/* Message Phishing Reasons - Same as History Page */}
+          {/* Message Phishing Reasons - Show from result (may be empty) */}
           {result.phishingReasons && result.phishingReasons.length > 0 && (
             <View style={[styles.warningCard, {
               backgroundColor: '#fee2e2',
@@ -522,7 +527,7 @@ export default function MessageScannerScreen() {
             </View>
           )}
 
-          {/* Message Legitimate Reasons - Same as History Page */}
+          {/* Message Legitimate Reasons - Show from result (may be empty) */}
           {result.legitimateReasons && result.legitimateReasons.length > 0 && (
             <View style={[styles.legitimateCard, {
               backgroundColor: '#d1fae5',
@@ -539,7 +544,7 @@ export default function MessageScannerScreen() {
             </View>
           )}
 
-          {/* URLs Found - Same as History Page */}
+          {/* URLs Found - Show from result (may be empty) */}
           {result.urlsFound && result.urlsFound.length > 0 && (
             <View style={[styles.urlsCard, {
               backgroundColor: '#fef3c7',

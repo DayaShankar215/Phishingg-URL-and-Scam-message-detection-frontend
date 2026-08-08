@@ -129,6 +129,55 @@ const saveAndShareHTML = async (html, reference) => {
 };
 
 /**
+ * Extract phishing and legitimate indicators from conclusion text
+ * This handles the case where the API returns scores embedded in the conclusion
+ */
+const extractIndicatorsFromConclusion = (conclusion) => {
+  const phishingIndicators = [];
+  const legitimateIndicators = [];
+  
+  if (!conclusion) return { phishingIndicators, legitimateIndicators };
+  
+  // Extract phishing influence score
+  const phishingMatch = conclusion.match(/phishing influence score was ([-\d.]+)/i);
+  if (phishingMatch) {
+    phishingIndicators.push(`Phishing influence score: ${phishingMatch[1]}`);
+  }
+  
+  // Extract legitimate influence score
+  const legitimateMatch = conclusion.match(/legitimate influence score was ([-\d.]+)/i);
+  if (legitimateMatch) {
+    legitimateIndicators.push(`Legitimate influence score: ${legitimateMatch[1]}`);
+  }
+  
+  // Try to extract individual indicators from the conclusion
+  // The conclusion might contain bullet points or numbered lists
+  const lines = conclusion.split(/[.\n\r]+/).filter(line => line.trim().length > 0);
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Skip lines that contain score information (already extracted)
+    if (trimmed.match(/phishing influence score/i) || trimmed.match(/legitimate influence score/i)) {
+      continue;
+    }
+    // Skip the "In this explanation" line
+    if (trimmed.match(/In this explanation/i)) {
+      continue;
+    }
+    // If line contains "phishing" or "legitimate" context, add it
+    if (trimmed.length > 10) {
+      if (trimmed.match(/phishing/i) && !trimmed.match(/legitimate/i)) {
+        phishingIndicators.push(trimmed);
+      } else if (trimmed.match(/legitimate/i) && !trimmed.match(/phishing/i)) {
+        legitimateIndicators.push(trimmed);
+      }
+    }
+  }
+  
+  return { phishingIndicators, legitimateIndicators };
+};
+
+/**
  * Generate the report HTML — aligned with the web (jsPDF) layout and content.
  */
 const generatePDFHTML = (scanData, type) => {
@@ -151,15 +200,13 @@ const generatePDFHTML = (scanData, type) => {
   const badgeClass = getBadgeClass(prediction);
 
   // Extract phishing and legitimate reasons - check all possible locations
-  // This is critical - we need to look in multiple places
   let phishingReasons = [];
   let legitimateReasons = [];
   let urlsFound = [];
   let urlResults = [];
 
-  // Try to get data from various possible locations
+  // First try to get from the data directly
   if (scanData._raw) {
-    // If we have raw data, extract from there
     phishingReasons = scanData._raw.phishingReasons || 
                       scanData._raw.messagePhishingReasons || 
                       scanData.phishingReasons || 
@@ -175,28 +222,23 @@ const generatePDFHTML = (scanData, type) => {
     urlsFound = scanData._raw.urlsFound || scanData.urlsFound || [];
     urlResults = scanData._raw.urlResults || scanData.urlResults || [];
   } else {
-    // Direct properties
     phishingReasons = scanData.phishingReasons || scanData.messagePhishingReasons || [];
     legitimateReasons = scanData.legitimateReasons || scanData.messageLegitimateReasons || [];
     urlsFound = scanData.urlsFound || [];
     urlResults = scanData.urlResults || [];
   }
 
-  // If still empty, try to get from the conclusion text (fallback)
-  if (phishingReasons.length === 0 && scanData.conclusion) {
-    // Try to extract indicators from conclusion if available
-    const conclusion = scanData.conclusion || '';
-    const phishingMatch = conclusion.match(/phishing influence score was ([-\d.]+)/i);
-    const legitimateMatch = conclusion.match(/legitimate influence score was ([-\d.]+)/i);
+  // If no phishing reasons found, try to extract from conclusion
+  if (phishingReasons.length === 0 && legitimateReasons.length === 0) {
+    const conclusion = scanData.conclusion || scanData.explanation || '';
+    const extracted = extractIndicatorsFromConclusion(conclusion);
     
-    if (phishingMatch || legitimateMatch) {
-      // Add extracted info as reasons
-      if (phishingMatch) {
-        phishingReasons.push(`Phishing influence score: ${phishingMatch[1]}`);
-      }
-      if (legitimateMatch) {
-        legitimateReasons.push(`Legitimate influence score: ${legitimateMatch[1]}`);
-      }
+    // Only use extracted indicators if we have some meaningful data
+    if (extracted.phishingIndicators.length > 0 || extracted.legitimateIndicators.length > 0) {
+      phishingReasons = extracted.phishingIndicators;
+      legitimateReasons = extracted.legitimateIndicators;
+      console.log('[PDF] Extracted from conclusion - Phishing:', phishingReasons);
+      console.log('[PDF] Extracted from conclusion - Legitimate:', legitimateReasons);
     }
   }
 
