@@ -110,7 +110,7 @@ api.interceptors.response.use(
       // ✅ For 403 on other endpoints
       if (error.response.status === 403) {
         throw { 
-          message: "Access denied. Please login again.",
+          message: "Access denied. Please contact with administrator.",
           status: 403,
           isAuthError: true
         };
@@ -157,7 +157,7 @@ export const login = async (credentials) => {
     }
     return response.data;
   } catch (error) {
-    throw error.response?.data || { message: "Login failed" };
+    throw error.response?.data || { message: "Email or password is incorrect" };
   }
 };
 
