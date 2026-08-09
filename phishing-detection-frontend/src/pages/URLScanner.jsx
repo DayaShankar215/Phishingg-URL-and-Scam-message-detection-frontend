@@ -36,6 +36,7 @@ const URLScanner = () => {
   const [downloading, setDownloading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [urlError, setUrlError] = useState("");
 
   const { isAuthenticated } = useAuth();
   const { addScan } = useGuest();
@@ -53,6 +54,99 @@ const URLScanner = () => {
   const [feedbackReply, setFeedbackReply] = useState("");
   const [accuracySubmitted, setAccuracySubmitted] = useState(false);
   const [accuracyError, setAccuracyError] = useState(null);
+
+  // Comprehensive URL Validation Function
+  const validateURL = (input) => {
+    // Trim whitespace
+    const trimmed = input.trim();
+    
+    // Check for empty input
+    if (!trimmed) {
+      return { isValid: false, error: "Please enter a URL" };
+    }
+
+    // Check for spaces anywhere in the URL
+    if (/\s/.test(trimmed)) {
+      return { isValid: false, error: "URL cannot contain spaces" };
+    }
+
+    // Check for invalid characters (allow only alphanumeric, @, ., :, /, -, _, ~, ?, &, =, %, +, #, !, $, ', (, ), *, ,)
+    const allowedChars = /^[a-zA-Z0-9@.:/\-_~?&=%+#!$'()*,;]+$/;
+    if (!allowedChars.test(trimmed)) {
+      return { 
+        isValid: false, 
+        error: "URL contains invalid characters. Allowed: letters, numbers, @ . : / - _ ~ ? & = % + # ! $ ' ( ) * , ;" 
+      };
+    }
+
+    // Check if it has a valid protocol or should auto-add https://
+    let processedUrl = trimmed;
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      processedUrl = `https://${trimmed}`;
+    }
+
+    try {
+      // Try to parse the URL
+      const urlObj = new URL(processedUrl);
+
+      // Additional validation
+      const hostname = urlObj.hostname;
+      
+      // Check if hostname is valid (not empty)
+      if (!hostname) {
+        return { isValid: false, error: "Invalid URL: Missing hostname" };
+      }
+
+      // Check for TLD (top-level domain) - must have at least one dot for domain names
+      // Allow localhost and IP addresses
+      if (!hostname.includes(".") && hostname !== "localhost" && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+        return { 
+          isValid: false, 
+          error: "Invalid URL format: Must include a valid domain extension (e.g., .com, .org)" 
+        };
+      }
+
+      // Check for valid protocol
+      if (urlObj.protocol !== "http:" && urlObj.protocol !== "https:") {
+        return { isValid: false, error: "Only HTTP and HTTPS protocols are allowed" };
+      }
+
+      return { 
+        isValid: true, 
+        error: "", 
+        processedUrl: processedUrl,
+        urlObj: urlObj 
+      };
+
+    } catch (e) {
+      // If URL parsing fails
+      return { 
+        isValid: false, 
+        error: "Invalid URL format. Please check the URL and try again." 
+      };
+    }
+  };
+
+  // Real-time URL validation on change
+  const handleUrlChange = (e) => {
+    const value = e.target.value;
+    setUrl(value);
+    
+    // Clear previous errors
+    if (urlError) {
+      setUrlError("");
+    }
+    
+    // Validate on input
+    if (value.trim().length > 0) {
+      const validation = validateURL(value);
+      if (!validation.isValid) {
+        setUrlError(validation.error);
+      } else {
+        setUrlError("");
+      }
+    }
+  };
 
   const getRiskScoreFromPrediction = (prediction) => {
     if (!prediction) return 50;
@@ -127,13 +221,29 @@ const URLScanner = () => {
   const handleScan = async (e) => {
     e.preventDefault();
 
-    if (!url || url.trim() === "") {
+    // Clear previous errors
+    setUrlError("");
+    setError(null);
+
+    // Validate URL before scanning
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      setUrlError("Please enter a URL to scan");
       toast.error("Please enter a URL to scan");
       return;
     }
 
+    const validation = validateURL(trimmedUrl);
+    if (!validation.isValid) {
+      setUrlError(validation.error);
+      toast.error(validation.error);
+      return;
+    }
+
+    // Use processed URL (with https:// if not present)
+    const finalUrl = validation.processedUrl;
+
     setLoading(true);
-    setError(null);
     setConnectionError(false);
     setShowFeedback(false);
     setFeedbackSubmitted(false);
@@ -148,10 +258,10 @@ const URLScanner = () => {
     });
 
     try {
-      const response = await scanURL(url);
+      const response = await scanURL(finalUrl);
       console.log("API Response:", response);
 
-      const scanResult = processScanResponse(response, url);
+      const scanResult = processScanResponse(response, finalUrl);
       console.log("Processed Result:", scanResult);
       setResult(scanResult);
 
@@ -159,7 +269,7 @@ const URLScanner = () => {
         addScan({
           ...scanResult,
           type: "url",
-          content: url,
+          content: finalUrl,
         });
       }
 
@@ -469,22 +579,31 @@ const URLScanner = () => {
                 <input
                   type="text"
                   value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://example.com or suspect-website.com"
+                  onChange={handleUrlChange}
+                  placeholder="example.com or https://sub.domain.com/path?query=value"
                   style={{
                     width: "100%",
                     padding: "16px 16px 16px 48px",
-                    border: "2px solid #e2e8f0",
+                    border: urlError ? "2px solid #ef4444" : "2px solid #e2e8f0",
                     borderRadius: "16px",
                     fontSize: "16px",
                     transition: "all 0.3s ease",
                     outline: "none",
+                    backgroundColor: urlError ? "#fef2f2" : "white",
                   }}
-                  onFocus={(e) => (e.target.style.borderColor = "#667eea")}
-                  onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
+                  onFocus={(e) => {
+                    if (!urlError) {
+                      e.target.style.borderColor = "#667eea";
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (!urlError) {
+                      e.target.style.borderColor = "#e2e8f0";
+                    }
+                  }}
                   disabled={loading}
                 />
-                {url && (
+                {url && !urlError && (
                   <button
                     type="button"
                     onClick={handleCopyUrl}
@@ -502,12 +621,25 @@ const URLScanner = () => {
                     <FaCopy />
                   </button>
                 )}
+                {url && urlError && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: "16px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#ef4444",
+                    }}
+                  >
+                    <FaExclamationCircle />
+                  </div>
+                )}
               </div>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !!urlError}
                 style={{
-                  background: loading
+                  background: loading || urlError
                     ? "#94a3b8"
                     : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                   color: "white",
@@ -516,11 +648,12 @@ const URLScanner = () => {
                   borderRadius: "16px",
                   fontSize: "16px",
                   fontWeight: "600",
-                  cursor: loading ? "not-allowed" : "pointer",
+                  cursor: loading || urlError ? "not-allowed" : "pointer",
                   transition: "all 0.3s ease",
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
+                  opacity: loading || urlError ? 0.6 : 1,
                 }}
               >
                 {loading ? (
@@ -536,10 +669,67 @@ const URLScanner = () => {
                 )}
               </button>
             </div>
+            
+            {/* URL Error Message */}
+            {urlError && (
+              <div
+                style={{
+                  marginTop: "12px",
+                  padding: "12px 16px",
+                  background: "#fef2f2",
+                  borderRadius: "12px",
+                  border: "1px solid #fca5a5",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px",
+                }}
+              >
+                <FaExclamationCircle style={{ color: "#ef4444", marginTop: "2px" }} />
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "14px",
+                    color: "#dc2626",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  {urlError}
+                </p>
+              </div>
+            )}
+
+            {/* Validation Tips */}
+            {!urlError && url && (
+              <div
+                style={{
+                  marginTop: "12px",
+                  padding: "8px 12px",
+                  background: "#f0fdf4",
+                  borderRadius: "8px",
+                  border: "1px solid #86efac",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <FaCheckCircle style={{ color: "#10b981", fontSize: "14px" }} />
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "13px",
+                    color: "#065f46",
+                  }}
+                >
+                  ✓ Valid URL format
+                </p>
+              </div>
+            )}
+
             <p
               style={{ fontSize: "12px", color: "#94a3b8", marginTop: "12px" }}
             >
-              Supports HTTP, HTTPS, and all standard URL formats
+              Supports: HTTP, HTTPS, subdomains, paths, query parameters, and 
+              authentication (username:password@host)
             </p>
           </div>
         </form>
