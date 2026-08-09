@@ -539,7 +539,7 @@ export default function URLScannerScreen() {
         )}
 
         {/* URL Format Example */}
-        <View style={styles.urlExamples}>
+        {/* <View style={styles.urlExamples}>
           <Text style={[styles.urlExamplesTitle, { color: colors.textMuted }]}>
             Supported URL formats:
           </Text>
@@ -570,7 +570,7 @@ export default function URLScannerScreen() {
               </Text>
             </View>
           </View>
-        </View>
+        </View> */}
 
         <TouchableOpacity
           style={[styles.scanButton, 
