@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Dimensions,
   TextInput,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,6 +21,7 @@ import { downloadPDF } from '../services/pdfGenerator';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AuthModal from '../components/AuthModal';
 import { showToast } from '../components/Toaster';
+import { validateURL } from '../utils/validators';
 
 const { width } = Dimensions.get('window');
 
@@ -42,133 +42,10 @@ export default function URLScannerScreen() {
   const [feedbackReply, setFeedbackReply] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [validationError, setValidationError] = useState('');
-  const [isValid, setIsValid] = useState(false);
-  const [showValidationWarning, setShowValidationWarning] = useState(false);
   
   const [scanId, setScanId] = useState('');
   const [accuracy, setAccuracy] = useState({ isAccurate: null });
   const [accuracySubmitted, setAccuracySubmitted] = useState(false);
-
-  // Comprehensive URL Validation Function
-  const validateURL = (input) => {
-    // Trim whitespace
-    const trimmed = input.trim();
-    
-    // Check for empty input
-    if (!trimmed) {
-      return { isValid: false, error: 'Please enter a URL to scan' };
-    }
-
-    // Check for spaces anywhere in the URL
-    if (/\s/.test(trimmed)) {
-      return { isValid: false, error: 'URL cannot contain spaces' };
-    }
-
-    // Check for invalid characters (allow only alphanumeric, @, ., :, /, -, _, ~, ?, &, =, %, +, #, !, $, ', (, ), *, ,)
-    const allowedChars = /^[a-zA-Z0-9@.:/\-_~?&=%+#!$'()*,;]+$/;
-    if (!allowedChars.test(trimmed)) {
-      return { 
-        isValid: false, 
-        error: 'URL contains invalid characters. Allowed: letters, numbers, @ . : / - _ ~ ? & = % + # ! $ \' ( ) * , ;' 
-      };
-    }
-
-    // Check for common typos or invalid formats
-    if (trimmed.startsWith('http://') && trimmed.length < 12) {
-      return { isValid: false, error: 'URL is too short. Please enter a valid URL' };
-    }
-
-    if (trimmed.startsWith('https://') && trimmed.length < 13) {
-      return { isValid: false, error: 'URL is too short. Please enter a valid URL' };
-    }
-
-    // Check if it has a valid protocol or should auto-add https://
-    let processedUrl = trimmed;
-    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
-      processedUrl = `https://${trimmed}`;
-    }
-
-    try {
-      // Try to parse the URL
-      const urlObj = new URL(processedUrl);
-
-      // Additional validation
-      const hostname = urlObj.hostname;
-      
-      // Check if hostname is valid (not empty)
-      if (!hostname) {
-        return { isValid: false, error: 'Invalid URL: Missing hostname' };
-      }
-
-      // Check hostname length
-      if (hostname.length > 253) {
-        return { isValid: false, error: 'Hostname is too long (max 253 characters)' };
-      }
-
-      // Check for TLD (top-level domain) - must have at least one dot for domain names
-      // Allow localhost and IP addresses
-      if (!hostname.includes('.') && hostname !== 'localhost' && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
-        return { 
-          isValid: false, 
-          error: 'Invalid domain: Must include a valid domain extension (e.g., .com, .org)' 
-        };
-      }
-
-      // Check for valid protocol
-      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
-        return { isValid: false, error: 'Only HTTP and HTTPS protocols are allowed' };
-      }
-
-      // Check if hostname has at least one dot or is localhost/IP
-      if (!hostname.includes('.') && hostname !== 'localhost' && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
-        return { 
-          isValid: false, 
-          error: 'Invalid URL format. Please check the URL and try again.' 
-        };
-      }
-
-      return { 
-        isValid: true, 
-        error: '', 
-        processedUrl: processedUrl,
-        urlObj: urlObj,
-        hostname: hostname
-      };
-
-    } catch (e) {
-      // If URL parsing fails
-      return { 
-        isValid: false, 
-        error: 'Invalid URL format. Please check the URL and try again.' 
-      };
-    }
-  };
-
-  // Real-time URL validation on change
-  const handleUrlChange = (text) => {
-    setUrl(text);
-    setValidationError('');
-    setIsValid(false);
-    setShowValidationWarning(false);
-    
-    // Clear previous errors
-    if (error) setError(null);
-    
-    // Validate on input
-    if (text.trim().length > 0) {
-      const validation = validateURL(text);
-      if (!validation.isValid) {
-        setValidationError(validation.error);
-        setIsValid(false);
-        setShowValidationWarning(false);
-      } else {
-        setIsValid(true);
-        setValidationError('');
-        setShowValidationWarning(false);
-      }
-    }
-  };
 
   const processScanResponse = (response, scannedUrl) => {
     const rawPrediction = getPrediction(response);
@@ -221,45 +98,13 @@ export default function URLScannerScreen() {
   };
 
   const handleScan = async () => {
-    // Clear previous errors
-    setValidationError('');
-    setError(null);
-
-    // Validate URL before scanning
-    const trimmedUrl = url.trim();
-    if (!trimmedUrl) {
-      setValidationError('Please enter a URL to scan');
-      showToast('Please enter a URL to scan', 'error');
-      return;
-    }
-
-    const validation = validateURL(trimmedUrl);
+    const validation = validateURL(url);
     if (!validation.isValid) {
-      setValidationError(validation.error);
       showToast(validation.error, 'error');
+      setError(validation.error);
       return;
     }
 
-    // Use processed URL (with https:// if not present)
-    const finalUrl = validation.processedUrl;
-
-    // Show URL format warning if needed
-    if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
-      Alert.alert(
-        '🔒 HTTPS Added',
-        `We've automatically added "https://" to your URL:\n\n${finalUrl}\n\nDo you want to continue?`,
-        [
-          { text: 'Edit URL', style: 'cancel' },
-          { text: 'Continue', onPress: () => performScan(finalUrl) }
-        ]
-      );
-      return;
-    }
-
-    performScan(finalUrl);
-  };
-
-  const performScan = async (urlToScan) => {
     setLoading(true);
     setError(null);
     setShowFeedback(false);
@@ -270,10 +115,10 @@ export default function URLScannerScreen() {
     setAccuracy({ isAccurate: null });
 
     try {
-      const response = await scanURL(urlToScan);
+      const response = await scanURL(url);
       console.log('API Response:', response);
 
-      const scanResult = processScanResponse(response, urlToScan);
+      const scanResult = processScanResponse(response, url);
       console.log('Processed Result:', scanResult);
       setResult(scanResult);
 
@@ -289,16 +134,8 @@ export default function URLScannerScreen() {
       showToast('Scan completed successfully!', 'success');
     } catch (err) {
       console.error('Scan Error:', err);
-      const errorMessage = err.message || 'Failed to scan URL';
-      
-      // Check for specific error types
-      if (err.message?.includes('Network') || err.message?.includes('CORS')) {
-        setError('Network error. Please check your connection and try again.');
-        showToast('Network error. Please check your connection.', 'error');
-      } else {
-        setError(errorMessage);
-        showToast(errorMessage, 'error');
-      }
+      showToast(err.message || 'Failed to scan URL', 'error');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -486,99 +323,33 @@ export default function URLScannerScreen() {
         </View>
 
         <View style={[styles.inputContainer, {
-          borderColor: validationError && !isValid ? '#ef4444' : colors.border,
+          borderColor: colors.border,
           backgroundColor: colors.backgroundInput,
-          borderWidth: validationError && !isValid ? 2 : 1,
         }]}>
           <Ionicons name="globe-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
           <TextInput
             style={[styles.input, { color: colors.text }]}
-            placeholder="example.com or https://sub.domain.com/path"
+            placeholder="https://example.com"
             placeholderTextColor={colors.textMuted}
             value={url}
-            onChangeText={handleUrlChange}
+            onChangeText={setUrl}
             editable={!loading}
             autoCapitalize="none"
             autoCorrect={false}
           />
           {url.length > 0 && (
-            <TouchableOpacity onPress={() => {
-              setUrl('');
-              setValidationError('');
-              setIsValid(false);
-              setShowValidationWarning(false);
-            }} style={styles.clearBtn}>
+            <TouchableOpacity onPress={() => setUrl('')} style={styles.clearBtn}>
               <Ionicons name="close-circle" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
 
-        {/* URL Format Validation Messages */}
-        {validationError && !isValid && (
-          <View style={[styles.validationError, {
-            backgroundColor: '#fef2f2',
-            borderColor: '#fca5a5',
-          }]}>
-            <Ionicons name="alert-circle" size={16} color="#ef4444" />
-            <Text style={[styles.validationErrorText, { color: '#dc2626' }]}>
-              {validationError}
-            </Text>
-          </View>
-        )}
-
-        {isValid && url.trim().length > 0 && (
-          <View style={[styles.validationSuccess, {
-            backgroundColor: '#d1fae5',
-            borderColor: '#86efac',
-          }]}>
-            <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-            <Text style={[styles.validationSuccessText, { color: '#065f46' }]}>
-              ✓ Valid URL format
-            </Text>
-          </View>
-        )}
-
-        {/* URL Format Example */}
-        {/* <View style={styles.urlExamples}>
-          <Text style={[styles.urlExamplesTitle, { color: colors.textMuted }]}>
-            Supported URL formats:
-          </Text>
-          <View style={styles.urlExampleTags}>
-            <View style={[styles.urlTag, { backgroundColor: colors.backgroundInput }]}>
-              <Text style={[styles.urlTagText, { color: colors.textMuted }]}>
-                example.com
-              </Text>
-            </View>
-            <View style={[styles.urlTag, { backgroundColor: colors.backgroundInput }]}>
-              <Text style={[styles.urlTagText, { color: colors.textMuted }]}>
-                sub.example.com
-              </Text>
-            </View>
-            <View style={[styles.urlTag, { backgroundColor: colors.backgroundInput }]}>
-              <Text style={[styles.urlTagText, { color: colors.textMuted }]}>
-                user:pass@host.com
-              </Text>
-            </View>
-            <View style={[styles.urlTag, { backgroundColor: colors.backgroundInput }]}>
-              <Text style={[styles.urlTagText, { color: colors.textMuted }]}>
-                domain.com/path
-              </Text>
-            </View>
-            <View style={[styles.urlTag, { backgroundColor: colors.backgroundInput }]}>
-              <Text style={[styles.urlTagText, { color: colors.textMuted }]}>
-                domain.com?q=val
-              </Text>
-            </View>
-          </View>
-        </View> */}
-
         <TouchableOpacity
-          style={[styles.scanButton, 
-            (!isValid || loading) && styles.scanButtonDisabled, 
-            { backgroundColor: (!isValid || loading) ? colors.textMuted : colors.primary[600] }
-          ]}
+          style={[styles.scanButton, loading && styles.scanButtonDisabled, {
+            backgroundColor: loading ? colors.textMuted : colors.primary[600],
+          }]}
           onPress={handleScan}
-          disabled={loading || !isValid}
+          disabled={loading}
         >
           {loading ? (
             <ActivityIndicator color="white" />
@@ -591,7 +362,7 @@ export default function URLScannerScreen() {
         </TouchableOpacity>
 
         <Text style={[styles.inputHint, { color: colors.textMuted }]}>
-          Supports HTTP, HTTPS, subdomains, paths, query params & authentication
+          Supports HTTP, HTTPS, and all standard URL formats
         </Text>
       </View>
 
@@ -985,7 +756,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 14,
     borderWidth: 1,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   inputIcon: {
     paddingLeft: 14,
@@ -998,54 +769,6 @@ const styles = StyleSheet.create({
   },
   clearBtn: {
     paddingRight: 14,
-  },
-  validationError: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  validationErrorText: {
-    fontSize: 13,
-    flex: 1,
-  },
-  validationSuccess: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  validationSuccessText: {
-    fontSize: 13,
-    flex: 1,
-  },
-  urlExamples: {
-    marginBottom: 16,
-  },
-  urlExamplesTitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  urlExampleTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  urlTag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  urlTagText: {
-    fontSize: 11,
-    fontFamily: 'monospace',
   },
   scanButton: {
     flexDirection: 'row',
