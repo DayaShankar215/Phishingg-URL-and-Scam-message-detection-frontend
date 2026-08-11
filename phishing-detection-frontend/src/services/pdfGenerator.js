@@ -375,34 +375,6 @@ const generatePDFReport = (scanData, type) => {
   const recLines = doc.splitTextToSize(recTextWidth);
   const recHeight = recLines.length * LINE_H + 14;
 
-  // addPageIfNeeded(recHeight + 8);
-  // const recY = y;
-  // setFill(riskInfo.bg);
-  // doc.roundedRect(margin, recY, contentWidth, recHeight, 3, 3, 'F');
-  // setDraw(riskInfo.borderColor);
-  // doc.setLineWidth(0.4);
-  // doc.roundedRect(margin, recY, contentWidth, recHeight, 3, 3, 'S');
-
-  // Add risk level badge
-  // doc.setFontSize(7);
-  // doc.setFont('helvetica', 'bold');
-  // setText(riskInfo.color);
-  // const badgeText = riskInfo.label;
-  // const badgeWidth = doc.getStringUnitWidth(badgeText) * 7 / doc.internal.scaleFactor;
-  // const badgeX = margin + contentWidth - CARD_PAD_X - badgeWidth - 6;
-  // setFill(riskInfo.bg);
-  // doc.roundedRect(badgeX, recY + 2, badgeWidth + 6, 6, 2, 2, 'F');
-  // setDraw(riskInfo.color);
-  // doc.setLineWidth(0.3);
-  // doc.roundedRect(badgeX, recY + 2, badgeWidth + 6, 6, 2, 2, 'S');
-  // setText(riskInfo.color);
-  // doc.text(badgeText, badgeX + 3, recY + 6.5);
-
-  // doc.setFontSize(9);
-  // doc.setFont('helvetica', 'normal');
-  // setText(palette.body);
-  // doc.text(recLines, margin + CARD_PAD_X, recY + 12);
-  // y = recY + recHeight + 8;
 
   // ============================================================
   // FOOTER - All Pages
